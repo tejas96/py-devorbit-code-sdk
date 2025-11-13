@@ -45,8 +45,15 @@ class ThinkingBlock(BaseModel):
     thinking: str
 
 
+class DocumentBlock(BaseModel):
+    """Document block in response (PDF support)."""
+
+    type: Literal["document"] = "document"
+    source: Dict[str, Any]
+
+
 # Union of all response content blocks
-ResponseContentBlock = Union[TextBlock, ImageBlock, ToolUseBlock, ThinkingBlock]
+ResponseContentBlock = Union[TextBlock, ImageBlock, ToolUseBlock, ThinkingBlock, DocumentBlock]
 
 
 # ============================================================================
@@ -193,3 +200,40 @@ StreamEvent = Union[
     PingEvent,
     ErrorEvent,
 ]
+
+
+# ============================================================================
+# Message Batch Models
+# ============================================================================
+
+
+class BatchRequestCounts(BaseModel):
+    """Request counts for a batch."""
+
+    processing: int = 0
+    succeeded: int = 0
+    errored: int = 0
+    canceled: int = 0
+    expired: int = 0
+
+
+class MessageBatchResponse(BaseModel):
+    """Response from batch creation."""
+
+    id: str
+    type: Literal["message_batch"] = "message_batch"
+    processing_status: Literal["in_progress", "canceling", "ended"]
+    request_counts: BatchRequestCounts
+    ended_at: Optional[str] = None
+    created_at: str
+    expires_at: str
+    cancel_initiated_at: Optional[str] = None
+    results_url: Optional[str] = None
+
+
+class BatchResult(BaseModel):
+    """Individual result from a batch."""
+
+    custom_id: str
+    result: Optional[MessageResponse] = None
+    error: Optional[Dict[str, Any]] = None

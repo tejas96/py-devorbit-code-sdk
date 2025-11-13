@@ -3,7 +3,18 @@
 A unified Python SDK for multiple LLM providers with a Claude SDK-like interface.
 """
 
+from ._beta import AsyncBeta, Beta
+from ._builtin_tools import (
+    BASH_TOOL,
+    COMPUTER_USE_TOOL,
+    TEXT_EDITOR_TOOL,
+    create_bash_tool,
+    create_computer_use_tool,
+    create_text_editor_tool,
+    get_all_builtin_tools,
+)
 from ._client import AsyncDevorbit, Devorbit
+from ._tool_helpers import ToolExecutor, beta_tool, gather_tools
 from ._errors import (
     APIConnectionError,
     APIError,
@@ -23,26 +34,40 @@ from ._errors import (
     UnsupportedProviderError,
 )
 from ._models import (
+    BatchRequestCounts,
+    BatchResult,
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
     ContentBlockStopEvent,
+    DocumentBlock,
+    MessageBatchResponse,
     MessageDeltaEvent,
     MessageResponse,
     MessageStartEvent,
     MessageStopEvent,
     TextBlock,
+    ThinkingBlock,
     TokenCountResponse,
     ToolUseBlock,
     Usage,
 )
 from ._types import (
+    BashTool,
+    BatchCreateParams,
+    BatchRequest,
+    BatchStatus,
+    CacheControl,
+    ComputerUseTool,
     ContentBlock,
+    DocumentContent,
+    DocumentSource,
     ImageContent,
     Message,
     MessageCreateParams,
     ProviderType,
     StopReason,
     TextContent,
+    TextEditorTool,
     Tool,
     ToolChoice,
     ToolResultContent,
@@ -55,6 +80,21 @@ __all__ = [
     # Main clients
     "Devorbit",
     "AsyncDevorbit",
+    # Beta namespace
+    "Beta",
+    "AsyncBeta",
+    # Tool helpers
+    "beta_tool",
+    "gather_tools",
+    "ToolExecutor",
+    # Built-in tools
+    "create_computer_use_tool",
+    "create_bash_tool",
+    "create_text_editor_tool",
+    "get_all_builtin_tools",
+    "COMPUTER_USE_TOOL",
+    "BASH_TOOL",
+    "TEXT_EDITOR_TOOL",
     # Errors
     "DevorbitError",
     "APIError",
@@ -75,6 +115,8 @@ __all__ = [
     # Models
     "MessageResponse",
     "TextBlock",
+    "ThinkingBlock",
+    "DocumentBlock",
     "ToolUseBlock",
     "Usage",
     "TokenCountResponse",
@@ -84,16 +126,28 @@ __all__ = [
     "ContentBlockStopEvent",
     "MessageDeltaEvent",
     "MessageStopEvent",
+    "MessageBatchResponse",
+    "BatchResult",
+    "BatchRequestCounts",
     # Types
     "Message",
     "MessageCreateParams",
     "ContentBlock",
     "TextContent",
     "ImageContent",
+    "DocumentContent",
+    "DocumentSource",
     "ToolUseContent",
     "ToolResultContent",
     "Tool",
     "ToolChoice",
     "ProviderType",
     "StopReason",
+    "CacheControl",
+    "ComputerUseTool",
+    "BashTool",
+    "TextEditorTool",
+    "BatchRequest",
+    "BatchCreateParams",
+    "BatchStatus",
 ]

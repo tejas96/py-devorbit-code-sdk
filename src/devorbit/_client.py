@@ -6,6 +6,7 @@ Anthropic and AsyncAnthropic clients.
 
 from typing import Any, Optional
 
+from ._beta import AsyncBeta, Beta
 from ._errors import UnsupportedProviderError
 from ._types import ProviderType
 from .providers._base import BaseProvider
@@ -32,6 +33,7 @@ class Devorbit:
     """
 
     messages: Messages
+    beta: Beta
 
     def __init__(
         self,
@@ -67,6 +69,7 @@ class Devorbit:
 
         # Initialize resources
         self.messages = Messages(self._provider)
+        self.beta = Beta(self._provider)
 
     def _create_provider(
         self, provider: ProviderType, api_key: Optional[str], **kwargs: Any
@@ -165,6 +168,7 @@ class AsyncDevorbit:
     """
 
     messages: AsyncMessages
+    beta: AsyncBeta
 
     def __init__(
         self,
@@ -200,6 +204,7 @@ class AsyncDevorbit:
 
         # Initialize resources
         self.messages = AsyncMessages(self._provider)
+        self.beta = AsyncBeta(self._provider)
 
     def _create_provider(
         self, provider: ProviderType, api_key: Optional[str], **kwargs: Any
