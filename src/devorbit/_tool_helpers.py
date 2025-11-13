@@ -7,12 +7,15 @@ import asyncio
 import inspect
 import json
 from functools import wraps
-from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar, Union, get_type_hints
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, TypeVar, Union, get_type_hints
 
 from pydantic import BaseModel, create_model
 
 from ._models import MessageResponse, ToolUseBlock
 from ._types import Message, Tool
+
+if TYPE_CHECKING:
+    from ._mcp import MCPManager
 
 T = TypeVar("T")
 
@@ -156,25 +159,62 @@ def gather_tools(obj: Any) -> List[Tool]:
 
 
 class ToolExecutor:
-    """Automatic tool execution helper.
+    """Automatic tool execution helper with MCP support.
 
     This class helps execute tools automatically in a loop, similar to
-    Claude SDK's tool execution runners.
+    Claude SDK's tool execution runners. It supports both regular tools
+    and MCP (Model Context Protocol) tools.
 
     Example:
         ```python
+        # Regular tools
         executor = ToolExecutor(tools_dict)
         result = executor.execute_tool_loop(client, initial_messages)
+
+        # With MCP support
+        from devorbit import MCPManager
+        mcp = MCPManager.from_config_file(".mcp.json")
+        executor = ToolExecutor(tools_dict, mcp_manager=mcp)
+        result = await executor.aexecute_tool_loop(client, initial_messages)
         ```
     """
 
-    def __init__(self, tools: Dict[str, Callable]) -> None:
+    def __init__(
+        self,
+        tools: Optional[Dict[str, Callable]] = None,
+        mcp_manager: Optional["MCPManager"] = None,
+    ) -> None:
         """Initialize tool executor.
 
         Args:
             tools: Dictionary mapping tool names to callable functions
+            mcp_manager: Optional MCP manager for MCP tool support
         """
-        self.tools = tools
+        self.tools = tools or {}
+        self.mcp_manager = mcp_manager
+        self._mcp_tools_cache: Optional[List[Dict[str, Any]]] = None
+
+    async def _get_all_tool_definitions(self) -> List[Dict[str, Any]]:
+        """Get all tool definitions including MCP tools.
+
+        Returns:
+            List of all tool definitions
+        """
+        definitions = [
+            func.tool_definition
+            for func in self.tools.values()
+            if hasattr(func, "tool_definition")
+        ]
+
+        # Add MCP tools
+        if self.mcp_manager:
+            if self._mcp_tools_cache is None:
+                self._mcp_tools_cache = await self.mcp_manager.get_all_tools_flat(
+                    prefix_with_server=True
+                )
+            definitions.extend(self._mcp_tools_cache)
+
+        return definitions
 
     def execute_tool(self, tool_use: ToolUseBlock) -> Any:
         """Execute a single tool.
@@ -196,7 +236,7 @@ class ToolExecutor:
             return {"error": str(e)}
 
     async def aexecute_tool(self, tool_use: ToolUseBlock) -> Any:
-        """Execute a single tool asynchronously.
+        """Execute a single tool asynchronously (supports MCP tools).
 
         Args:
             tool_use: Tool use block from model response
@@ -204,6 +244,19 @@ class ToolExecutor:
         Returns:
             Tool execution result
         """
+        # Check if it's an MCP tool (prefixed with server name)
+        if self.mcp_manager and "__" in tool_use.name:
+            server_name, tool_name = tool_use.name.split("__", 1)
+            if server_name in self.mcp_manager.clients:
+                try:
+                    result = await self.mcp_manager.call_tool(
+                        server_name, tool_name, tool_use.input
+                    )
+                    return result
+                except Exception as e:
+                    return {"error": f"MCP tool error: {str(e)}"}
+
+        # Regular tool
         tool_func = self.tools.get(tool_use.name)
         if not tool_func:
             return {"error": f"Tool '{tool_use.name}' not found"}
@@ -297,6 +350,8 @@ class ToolExecutor:
     ) -> MessageResponse:
         """Execute tools in a loop asynchronously until completion.
 
+        Supports both regular tools and MCP tools automatically.
+
         Args:
             client: AsyncDevorbit client instance
             messages: Initial messages
@@ -308,11 +363,8 @@ class ToolExecutor:
         Returns:
             Final message response
         """
-        tool_definitions = [
-            func.tool_definition
-            for func in self.tools.values()
-            if hasattr(func, "tool_definition")
-        ]
+        # Get all tool definitions (regular + MCP)
+        tool_definitions = await self._get_all_tool_definitions()
 
         current_messages = messages.copy()
 
@@ -339,7 +391,7 @@ class ToolExecutor:
                         {
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": json.dumps(result),
+                            "content": json.dumps(result) if not isinstance(result, str) else result,
                         }
                     )
                     assistant_content.append(

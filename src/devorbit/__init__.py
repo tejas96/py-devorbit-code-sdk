@@ -14,6 +14,7 @@ from ._builtin_tools import (
     get_all_builtin_tools,
 )
 from ._client import AsyncDevorbit, Devorbit
+from ._mcp import MCPClient, MCPManager, MCPServerConfig, load_mcp_config
 from ._tool_helpers import ToolExecutor, beta_tool, gather_tools
 from ._errors import (
     APIConnectionError,
@@ -87,6 +88,11 @@ __all__ = [
     "beta_tool",
     "gather_tools",
     "ToolExecutor",
+    # MCP support
+    "MCPClient",
+    "MCPManager",
+    "MCPServerConfig",
+    "load_mcp_config",
     # Built-in tools
     "create_computer_use_tool",
     "create_bash_tool",

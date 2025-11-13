@@ -25,6 +25,7 @@ A unified Python SDK for multiple LLM providers with a Claude SDK-like interface
 - **Built-in Tools**: Computer use, Bash, Text editor tools
 - **PDF Support**: Process PDF documents in messages
 - **Message Batches**: Batch processing for parallel requests
+- **🆕 MCP Support**: Model Context Protocol integration (like Claude Code!)
 
 ## Supported Providers
 
@@ -218,18 +219,76 @@ response = client.beta.messages.create(
 )
 ```
 
+#### MCP (Model Context Protocol) - Connect to External Tools
+
+```python
+from devorbit import AsyncDevorbit, MCPManager, ToolExecutor
+import asyncio
+
+async def main():
+    # Load MCP servers from config (.mcp.json)
+    mcp = MCPManager.from_config_file(".mcp.json")
+
+    async with mcp:  # Auto-connect to all servers
+        # Create executor with MCP tools
+        executor = ToolExecutor(mcp_manager=mcp)
+
+        client = AsyncDevorbit(provider="anthropic", api_key="...")
+
+        # Agent automatically has access to all MCP tools
+        # (Notion, Jira, ClickUp, databases, file systems, etc.)
+        response = await executor.aexecute_tool_loop(
+            client=client,
+            messages=[{
+                "role": "user",
+                "content": "Fetch my Notion tasks and create a sprint plan"
+            }],
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=4096
+        )
+
+        print(response.content[0].text)
+
+asyncio.run(main())
+```
+
+**MCP Configuration** (`.mcp.json`):
+```json
+{
+    "mcpServers": {
+        "notion": {
+            "transport": "stdio",
+            "command": "npx",
+            "args": ["-y", "@notionhq/mcp-server-notion"],
+            "env": {"NOTION_API_KEY": "your-key"}
+        },
+        "jira": {
+            "transport": "stdio",
+            "command": "python",
+            "args": ["jira_server.py"],
+            "env": {"JIRA_TOKEN": "your-token"}
+        }
+    }
+}
+```
+
+See [MCP Guide](./docs/mcp-guide.md) for complete documentation.
+
 ## Documentation
 
 - [Getting Started](./docs/getting-started.md)
 - [API Reference](./docs/api-reference.md)
 - [Provider Guide](./docs/providers.md)
-- [Implementation Status](./IMPLEMENTATION_STATUS.md) - **NEW!**
+- [MCP Guide](./docs/mcp-guide.md) - **🆕 NEW!**
+- [Implementation Status](./IMPLEMENTATION_STATUS.md)
 - [Examples](./examples/)
   - [Basic Usage](./examples/basic_usage.py)
   - [Streaming](./examples/streaming.py)
   - [Tool Use](./examples/tool_use.py)
-  - [Tool Helpers](./examples/tool_helpers.py) - **NEW!**
-  - [Beta Features](./examples/beta_features.py) - **NEW!**
+  - [Tool Helpers](./examples/tool_helpers.py)
+  - [Beta Features](./examples/beta_features.py)
+  - [MCP Examples](./examples/mcp_examples.py) - **🆕 NEW!**
+  - [Sprint Planning Agent](./examples/sprint_planning_agent.py) - **🆕 NEW!**
   - [Vision](./examples/vision.py)
   - [Async Usage](./examples/async_usage.py)
 
