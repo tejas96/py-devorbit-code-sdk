@@ -59,23 +59,35 @@ All critical and important features are now available in the SDK.
 - **Usage:** Send PDFs as base64-encoded documents
 - **Example:** See `examples/beta_features.py`
 
+### **8. MCP (Model Context Protocol) Support** ✅ DONE
+- **Location:** `src/devorbit/_mcp.py`
+- **Features:**
+  - `MCPClient` - Connect to single MCP server
+  - `MCPManager` - Manage multiple MCP servers
+  - `MCPServerConfig` - Server configuration
+  - `load_mcp_config()` - Auto-load from config files
+  - Seamless integration with `ToolExecutor`
+- **Transports:** stdio, SSE (Server-Sent Events)
+- **Examples:** See `examples/mcp_examples.py` and `examples/sprint_planning_agent.py`
+- **Documentation:** See `docs/mcp-guide.md`
+
 ---
 
 ## ⏳ **NOT YET IMPLEMENTED** (Lower Priority)
 
-### **8. Citations**
+### **9. Citations**
 - **Status:** Not implemented
 - **Reason:** Provider-specific feature, limited multi-provider support
 
-### **9. Memory/Context Management**
+### **10. Memory/Context Management**
 - **Status:** Not implemented
-- **Reason:** Requires external state management system
+- **Reason:** Requires external state management system (can use MCP memory server instead!)
 
-### **10. Pagination Helpers**
+### **11. Pagination Helpers**
 - **Status:** Not implemented
 - **Reason:** Low priority, can be added later as needed
 
-### **11. Platform-Specific Clients**
+### **12. Platform-Specific Clients**
 - **Status:** Not implemented
 - **What:** AWS Bedrock, Google Vertex AI clients
 - **Reason:** Can be added as needed for specific deployments
@@ -96,6 +108,7 @@ All critical and important features are now available in the SDK.
 | **Bash Tool** | ✅ | ✅ | ✅ COMPLETE |
 | **Text Editor Tool** | ✅ | ✅ | ✅ COMPLETE |
 | **PDF Support** | ✅ | ✅ | ✅ COMPLETE |
+| **MCP Support** | ✅ | ✅ | ✅ COMPLETE |
 | **Citations** | ✅ | ❌ | ⏳ FUTURE |
 | **Memory Tool** | ✅ | ❌ | ⏳ FUTURE |
 | **Pagination** | ✅ | ❌ | ⏳ FUTURE |
@@ -106,7 +119,7 @@ All critical and important features are now available in the SDK.
 | **Token Counting** | ✅ | ✅ | ✅ HAVE |
 | **Multi-Provider** | ❌ | ✅ | ✅ UNIQUE! |
 
-**Result: 16/19 features (84%) + Unique multi-provider support!**
+**Result: 17/20 features (85%) + Unique multi-provider support!**
 
 ---
 
@@ -116,8 +129,12 @@ All critical and important features are now available in the SDK.
 2. `src/devorbit/_tool_helpers.py` - Tool decorators and execution
 3. `src/devorbit/_builtin_tools.py` - Built-in agent tools
 4. `src/devorbit/resources/batches.py` - Message batches API
-5. `examples/tool_helpers.py` - Tool helper examples
-6. `examples/beta_features.py` - Beta feature examples
+5. `src/devorbit/_mcp.py` - **🆕 MCP (Model Context Protocol) integration**
+6. `examples/tool_helpers.py` - Tool helper examples
+7. `examples/beta_features.py` - Beta feature examples
+8. `examples/mcp_examples.py` - **🆕 MCP usage examples**
+9. `examples/sprint_planning_agent.py` - **🆕 Sprint planning agent with MCP**
+10. `docs/mcp-guide.md` - **🆕 Complete MCP documentation**
 
 ## 📝 **UPDATED FILES**
 
@@ -234,6 +251,38 @@ response = client.messages.create(
 )
 ```
 
+### **Example 5: MCP (Model Context Protocol)**
+
+```python
+from devorbit import AsyncDevorbit, MCPManager, ToolExecutor
+import asyncio
+
+async def main():
+    # Load MCP servers from .mcp.json
+    mcp = MCPManager.from_config_file(".mcp.json")
+
+    async with mcp:
+        # Create tool executor with MCP support
+        executor = ToolExecutor(mcp_manager=mcp)
+
+        client = AsyncDevorbit(provider="anthropic", api_key="...")
+
+        # Agent automatically has access to all MCP tools
+        response = await executor.aexecute_tool_loop(
+            client=client,
+            messages=[{
+                "role": "user",
+                "content": "Fetch my Notion tasks and create a sprint plan"
+            }],
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=4096
+        )
+
+        print(response.content[0].text)
+
+asyncio.run(main())
+```
+
 ---
 
 ## 🎯 **AGENT DEVELOPMENT CAPABILITIES**
@@ -249,12 +298,15 @@ The SDK now supports:
 ✅ **Complex reasoning** (extended thinking)
 ✅ **Batch processing** (message batches)
 ✅ **Multi-provider flexibility** (5 LLM providers)
+✅ **🆕 MCP integration** (connect to Notion, Jira, ClickUp, databases, etc.)
 
 ---
 
 ## 📚 **DOCUMENTATION**
 
-- **Examples:** See `examples/tool_helpers.py` and `examples/beta_features.py`
+- **Examples:** See `examples/tool_helpers.py`, `examples/beta_features.py`, and `examples/mcp_examples.py`
+- **MCP Guide:** See `docs/mcp-guide.md` - **🆕 Complete MCP documentation**
+- **Sprint Planning:** See `examples/sprint_planning_agent.py` - **🆕 Real-world agent example**
 - **API Reference:** See `docs/api-reference.md`
 - **Provider Guide:** See `docs/providers.md`
 
@@ -264,9 +316,10 @@ The SDK now supports:
 
 The Devorbit SDK is now **fully equipped for professional agent development** with:
 
-- Complete Claude SDK feature parity (16/19 features)
+- Complete Claude SDK feature parity (17/20 features = 85%)
+- **🆕 MCP support** - Connect to external tools like Claude Code!
 - Multi-provider support (unique advantage!)
 - Comprehensive tooling for agents
 - Production-ready architecture
 
-**The SDK is AGENT-READY!** 🚀🎉
+**The SDK is AGENT-READY with MCP!** 🚀🎉
