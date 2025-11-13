@@ -8,6 +8,17 @@ from typing import Any, Dict, List, Literal, Optional, TypedDict, Union
 from typing_extensions import NotRequired, Required
 
 # ============================================================================
+# Prompt Caching Types
+# ============================================================================
+
+
+class CacheControl(TypedDict):
+    """Cache control for prompt caching (beta feature)."""
+
+    type: Required[Literal["ephemeral"]]
+
+
+# ============================================================================
 # Content Types
 # ============================================================================
 
@@ -17,6 +28,7 @@ class TextContent(TypedDict):
 
     type: Required[Literal["text"]]
     text: Required[str]
+    cache_control: NotRequired[CacheControl]  # For prompt caching
 
 
 class ImageSource(TypedDict):
@@ -33,6 +45,23 @@ class ImageContent(TypedDict):
 
     type: Required[Literal["image"]]
     source: Required[ImageSource]
+    cache_control: NotRequired[CacheControl]  # For prompt caching
+
+
+class DocumentSource(TypedDict):
+    """Document source (PDF, etc.)."""
+
+    type: Required[Literal["base64"]]
+    media_type: Required[Literal["application/pdf"]]
+    data: Required[str]
+
+
+class DocumentContent(TypedDict):
+    """Document content block (PDF support)."""
+
+    type: Required[Literal["document"]]
+    source: Required[DocumentSource]
+    cache_control: NotRequired[CacheControl]  # For prompt caching
 
 
 class ToolUseContent(TypedDict):
@@ -54,7 +83,9 @@ class ToolResultContent(TypedDict):
 
 
 # Union of all content types
-ContentBlock = Union[TextContent, ImageContent, ToolUseContent, ToolResultContent]
+ContentBlock = Union[
+    TextContent, ImageContent, DocumentContent, ToolUseContent, ToolResultContent
+]
 
 # ============================================================================
 # Message Types
@@ -87,6 +118,36 @@ class Tool(TypedDict):
     name: Required[str]
     description: Required[str]
     input_schema: Required[ToolInputSchema]
+    cache_control: NotRequired[CacheControl]  # For prompt caching
+
+
+# ============================================================================
+# Built-in Tool Types (Beta)
+# ============================================================================
+
+
+class ComputerUseTool(TypedDict):
+    """Computer use tool for controlling computer interfaces."""
+
+    type: Required[Literal["computer_20241022"]]
+    name: Required[Literal["computer"]]
+    display_width_px: Required[int]
+    display_height_px: Required[int]
+    display_number: NotRequired[int]
+
+
+class BashTool(TypedDict):
+    """Bash tool for executing shell commands."""
+
+    type: Required[Literal["bash_20241022"]]
+    name: Required[Literal["bash"]]
+
+
+class TextEditorTool(TypedDict):
+    """Text editor tool for file manipulation."""
+
+    type: Required[Literal["text_editor_20241022"]]
+    name: Required[Literal["str_replace_editor"]]
 
 
 class ToolChoiceAuto(TypedDict):
@@ -144,6 +205,8 @@ class MessageCreateParams(TypedDict):
     tools: NotRequired[List[Tool]]
     tool_choice: NotRequired[ToolChoice]
     metadata: NotRequired[Metadata]
+    # Beta features
+    thinking: NotRequired[Dict[str, Any]]  # Extended thinking configuration
 
 
 class MessageStreamParams(MessageCreateParams):
@@ -178,3 +241,27 @@ StopReason = Literal[
     "tool_use",
     "content_filter",
 ]
+
+# ============================================================================
+# Message Batch Types
+# ============================================================================
+
+
+class BatchRequest(TypedDict):
+    """A single request in a batch."""
+
+    custom_id: Required[str]
+    params: Required[MessageCreateParams]
+
+
+class BatchCreateParams(TypedDict):
+    """Parameters for creating a message batch."""
+
+    requests: Required[List[BatchRequest]]
+
+
+class BatchStatus(TypedDict):
+    """Batch processing status."""
+
+    processing_status: Literal["in_progress", "ended", "canceling", "canceled"]
+    request_counts: Dict[str, int]
