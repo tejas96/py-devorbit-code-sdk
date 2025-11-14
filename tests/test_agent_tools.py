@@ -1,7 +1,5 @@
 """Tests for agent and task management tools."""
 
-import pytest
-
 from devorbit import (
     cleanup_tasks,
     get_agent_info,
@@ -202,7 +200,7 @@ class TestAgentInfo:
         assert "test-runner" in types
 
         # Check structure
-        for agent_type, info in types.items():
+        for _agent_type, info in types.items():
             assert "description" in info
             assert "tools" in info
             assert "capabilities" in info

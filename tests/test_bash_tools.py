@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 from devorbit import bash, bash_output, cleanup_sessions, kill_shell, list_active_sessions
 
 

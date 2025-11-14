@@ -7,10 +7,8 @@ This module provides Task tool and agent coordination capabilities:
 - Multi-agent workflows
 """
 
-import asyncio
-import json
 import uuid
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 from ._tool_helpers import beta_tool
 
@@ -27,7 +25,7 @@ class AgentTask:
         task_id: str,
         agent_type: str,
         prompt: str,
-        model: Optional[str] = None,
+        model: str | None = None,
     ) -> None:
         """Initialize agent task.
 
@@ -42,8 +40,8 @@ class AgentTask:
         self.prompt = prompt
         self.model = model
         self.status = "pending"  # pending, running, completed, failed
-        self.result: Optional[str] = None
-        self.error: Optional[str] = None
+        self.result: str | None = None
+        self.error: str | None = None
         self.messages: list[dict[str, Any]] = []
 
     def start(self) -> None:
@@ -142,8 +140,8 @@ AGENT_TYPES = {
 def task(
     prompt: str,
     subagent_type: str,
-    description: Optional[str] = None,
-    model: Optional[str] = None,
+    description: str | None = None,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Launch a specialized subagent to handle complex tasks autonomously.
 
@@ -166,8 +164,6 @@ def task(
     Returns:
         Dictionary containing task ID and status
     """
-    global _ACTIVE_TASKS
-
     try:
         # Validate agent type
         if subagent_type not in AGENT_TYPES:
@@ -227,8 +223,6 @@ def task_status(task_id: str) -> dict[str, Any]:
     Returns:
         Dictionary containing task status and results
     """
-    global _ACTIVE_TASKS
-
     try:
         if task_id not in _ACTIVE_TASKS:
             return {
@@ -277,8 +271,6 @@ def task_cancel(task_id: str) -> dict[str, Any]:
     Returns:
         Dictionary containing cancellation status
     """
-    global _ACTIVE_TASKS
-
     try:
         if task_id not in _ACTIVE_TASKS:
             return {
@@ -397,8 +389,6 @@ def list_active_tasks() -> list[dict[str, Any]]:
     Returns:
         List of active task information
     """
-    global _ACTIVE_TASKS
-
     return [
         {
             "task_id": task_id,
@@ -433,7 +423,7 @@ def cleanup_tasks(all_tasks: bool = False) -> None:
             del _ACTIVE_TASKS[task_id]
 
 
-def get_agent_info(agent_type: str) -> Optional[dict[str, Any]]:
+def get_agent_info(agent_type: str) -> dict[str, Any] | None:
     """Get information about an agent type.
 
     Args:

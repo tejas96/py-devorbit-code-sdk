@@ -10,12 +10,13 @@ This module provides enhanced bash capabilities matching Claude Code's behavior:
 
 import os
 import queue
+import re
 import subprocess
 import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ._tool_helpers import beta_tool
 
@@ -27,7 +28,7 @@ _BASH_SESSIONS: dict[str, "BashSession"] = {}
 class BashSession:
     """Persistent bash session with state tracking."""
 
-    def __init__(self, session_id: str, cwd: Optional[str] = None) -> None:
+    def __init__(self, session_id: str, cwd: str | None = None) -> None:
         """Initialize bash session.
 
         Args:
@@ -37,11 +38,11 @@ class BashSession:
         self.session_id = session_id
         self.cwd = Path(cwd) if cwd else Path.cwd()
         self.env = os.environ.copy()
-        self.process: Optional[subprocess.Popen[bytes]] = None
+        self.process: subprocess.Popen[bytes] | None = None
         self.output_queue: queue.Queue[str] = queue.Queue()
         self.is_running = False
-        self.exit_code: Optional[int] = None
-        self._output_thread: Optional[threading.Thread] = None
+        self.exit_code: int | None = None
+        self._output_thread: threading.Thread | None = None
 
     def start(self) -> None:
         """Start the bash session."""
@@ -85,7 +86,7 @@ class BashSession:
     def execute(
         self,
         command: str,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         run_in_background: bool = False,
     ) -> dict[str, Any]:
         """Execute command in session.
@@ -125,7 +126,7 @@ class BashSession:
                 }
 
             # Collect output until marker
-            output_lines = []
+            output_lines: list[str] = []
             start_time = time.time()
 
             while True:
@@ -186,7 +187,7 @@ class BashSession:
                 "session_id": self.session_id,
             }
 
-    def get_output(self, filter_regex: Optional[str] = None) -> str:
+    def get_output(self, filter_regex: str | None = None) -> str:
         """Get accumulated output from session.
 
         Args:
@@ -206,7 +207,6 @@ class BashSession:
         output = "".join(lines)
 
         if filter_regex:
-            import re
             pattern = re.compile(filter_regex)
             filtered_lines = [line for line in lines if pattern.search(line)]
             output = "".join(filtered_lines)
@@ -233,9 +233,9 @@ class BashSession:
 @beta_tool
 def bash(
     command: str,
-    session_id: Optional[str] = None,
-    cwd: Optional[str] = None,
-    timeout: Optional[float] = None,
+    session_id: str | None = None,
+    cwd: str | None = None,
+    timeout: float | None = None,
     run_in_background: bool = False,
 ) -> dict[str, Any]:
     """Execute shell commands with persistent session support.
@@ -254,8 +254,6 @@ def bash(
     Returns:
         Dictionary containing command output and session information
     """
-    global _BASH_SESSIONS
-
     try:
         # Get or create session
         if session_id and session_id in _BASH_SESSIONS:
@@ -267,9 +265,7 @@ def bash(
             _BASH_SESSIONS[new_session_id] = session
 
         # Execute command
-        result = session.execute(command, timeout, run_in_background)
-
-        return result
+        return session.execute(command, timeout, run_in_background)
 
     except Exception as e:
         return {
@@ -286,7 +282,7 @@ def bash(
 @beta_tool
 def bash_output(
     bash_id: str,
-    filter: Optional[str] = None,
+    filter: str | None = None,
 ) -> dict[str, Any]:
     """Retrieve output from a running or completed background bash shell.
 
@@ -300,8 +296,6 @@ def bash_output(
     Returns:
         Dictionary containing output and session status
     """
-    global _BASH_SESSIONS
-
     try:
         if bash_id not in _BASH_SESSIONS:
             return {
@@ -345,8 +339,6 @@ def kill_shell(shell_id: str) -> dict[str, Any]:
     Returns:
         Dictionary containing termination status
     """
-    global _BASH_SESSIONS
-
     try:
         if shell_id not in _BASH_SESSIONS:
             return {
@@ -398,8 +390,6 @@ def list_active_sessions() -> list[dict[str, Any]]:
     Returns:
         List of active session information
     """
-    global _BASH_SESSIONS
-
     return [
         {
             "session_id": sid,
@@ -416,8 +406,6 @@ def cleanup_sessions() -> None:
 
     Terminates all active bash sessions. Useful for cleanup.
     """
-    global _BASH_SESSIONS
-
     for session in _BASH_SESSIONS.values():
         if session.is_running:
             session.kill()
@@ -427,11 +415,11 @@ def cleanup_sessions() -> None:
 
 # Export tool instances
 __all__ = [
+    "BashSession",
     "bash",
     "bash_output",
-    "kill_shell",
-    "get_all_bash_tools",
-    "list_active_sessions",
     "cleanup_sessions",
-    "BashSession",
+    "get_all_bash_tools",
+    "kill_shell",
+    "list_active_sessions",
 ]
