@@ -391,12 +391,19 @@ def list_active_tasks() -> list[dict[str, Any]]:
     Returns:
         List of active task information
     """
+    # Maximum prompt length in task list display
+    max_prompt_length = 100
+
     return [
         {
             "task_id": task_id,
             "agent_type": task.agent_type,
             "status": task.status,
-            "prompt": task.prompt[:100] + "..." if len(task.prompt) > 100 else task.prompt,
+            "prompt": (
+                task.prompt[:max_prompt_length] + "..."
+                if len(task.prompt) > max_prompt_length
+                else task.prompt
+            ),
         }
         for task_id, task in _ACTIVE_TASKS.items()
     ]

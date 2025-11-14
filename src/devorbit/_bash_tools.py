@@ -83,7 +83,7 @@ class BashSession:
         except Exception:
             pass
 
-    def execute(
+    def execute(  # noqa: PLR0912 - Complex state management for persistent bash sessions
         self,
         command: str,
         timeout: float | None = None,

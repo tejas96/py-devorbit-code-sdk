@@ -83,7 +83,7 @@ def glob_files(
 
 
 @beta_tool
-def grep_code(
+def grep_code(  # noqa: PLR0913, PLR0912 - Complex grep API matching Claude Code spec
     pattern: str,
     path: str | None = None,
     glob: str | None = None,
@@ -295,7 +295,7 @@ def _grep_count(
     }
 
 
-def _grep_content(
+def _grep_content(  # noqa: PLR0913 - Required for context and pagination parameters
     files: list[Path],
     regex: re.Pattern[str],
     context_before: int,

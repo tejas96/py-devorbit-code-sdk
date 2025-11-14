@@ -14,6 +14,50 @@ from typing import Any
 from ._tool_helpers import beta_tool
 
 
+# Constants
+MAX_LINE_LENGTH = 2000  # Maximum characters per line before truncation
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def _validate_file_for_editing(file_path: str, require_write: bool = True) -> dict[str, Any] | None:
+    """Validate that a file exists and is accessible for editing.
+
+    Args:
+        file_path: Path to validate
+        require_write: Whether write permission is required
+
+    Returns:
+        Error dict if validation fails, None if valid
+    """
+    path = Path(file_path)
+
+    if not path.exists():
+        return {
+            "error": f"File not found: {file_path}",
+            "file_path": file_path,
+        }
+
+    if not path.is_file():
+        return {
+            "error": f"Path is not a file: {file_path}",
+            "file_path": file_path,
+        }
+
+    # Check permissions
+    required_access = os.R_OK | os.W_OK if require_write else os.R_OK
+    if not os.access(path, required_access):
+        return {
+            "error": f"Permission denied: {file_path}",
+            "file_path": file_path,
+        }
+
+    return None
+
+
 # ============================================================================
 # Read Tool
 # ============================================================================
@@ -79,8 +123,12 @@ def read_file(
         # Format with line numbers (cat -n format)
         numbered_lines = []
         for i, line in enumerate(selected_lines, start=start_line + 1):
-            # Truncate very long lines (>2000 chars)
-            display_line = line if len(line) <= 2000 else line[:2000] + "... [truncated]\n"
+            # Truncate very long lines
+            display_line = (
+                line
+                if len(line) <= MAX_LINE_LENGTH
+                else line[:MAX_LINE_LENGTH] + "... [truncated]\n"
+            )
             numbered_lines.append(f"{i:6d}\t{display_line}")
 
         content = "".join(numbered_lines)
@@ -220,27 +268,10 @@ def edit_file(
         Dictionary containing edit results or error message
     """
     try:
-        path = Path(file_path)
-
-        # Validate file
-        if not path.exists():
-            return {
-                "error": f"File not found: {file_path}",
-                "file_path": file_path,
-            }
-
-        if not path.is_file():
-            return {
-                "error": f"Path is not a file: {file_path}",
-                "file_path": file_path,
-            }
-
-        # Check permissions
-        if not os.access(path, os.R_OK | os.W_OK):
-            return {
-                "error": f"Permission denied: {file_path}",
-                "file_path": file_path,
-            }
+        # Validate file exists and is writable
+        error = _validate_file_for_editing(file_path)
+        if error:
+            return error
 
         # Validate inputs
         if old_string == new_string:
@@ -250,10 +281,11 @@ def edit_file(
             }
 
         # Read file
+        path = Path(file_path)
         with path.open(encoding="utf-8") as f:
             content = f.read()
 
-        # Check if old_string exists
+        # Validate string presence and count
         if old_string not in content:
             return {
                 "error": "old_string not found in file",
@@ -261,10 +293,7 @@ def edit_file(
                 "old_string": old_string,
             }
 
-        # Count occurrences
         occurrences = content.count(old_string)
-
-        # If multiple occurrences and not replace_all, error
         if occurrences > 1 and not replace_all:
             return {
                 "error": (
@@ -275,16 +304,14 @@ def edit_file(
                 "occurrences": occurrences,
             }
 
-        # Perform replacement
+        # Perform replacement and write
         if replace_all:
             new_content = content.replace(old_string, new_string)
             replacements = occurrences
         else:
-            # Replace the single occurrence
             new_content = content.replace(old_string, new_string, 1)
             replacements = 1
 
-        # Write back
         with path.open("w", encoding="utf-8") as f:
             f.write(new_content)
 
@@ -325,43 +352,19 @@ def multi_edit_file(
         Dictionary containing batch edit results or error message
     """
     try:
-        path = Path(file_path)
+        # Validate file exists and is writable
+        error = _validate_file_for_editing(file_path)
+        if error:
+            return error
 
-        # Validate file
-        if not path.exists():
-            return {
-                "error": f"File not found: {file_path}",
-                "file_path": file_path,
-            }
-
-        if not path.is_file():
-            return {
-                "error": f"Path is not a file: {file_path}",
-                "file_path": file_path,
-            }
-
-        # Check permissions
-        if not os.access(path, os.R_OK | os.W_OK):
-            return {
-                "error": f"Permission denied: {file_path}",
-                "file_path": file_path,
-            }
-
-        # Validate edits
+        # Validate edits list
         if not edits:
             return {
                 "error": "edits list cannot be empty",
                 "file_path": file_path,
             }
 
-        # Read file
-        with path.open(encoding="utf-8") as f:
-            content = f.read()
-
-        # Apply edits sequentially
-        edit_results = []
-        current_content = content
-
+        # Validate each edit has required fields
         for i, edit in enumerate(edits):
             if "old_string" not in edit or "new_string" not in edit:
                 return {
@@ -369,10 +372,21 @@ def multi_edit_file(
                     "file_path": file_path,
                 }
 
+        # Read and process file
+        path = Path(file_path)
+        with path.open(encoding="utf-8") as f:
+            current_content = f.read()
+
+        # Apply edits sequentially
+        edit_results = []
+        for i, edit in enumerate(edits):
             old_str = edit["old_string"]
             new_str = edit["new_string"]
 
-            if old_str not in current_content:
+            if old_str in current_content:
+                current_content = current_content.replace(old_str, new_str, 1)
+                edit_results.append({"edit_number": i + 1, "success": True})
+            else:
                 edit_results.append(
                     {
                         "edit_number": i + 1,
@@ -380,15 +394,6 @@ def multi_edit_file(
                         "error": "old_string not found",
                     }
                 )
-                continue
-
-            current_content = current_content.replace(old_str, new_str, 1)
-            edit_results.append(
-                {
-                    "edit_number": i + 1,
-                    "success": True,
-                }
-            )
 
         # Write back
         with path.open("w", encoding="utf-8") as f:

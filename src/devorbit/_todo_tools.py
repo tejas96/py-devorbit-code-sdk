@@ -23,6 +23,48 @@ _TODO_FILE_PATH: Path | None = None
 
 
 # ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def _validate_todos(  # noqa: PLR0911 - Multiple validation checks for comprehensive error reporting
+    todos: list[dict[str, str]],
+) -> dict[str, Any] | None:
+    """Validate todo list structure and content.
+
+    Args:
+        todos: List of todo dictionaries to validate
+
+    Returns:
+        Error dict if validation fails, None if valid
+    """
+    if not todos:
+        return {"error": "todos list cannot be empty"}
+
+    valid_statuses = {"pending", "in_progress", "completed"}
+
+    for i, todo in enumerate(todos):
+        if "content" not in todo:
+            return {"error": f"Todo {i + 1} missing 'content' field"}
+        if "status" not in todo:
+            return {"error": f"Todo {i + 1} missing 'status' field"}
+        if "activeForm" not in todo:
+            return {"error": f"Todo {i + 1} missing 'activeForm' field"}
+
+        if todo["status"] not in valid_statuses:
+            return {
+                "error": f"Todo {i + 1} has invalid status: {todo['status']}. Must be one of: {valid_statuses}"
+            }
+
+        if not todo["content"].strip():
+            return {"error": f"Todo {i + 1} has empty 'content'"}
+        if not todo["activeForm"].strip():
+            return {"error": f"Todo {i + 1} has empty 'activeForm'"}
+
+    return None
+
+
+# ============================================================================
 # TodoWrite Tool
 # ============================================================================
 
@@ -48,44 +90,10 @@ def todo_write(
     global _TODO_STATE, _TODO_FILE_PATH  # noqa: PLW0603
 
     try:
-        # Validate todos
-        if not todos:
-            return {
-                "error": "todos list cannot be empty",
-            }
-
-        valid_statuses = {"pending", "in_progress", "completed"}
-
-        for i, todo in enumerate(todos):
-            # Validate required fields
-            if "content" not in todo:
-                return {
-                    "error": f"Todo {i + 1} missing 'content' field",
-                }
-            if "status" not in todo:
-                return {
-                    "error": f"Todo {i + 1} missing 'status' field",
-                }
-            if "activeForm" not in todo:
-                return {
-                    "error": f"Todo {i + 1} missing 'activeForm' field",
-                }
-
-            # Validate status
-            if todo["status"] not in valid_statuses:
-                return {
-                    "error": f"Todo {i + 1} has invalid status: {todo['status']}. Must be one of: {valid_statuses}",
-                }
-
-            # Validate strings are not empty
-            if not todo["content"].strip():
-                return {
-                    "error": f"Todo {i + 1} has empty 'content'",
-                }
-            if not todo["activeForm"].strip():
-                return {
-                    "error": f"Todo {i + 1} has empty 'activeForm'",
-                }
+        # Validate todos structure
+        error = _validate_todos(todos)
+        if error:
+            return error
 
         # Count in_progress tasks
         in_progress_count = sum(1 for t in todos if t["status"] == "in_progress")
