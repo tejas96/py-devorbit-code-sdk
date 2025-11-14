@@ -13,6 +13,21 @@ from ._builtin_tools import (
     create_text_editor_tool,
     get_all_builtin_tools,
 )
+from ._file_tools import (
+    edit_file,
+    get_all_file_tools,
+    multi_edit_file,
+    read_file,
+    write_file,
+)
+from ._search_tools import get_all_search_tools, glob_files, grep_code
+from ._todo_tools import (
+    clear_todo_state,
+    get_all_todo_tools,
+    get_current_todos,
+    todo_read,
+    todo_write,
+)
 from ._client import AsyncDevorbit, Devorbit
 from ._errors import (
     APIConnectionError,
@@ -150,11 +165,28 @@ __all__ = [
     "Usage",
     # Tool helpers
     "beta_tool",
-    "create_bash_tool",
     # Built-in tools
+    "create_bash_tool",
     "create_computer_use_tool",
     "create_text_editor_tool",
     "gather_tools",
     "get_all_builtin_tools",
+    # File operation tools
+    "read_file",
+    "write_file",
+    "edit_file",
+    "multi_edit_file",
+    "get_all_file_tools",
+    # Search tools
+    "glob_files",
+    "grep_code",
+    "get_all_search_tools",
+    # Todo management tools
+    "todo_write",
+    "todo_read",
+    "get_all_todo_tools",
+    "clear_todo_state",
+    "get_current_todos",
+    # MCP
     "load_mcp_config",
 ]
