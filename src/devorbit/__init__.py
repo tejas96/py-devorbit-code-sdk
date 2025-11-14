@@ -28,6 +28,24 @@ from ._todo_tools import (
     todo_read,
     todo_write,
 )
+from ._bash_tools import (
+    bash,
+    bash_output,
+    cleanup_sessions,
+    get_all_bash_tools,
+    kill_shell,
+    list_active_sessions,
+)
+from ._agent_tools import (
+    cleanup_tasks,
+    get_agent_info,
+    get_all_agent_tools,
+    list_active_tasks,
+    list_agent_types,
+    task,
+    task_cancel,
+    task_status,
+)
 from ._client import AsyncDevorbit, Devorbit
 from ._errors import (
     APIConnectionError,
@@ -187,6 +205,22 @@ __all__ = [
     "get_all_todo_tools",
     "clear_todo_state",
     "get_current_todos",
+    # Enhanced bash tools
+    "bash",
+    "bash_output",
+    "kill_shell",
+    "get_all_bash_tools",
+    "list_active_sessions",
+    "cleanup_sessions",
+    # Agent/Task tools
+    "task",
+    "task_status",
+    "task_cancel",
+    "get_all_agent_tools",
+    "list_active_tasks",
+    "cleanup_tasks",
+    "get_agent_info",
+    "list_agent_types",
     # MCP
     "load_mcp_config",
 ]
