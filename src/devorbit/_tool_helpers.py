@@ -4,15 +4,23 @@ This module provides utilities similar to Claude SDK's beta tool helpers.
 """
 
 import asyncio
+from collections.abc import Callable
+from functools import wraps
 import inspect
 import json
-from functools import wraps
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, TypeVar, Union, get_type_hints
-
-from pydantic import BaseModel, create_model
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Optional,
+    TypeVar,
+    Union,
+    cast,
+    get_type_hints,
+)
 
 from ._models import MessageResponse, ToolUseBlock
 from ._types import Message, Tool
+
 
 if TYPE_CHECKING:
     from ._mcp import MCPManager
@@ -20,7 +28,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-def beta_tool(func: Callable[..., T]) -> Callable[..., T]:
+def beta_tool[T](func: Callable[..., T]) -> Callable[..., T]:
     """Decorator to convert a Python function into a tool definition.
 
     This mirrors Claude SDK's @beta_tool decorator.
@@ -85,13 +93,13 @@ def beta_tool(func: Callable[..., T]) -> Callable[..., T]:
     }
 
     # Attach tool definition to function
-    wrapper.tool_definition = tool_def  # type: ignore
-    wrapper.is_tool = True  # type: ignore
+    wrapper.tool_definition = tool_def  # type: ignore[attr-defined]
+    wrapper.is_tool = True  # type: ignore[attr-defined]
 
-    return wrapper  # type: ignore
+    return wrapper
 
 
-def _python_type_to_json_schema(python_type: Any) -> Dict[str, Any]:
+def _python_type_to_json_schema(python_type: Any) -> dict[str, Any]:
     """Convert Python type to JSON schema type."""
     type_map = {
         str: {"type": "string"},
@@ -103,40 +111,38 @@ def _python_type_to_json_schema(python_type: Any) -> Dict[str, Any]:
     }
 
     # Handle Optional types
-    if hasattr(python_type, "__origin__"):
-        if python_type.__origin__ is Union:
-            # Check if it's Optional (Union with None)
-            args = python_type.__args__
-            if type(None) in args:
-                # It's Optional, use the non-None type
-                non_none_type = [t for t in args if t != type(None)][0]
-                return _python_type_to_json_schema(non_none_type)
+    if hasattr(python_type, "__origin__") and python_type.__origin__ is Union:
+        # Check if it's Optional (Union with None)
+        args = python_type.__args__
+        if type(None) in args:
+            # It's Optional, use the non-None type
+            non_none_type = next(t for t in args if t is not type(None))
+            return _python_type_to_json_schema(non_none_type)
 
     return type_map.get(python_type, {"type": "string"})
 
 
-def _extract_param_description(docstring: str, param_name: str) -> Optional[str]:
+def _extract_param_description(docstring: str, param_name: str) -> str | None:
     """Extract parameter description from Google-style docstring."""
     lines = docstring.split("\n")
     in_args_section = False
 
-    for i, line in enumerate(lines):
+    for _i, line in enumerate(lines):
         if "Args:" in line or "Arguments:" in line:
             in_args_section = True
             continue
 
         if in_args_section:
             if line.strip().startswith(param_name + ":"):
-                desc = line.split(":", 1)[1].strip()
-                return desc
-            elif line.strip() and not line.startswith(" "):
+                return line.split(":", 1)[1].strip()
+            if line.strip() and not line.startswith(" "):
                 # End of args section
                 break
 
     return None
 
 
-def gather_tools(obj: Any) -> List[Tool]:
+def gather_tools(obj: Any) -> list[Tool]:
     """Gather all tools from an object (class instance or module).
 
     Args:
@@ -181,7 +187,7 @@ class ToolExecutor:
 
     def __init__(
         self,
-        tools: Optional[Dict[str, Callable]] = None,
+        tools: dict[str, Callable[..., Any]] | None = None,
         mcp_manager: Optional["MCPManager"] = None,
     ) -> None:
         """Initialize tool executor.
@@ -192,18 +198,16 @@ class ToolExecutor:
         """
         self.tools = tools or {}
         self.mcp_manager = mcp_manager
-        self._mcp_tools_cache: Optional[List[Dict[str, Any]]] = None
+        self._mcp_tools_cache: list[dict[str, Any]] | None = None
 
-    async def _get_all_tool_definitions(self) -> List[Dict[str, Any]]:
+    async def _get_all_tool_definitions(self) -> list[dict[str, Any]]:
         """Get all tool definitions including MCP tools.
 
         Returns:
             List of all tool definitions
         """
         definitions = [
-            func.tool_definition
-            for func in self.tools.values()
-            if hasattr(func, "tool_definition")
+            func.tool_definition for func in self.tools.values() if hasattr(func, "tool_definition")
         ]
 
         # Add MCP tools
@@ -230,8 +234,7 @@ class ToolExecutor:
             return {"error": f"Tool '{tool_use.name}' not found"}
 
         try:
-            result = tool_func(**tool_use.input)
-            return result
+            return tool_func(**tool_use.input)
         except Exception as e:
             return {"error": str(e)}
 
@@ -249,12 +252,11 @@ class ToolExecutor:
             server_name, tool_name = tool_use.name.split("__", 1)
             if server_name in self.mcp_manager.clients:
                 try:
-                    result = await self.mcp_manager.call_tool(
+                    return await self.mcp_manager.call_tool(
                         server_name, tool_name, tool_use.input
                     )
-                    return result
                 except Exception as e:
-                    return {"error": f"MCP tool error: {str(e)}"}
+                    return {"error": f"MCP tool error: {e!s}"}
 
         # Regular tool
         tool_func = self.tools.get(tool_use.name)
@@ -273,7 +275,7 @@ class ToolExecutor:
     def execute_tool_loop(
         self,
         client: Any,
-        messages: List[Message],
+        messages: list[Message],
         model: str,
         max_tokens: int = 1024,
         max_iterations: int = 10,
@@ -293,20 +295,21 @@ class ToolExecutor:
             Final message response
         """
         tool_definitions = [
-            func.tool_definition
-            for func in self.tools.values()
-            if hasattr(func, "tool_definition")
+            func.tool_definition for func in self.tools.values() if hasattr(func, "tool_definition")
         ]
 
         current_messages = messages.copy()
 
         for _ in range(max_iterations):
-            response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                messages=current_messages,
-                tools=tool_definitions,
-                **kwargs,
+            response = cast(
+                MessageResponse,
+                client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    messages=current_messages,
+                    tools=tool_definitions,
+                    **kwargs,
+                ),
             )
 
             if response.stop_reason != "tool_use":
@@ -327,14 +330,19 @@ class ToolExecutor:
                         }
                     )
                     assistant_content.append(
-                        {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+                        {
+                            "type": "tool_use",
+                            "id": block.id,
+                            "name": block.name,
+                            "input": block.input,
+                        }
                     )
                 else:
                     assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
 
             # Add assistant message and tool results
-            current_messages.append({"role": "assistant", "content": assistant_content})
-            current_messages.append({"role": "user", "content": tool_results})
+            current_messages.append(cast(Message, {"role": "assistant", "content": assistant_content}))
+            current_messages.append(cast(Message, {"role": "user", "content": tool_results}))
 
         # Max iterations reached
         return response
@@ -342,7 +350,7 @@ class ToolExecutor:
     async def aexecute_tool_loop(
         self,
         client: Any,
-        messages: List[Message],
+        messages: list[Message],
         model: str,
         max_tokens: int = 1024,
         max_iterations: int = 10,
@@ -391,18 +399,25 @@ class ToolExecutor:
                         {
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": json.dumps(result) if not isinstance(result, str) else result,
+                            "content": (
+                                json.dumps(result) if not isinstance(result, str) else result
+                            ),
                         }
                     )
                     assistant_content.append(
-                        {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+                        {
+                            "type": "tool_use",
+                            "id": block.id,
+                            "name": block.name,
+                            "input": block.input,
+                        }
                     )
                 else:
                     assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
 
             # Add assistant message and tool results
-            current_messages.append({"role": "assistant", "content": assistant_content})
-            current_messages.append({"role": "user", "content": tool_results})
+            current_messages.append(cast(Message, {"role": "assistant", "content": assistant_content}))
+            current_messages.append(cast(Message, {"role": "user", "content": tool_results}))
 
         # Max iterations reached
         return response

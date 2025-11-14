@@ -3,13 +3,21 @@
 This provider wraps the official Anthropic SDK to provide a unified interface.
 """
 
+from collections.abc import AsyncIterator, Iterator
 import os
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import Any, cast
 
-import anthropic
+import anthropic  # type: ignore[import-not-found]
 
-from .._models import MessageResponse, TextBlock, TokenCountResponse, ToolUseBlock, Usage
-from .._types import Message, Tool
+from .._models import (
+    MessageResponse,
+    ResponseContentBlock,
+    TextBlock,
+    TokenCountResponse,
+    ToolUseBlock,
+    Usage,
+)
+from .._types import Message, StopReason, Tool
 from ._base import BaseProvider
 
 
@@ -23,8 +31,8 @@ class AnthropicProvider(BaseProvider):
         self,
         api_key: str,
         *,
-        base_url: Optional[str] = None,
-        timeout: Optional[float] = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
         max_retries: int = 2,
         **kwargs: Any,
     ) -> None:
@@ -74,7 +82,7 @@ class AnthropicProvider(BaseProvider):
             MessageResponse in our format
         """
         # Convert content blocks
-        content_blocks = []
+        content_blocks: list[ResponseContentBlock] = []
         for block in response.content:
             if block.type == "text":
                 content_blocks.append(TextBlock(type="text", text=block.text))
@@ -94,7 +102,7 @@ class AnthropicProvider(BaseProvider):
             role="assistant",
             content=content_blocks,
             model=response.model,
-            stop_reason=response.stop_reason,
+            stop_reason=cast("StopReason | None", response.stop_reason),
             stop_sequence=response.stop_sequence,
             usage=Usage(
                 input_tokens=response.usage.input_tokens,
@@ -109,22 +117,22 @@ class AnthropicProvider(BaseProvider):
     def create_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message synchronously."""
         # Build request parameters
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
@@ -155,22 +163,22 @@ class AnthropicProvider(BaseProvider):
     async def acreate_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message asynchronously."""
         # Build request parameters
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
@@ -201,22 +209,22 @@ class AnthropicProvider(BaseProvider):
     def stream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[dict[str, Any]]:
         """Stream a message synchronously."""
         # Build request parameters
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
@@ -249,22 +257,22 @@ class AnthropicProvider(BaseProvider):
     async def astream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """Stream a message asynchronously."""
         # Build request parameters
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
@@ -294,7 +302,7 @@ class AnthropicProvider(BaseProvider):
                 # Convert event to dict format
                 yield self._convert_stream_event(event)
 
-    def _convert_stream_event(self, event: Any) -> Dict[str, Any]:
+    def _convert_stream_event(self, event: Any) -> dict[str, Any]:
         """Convert Anthropic stream event to dict.
 
         Args:
@@ -305,25 +313,27 @@ class AnthropicProvider(BaseProvider):
         """
         # Anthropic SDK events are already in the correct format
         # We just need to convert to dict
+        result: dict[str, Any]
         if hasattr(event, "model_dump"):
-            return event.model_dump()
-        elif hasattr(event, "dict"):
-            return event.dict()
-        else:
-            # Fallback: convert to dict manually
-            return {"type": event.type, **vars(event)}
+            result = dict(event.model_dump())
+            return result
+        if hasattr(event, "dict"):
+            result = dict(event.dict())
+            return result
+        # Fallback: convert to dict manually
+        return {"type": event.type, **vars(event)}
 
     def count_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens synchronously."""
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": messages,
         }
@@ -341,14 +351,14 @@ class AnthropicProvider(BaseProvider):
     async def acount_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens asynchronously."""
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": messages,
         }

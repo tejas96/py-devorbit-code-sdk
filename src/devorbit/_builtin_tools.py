@@ -6,9 +6,7 @@ This module provides pre-configured tools similar to Claude's beta tools:
 - Text editor tool
 """
 
-from typing import Any, Dict, List, Literal, TypedDict
-
-from typing_extensions import NotRequired, Required
+from typing import Any
 
 
 # ============================================================================
@@ -20,7 +18,7 @@ def create_computer_use_tool(
     display_width_px: int = 1024,
     display_height_px: int = 768,
     display_number: int = 1,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a computer use tool for controlling computer interfaces.
 
     Args:
@@ -45,7 +43,7 @@ def create_computer_use_tool(
 # ============================================================================
 
 
-def create_bash_tool() -> Dict[str, Any]:
+def create_bash_tool() -> dict[str, Any]:
     """Create a bash tool for executing shell commands.
 
     Returns:
@@ -62,7 +60,7 @@ def create_bash_tool() -> Dict[str, Any]:
 # ============================================================================
 
 
-def create_text_editor_tool() -> Dict[str, Any]:
+def create_text_editor_tool() -> dict[str, Any]:
     """Create a text editor tool for file manipulation.
 
     Returns:
@@ -85,7 +83,7 @@ def get_all_builtin_tools(
     include_editor: bool = True,
     display_width_px: int = 1024,
     display_height_px: int = 768,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Get all built-in tools.
 
     Args:

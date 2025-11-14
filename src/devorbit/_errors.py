@@ -3,13 +3,13 @@
 This module provides exception classes that mirror the Claude SDK's error hierarchy.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class DevorbitError(Exception):
     """Base exception for all Devorbit SDK errors."""
 
-    def __init__(self, message: str, *, provider: Optional[str] = None) -> None:
+    def __init__(self, message: str, *, provider: str | None = None) -> None:
         """Initialize error.
 
         Args:
@@ -28,10 +28,10 @@ class APIError(DevorbitError):
         self,
         message: str,
         *,
-        status_code: Optional[int] = None,
-        provider: Optional[str] = None,
-        request_id: Optional[str] = None,
-        body: Optional[Dict[str, Any]] = None,
+        status_code: int | None = None,
+        provider: str | None = None,
+        request_id: str | None = None,
+        body: dict[str, Any] | None = None,
     ) -> None:
         """Initialize API error.
 
@@ -135,9 +135,9 @@ class StreamError(DevorbitError):
 def map_status_code_to_error(
     status_code: int,
     message: str,
-    provider: Optional[str] = None,
-    request_id: Optional[str] = None,
-    body: Optional[Dict[str, Any]] = None,
+    provider: str | None = None,
+    request_id: str | None = None,
+    body: dict[str, Any] | None = None,
 ) -> APIStatusError:
     """Map HTTP status code to appropriate error class.
 
@@ -151,29 +151,19 @@ def map_status_code_to_error(
     Returns:
         Appropriate APIStatusError subclass
     """
-    error_kwargs = {
-        "message": message,
-        "status_code": status_code,
-        "provider": provider,
-        "request_id": request_id,
-        "body": body,
+    # Map status codes to error classes
+    error_map: dict[int, type[APIStatusError]] = {
+        400: BadRequestError,
+        401: AuthenticationError,
+        403: PermissionDeniedError,
+        404: NotFoundError,
+        422: UnprocessableEntityError,
+        429: RateLimitError,
+        500: InternalServerError,
+        529: OverloadedError,
     }
 
-    if status_code == 400:
-        return BadRequestError(**error_kwargs)
-    elif status_code == 401:
-        return AuthenticationError(**error_kwargs)
-    elif status_code == 403:
-        return PermissionDeniedError(**error_kwargs)
-    elif status_code == 404:
-        return NotFoundError(**error_kwargs)
-    elif status_code == 422:
-        return UnprocessableEntityError(**error_kwargs)
-    elif status_code == 429:
-        return RateLimitError(**error_kwargs)
-    elif status_code == 500:
-        return InternalServerError(**error_kwargs)
-    elif status_code == 529:
-        return OverloadedError(**error_kwargs)
-    else:
-        return APIStatusError(**error_kwargs)
+    error_class = error_map.get(status_code, APIStatusError)
+    return error_class(
+        message, status_code=status_code, provider=provider, request_id=request_id, body=body
+    )

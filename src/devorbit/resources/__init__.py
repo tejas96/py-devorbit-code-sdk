@@ -2,4 +2,5 @@
 
 from .messages import AsyncMessages, Messages
 
-__all__ = ["Messages", "AsyncMessages"]
+
+__all__ = ["AsyncMessages", "Messages"]

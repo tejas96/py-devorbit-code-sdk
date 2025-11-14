@@ -3,8 +3,6 @@
 This module provides the beta namespace similar to Claude SDK's beta features.
 """
 
-from typing import Any
-
 from .providers._base import BaseProvider
 from .resources.batches import AsyncMessageBatches, MessageBatches
 from .resources.messages import AsyncMessages, Messages

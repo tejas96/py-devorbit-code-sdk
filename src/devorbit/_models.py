@@ -3,9 +3,9 @@
 This module provides Pydantic models that mirror the Claude SDK's response structure.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ._types import StopReason
 
@@ -26,7 +26,7 @@ class ImageBlock(BaseModel):
     """Image content block in response."""
 
     type: Literal["image"] = "image"
-    source: Dict[str, Any]
+    source: dict[str, Any]
 
 
 class ToolUseBlock(BaseModel):
@@ -35,7 +35,7 @@ class ToolUseBlock(BaseModel):
     type: Literal["tool_use"] = "tool_use"
     id: str
     name: str
-    input: Dict[str, Any]
+    input: dict[str, Any]
 
 
 class ThinkingBlock(BaseModel):
@@ -49,11 +49,11 @@ class DocumentBlock(BaseModel):
     """Document block in response (PDF support)."""
 
     type: Literal["document"] = "document"
-    source: Dict[str, Any]
+    source: dict[str, Any]
 
 
 # Union of all response content blocks
-ResponseContentBlock = Union[TextBlock, ImageBlock, ToolUseBlock, ThinkingBlock, DocumentBlock]
+ResponseContentBlock = TextBlock | ImageBlock | ToolUseBlock | ThinkingBlock | DocumentBlock
 
 
 # ============================================================================
@@ -66,8 +66,8 @@ class Usage(BaseModel):
 
     input_tokens: int
     output_tokens: int
-    cache_creation_input_tokens: Optional[int] = None
-    cache_read_input_tokens: Optional[int] = None
+    cache_creation_input_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
 
 
 # ============================================================================
@@ -84,10 +84,10 @@ class MessageResponse(BaseModel):
     id: str
     type: Literal["message"] = "message"
     role: Literal["assistant"] = "assistant"
-    content: List[ResponseContentBlock]
+    content: list[ResponseContentBlock]
     model: str
-    stop_reason: Optional[StopReason] = None
-    stop_sequence: Optional[str] = None
+    stop_reason: StopReason | None = None
+    stop_sequence: str | None = None
     usage: Usage
 
     def __str__(self) -> str:
@@ -146,7 +146,7 @@ class ContentBlockDeltaEvent(BaseModel):
 
     type: Literal["content_block_delta"] = "content_block_delta"
     index: int
-    delta: Union[ContentBlockDeltaText, ContentBlockDeltaToolUse]
+    delta: ContentBlockDeltaText | ContentBlockDeltaToolUse
 
 
 class ContentBlockStopEvent(BaseModel):
@@ -166,7 +166,7 @@ class MessageDeltaEvent(BaseModel):
     """Stream event: message delta."""
 
     type: Literal["message_delta"] = "message_delta"
-    delta: Dict[str, Any]
+    delta: dict[str, Any]
     usage: MessageDeltaUsage
 
 
@@ -186,20 +186,20 @@ class ErrorEvent(BaseModel):
     """Stream event: error."""
 
     type: Literal["error"] = "error"
-    error: Dict[str, Any]
+    error: dict[str, Any]
 
 
 # Union of all stream events
-StreamEvent = Union[
-    MessageStartEvent,
-    ContentBlockStartEvent,
-    ContentBlockDeltaEvent,
-    ContentBlockStopEvent,
-    MessageDeltaEvent,
-    MessageStopEvent,
-    PingEvent,
-    ErrorEvent,
-]
+StreamEvent = (
+    MessageStartEvent
+    | ContentBlockStartEvent
+    | ContentBlockDeltaEvent
+    | ContentBlockStopEvent
+    | MessageDeltaEvent
+    | MessageStopEvent
+    | PingEvent
+    | ErrorEvent
+)
 
 
 # ============================================================================
@@ -224,16 +224,16 @@ class MessageBatchResponse(BaseModel):
     type: Literal["message_batch"] = "message_batch"
     processing_status: Literal["in_progress", "canceling", "ended"]
     request_counts: BatchRequestCounts
-    ended_at: Optional[str] = None
+    ended_at: str | None = None
     created_at: str
     expires_at: str
-    cancel_initiated_at: Optional[str] = None
-    results_url: Optional[str] = None
+    cancel_initiated_at: str | None = None
+    results_url: str | None = None
 
 
 class BatchResult(BaseModel):
     """Individual result from a batch."""
 
     custom_id: str
-    result: Optional[MessageResponse] = None
-    error: Optional[Dict[str, Any]] = None
+    result: MessageResponse | None = None
+    error: dict[str, Any] | None = None

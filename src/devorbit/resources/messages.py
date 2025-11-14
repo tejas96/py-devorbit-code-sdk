@@ -4,11 +4,11 @@ This module provides the Messages resource class that mirrors the Claude SDK's
 messages interface.
 """
 
-from typing import Any, Dict, List, Optional, Union, overload
+from typing import Any, cast
 
 from .._models import MessageResponse, TokenCountResponse
 from .._streaming import AsyncMessageStream, MessageStream
-from .._types import Message, MessageCreateParams, Tool, ToolChoice
+from .._types import Message, Tool, ToolChoice
 from ..providers._base import BaseProvider
 
 
@@ -31,17 +31,17 @@ class Messages:
         self,
         *,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
-        system: Optional[Union[str, List[Dict[str, str]]]] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
+        system: str | list[dict[str, str]] | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
         stream: bool = False,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[ToolChoice] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        tools: list[Tool] | None = None,
+        tool_choice: ToolChoice | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message.
@@ -90,7 +90,7 @@ class Messages:
             top_k=top_k,
             stop_sequences=stop_sequences,
             tools=tools,
-            tool_choice=tool_choice,
+            tool_choice=cast("dict[str, Any] | None", tool_choice),
             metadata=metadata,
             **kwargs,
         )
@@ -99,16 +99,16 @@ class Messages:
         self,
         *,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
-        system: Optional[Union[str, List[Dict[str, str]]]] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[ToolChoice] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | list[dict[str, str]] | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: ToolChoice | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageStream:
         """Stream a message.
@@ -148,7 +148,7 @@ class Messages:
             top_k=top_k,
             stop_sequences=stop_sequences,
             tools=tools,
-            tool_choice=tool_choice,
+            tool_choice=cast("dict[str, Any] | None", tool_choice),
             metadata=metadata,
             **kwargs,
         )
@@ -159,9 +159,9 @@ class Messages:
         self,
         *,
         model: str,
-        messages: List[Message],
-        system: Optional[Union[str, List[Dict[str, str]]]] = None,
-        tools: Optional[List[Tool]] = None,
+        messages: list[Message],
+        system: str | list[dict[str, str]] | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens in a message.
@@ -211,17 +211,17 @@ class AsyncMessages:
         self,
         *,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
-        system: Optional[Union[str, List[Dict[str, str]]]] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
+        system: str | list[dict[str, str]] | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
         stream: bool = False,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[ToolChoice] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        tools: list[Tool] | None = None,
+        tool_choice: ToolChoice | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message asynchronously.
@@ -270,7 +270,7 @@ class AsyncMessages:
             top_k=top_k,
             stop_sequences=stop_sequences,
             tools=tools,
-            tool_choice=tool_choice,
+            tool_choice=cast("dict[str, Any] | None", tool_choice),
             metadata=metadata,
             **kwargs,
         )
@@ -279,16 +279,16 @@ class AsyncMessages:
         self,
         *,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
-        system: Optional[Union[str, List[Dict[str, str]]]] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[ToolChoice] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | list[dict[str, str]] | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: ToolChoice | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> AsyncMessageStream:
         """Stream a message asynchronously.
@@ -328,7 +328,7 @@ class AsyncMessages:
             top_k=top_k,
             stop_sequences=stop_sequences,
             tools=tools,
-            tool_choice=tool_choice,
+            tool_choice=cast("dict[str, Any] | None", tool_choice),
             metadata=metadata,
             **kwargs,
         )
@@ -339,9 +339,9 @@ class AsyncMessages:
         self,
         *,
         model: str,
-        messages: List[Message],
-        system: Optional[Union[str, List[Dict[str, str]]]] = None,
-        tools: Optional[List[Tool]] = None,
+        messages: list[Message],
+        system: str | list[dict[str, str]] | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens in a message asynchronously.

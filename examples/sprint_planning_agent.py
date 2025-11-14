@@ -21,7 +21,6 @@ from datetime import datetime
 
 from devorbit import AsyncDevorbit, MCPManager, ToolExecutor, beta_tool
 
-
 # ============================================================================
 # Example MCP Configuration (.mcp.json)
 # ============================================================================
@@ -112,7 +111,11 @@ def generate_sprint_summary(sprint_name: str, tasks_completed: int, tasks_total:
         "tasks_completed": tasks_completed,
         "tasks_total": tasks_total,
         "completion_rate": round(completion_rate, 2),
-        "status": "excellent" if completion_rate >= 90 else "good" if completion_rate >= 70 else "needs_improvement",
+        "status": (
+            "excellent"
+            if completion_rate >= 90
+            else "good" if completion_rate >= 70 else "needs_improvement"
+        ),
     }
 
     return summary

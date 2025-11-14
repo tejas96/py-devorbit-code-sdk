@@ -7,18 +7,22 @@ and use their tools with the Devorbit SDK, exactly like Claude Code.
 import asyncio
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from mcp import ClientSession, StdioServerParameters
 
 try:
     from mcp import ClientSession, StdioServerParameters
-    from mcp.client.stdio import stdio_client
     from mcp.client.sse import sse_client
+    from mcp.client.stdio import stdio_client
 
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
-    ClientSession = None
-    StdioServerParameters = None
+    if not TYPE_CHECKING:
+        ClientSession = None  # type: ignore[assignment,misc]
+        StdioServerParameters = None  # type: ignore[assignment,misc]
 
 
 TransportType = Literal["stdio", "sse"]
@@ -31,10 +35,10 @@ class MCPServerConfig:
         self,
         name: str,
         transport: TransportType = "stdio",
-        command: Optional[str] = None,
-        args: Optional[List[str]] = None,
-        url: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        command: str | None = None,
+        args: list[str] | None = None,
+        url: str | None = None,
+        env: dict[str, str] | None = None,
     ):
         """Initialize MCP server configuration.
 
@@ -54,7 +58,7 @@ class MCPServerConfig:
         self.env = env or {}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MCPServerConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "MCPServerConfig":
         """Create config from dictionary.
 
         Args:
@@ -72,7 +76,7 @@ class MCPServerConfig:
             env=data.get("env", {}),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary.
 
         Returns:
@@ -102,16 +106,15 @@ class MCPClient:
         """
         if not MCP_AVAILABLE:
             raise ImportError(
-                "MCP support requires the 'mcp' package. "
-                "Install it with: pip install mcp"
+                "MCP support requires the 'mcp' package. " "Install it with: pip install mcp"
             )
 
         self.config = server_config
-        self.session: Optional[ClientSession] = None
-        self._read = None
-        self._write = None
-        self._client_context = None
-        self._session_context = None
+        self.session: ClientSession | None = None
+        self._read: Any = None
+        self._write: Any = None
+        self._client_context: Any = None
+        self._session_context: Any = None
 
     async def __aenter__(self) -> "MCPClient":
         """Connect to MCP server.
@@ -122,7 +125,7 @@ class MCPClient:
         await self.connect()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Disconnect from MCP server."""
         await self.disconnect()
 
@@ -171,7 +174,7 @@ class MCPClient:
             self._read = None
             self._write = None
 
-    async def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> list[dict[str, Any]]:
         """List available tools from the MCP server.
 
         Returns:
@@ -188,15 +191,17 @@ class MCPClient:
         # Convert MCP tools to our tool format
         tools = []
         for tool in response.tools:
-            tools.append({
-                "name": tool.name,
-                "description": tool.description or "",
-                "input_schema": tool.inputSchema if hasattr(tool, "inputSchema") else {},
-            })
+            tools.append(
+                {
+                    "name": tool.name,
+                    "description": tool.description or "",
+                    "input_schema": tool.inputSchema if hasattr(tool, "inputSchema") else {},
+                }
+            )
 
         return tools
 
-    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
         """Call a tool on the MCP server.
 
         Args:
@@ -230,7 +235,7 @@ class MCPClient:
 
         return result
 
-    async def list_resources(self) -> List[Dict[str, Any]]:
+    async def list_resources(self) -> list[dict[str, Any]]:
         """List available resources from the MCP server.
 
         Returns:
@@ -246,12 +251,14 @@ class MCPClient:
 
         resources = []
         for resource in response.resources:
-            resources.append({
-                "uri": resource.uri,
-                "name": resource.name or "",
-                "description": resource.description or "",
-                "mimeType": getattr(resource, "mimeType", None),
-            })
+            resources.append(
+                {
+                    "uri": resource.uri,
+                    "name": resource.name or "",
+                    "description": resource.description or "",
+                    "mimeType": getattr(resource, "mimeType", None),
+                }
+            )
 
         return resources
 
@@ -270,7 +277,7 @@ class MCPClient:
         if not self.session:
             raise RuntimeError("Not connected to MCP server. Call connect() first.")
 
-        result = await self.session.read_resource(uri)
+        result = await self.session.read_resource(uri)  # type: ignore[arg-type]
 
         # Extract content
         if hasattr(result, "contents") and result.contents:
@@ -291,13 +298,13 @@ class MCPClient:
 class MCPManager:
     """Manager for multiple MCP server connections."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize MCP manager."""
-        self.clients: Dict[str, MCPClient] = {}
+        self.clients: dict[str, MCPClient] = {}
         self._connected = False
 
     @classmethod
-    def from_config_file(cls, config_path: Union[str, Path]) -> "MCPManager":
+    def from_config_file(cls, config_path: str | Path) -> "MCPManager":
         """Load MCP servers from a configuration file.
 
         Config file format (.mcp.json or .claude/settings.local.json):
@@ -326,7 +333,7 @@ class MCPManager:
         if not config_path.exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
 
-        with open(config_path) as f:
+        with config_path.open() as f:
             config = json.load(f)
 
         manager = cls()
@@ -376,7 +383,7 @@ class MCPManager:
         await asyncio.gather(*tasks)
         self._connected = False
 
-    async def get_all_tools(self) -> Dict[str, List[Dict[str, Any]]]:
+    async def get_all_tools(self) -> dict[str, list[dict[str, Any]]]:
         """Get tools from all connected MCP servers.
 
         Returns:
@@ -394,7 +401,7 @@ class MCPManager:
 
         return tools_by_server
 
-    async def get_all_tools_flat(self, prefix_with_server: bool = True) -> List[Dict[str, Any]]:
+    async def get_all_tools_flat(self, prefix_with_server: bool = True) -> list[dict[str, Any]]:
         """Get all tools from all servers as a flat list.
 
         Args:
@@ -422,7 +429,7 @@ class MCPManager:
 
         return all_tools
 
-    async def call_tool(self, server_name: str, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    async def call_tool(self, server_name: str, tool_name: str, arguments: dict[str, Any]) -> Any:
         """Call a tool on a specific MCP server.
 
         Args:
@@ -450,14 +457,14 @@ class MCPManager:
         await self.connect_all()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Disconnect from all servers."""
         await self.disconnect_all()
 
 
 def load_mcp_config(
-    project_dir: Optional[Union[str, Path]] = None,
-) -> Optional[MCPManager]:
+    project_dir: str | Path | None = None,
+) -> MCPManager | None:
     """Load MCP configuration from standard locations.
 
     Searches for MCP config in:
@@ -471,10 +478,7 @@ def load_mcp_config(
     Returns:
         MCPManager with loaded servers, or None if no config found
     """
-    if project_dir is None:
-        project_dir = Path.cwd()
-    else:
-        project_dir = Path(project_dir)
+    project_dir = Path.cwd() if project_dir is None else Path(project_dir)
 
     # Search paths in priority order
     search_paths = [

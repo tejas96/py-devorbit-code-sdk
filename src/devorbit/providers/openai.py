@@ -3,14 +3,31 @@
 This provider translates between our unified interface and OpenAI's API.
 """
 
+from collections.abc import AsyncIterator, Iterator
 import json
 import os
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
+from typing import Any, cast
 
 import openai
 
-from .._models import MessageResponse, TextBlock, TokenCountResponse, ToolUseBlock, Usage
-from .._types import Message, Tool
+
+try:
+    import tiktoken
+
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+    tiktoken = None  # type: ignore[assignment]
+
+from .._models import (
+    MessageResponse,
+    ResponseContentBlock,
+    TextBlock,
+    TokenCountResponse,
+    ToolUseBlock,
+    Usage,
+)
+from .._types import Message, StopReason, Tool
 from ._base import BaseProvider
 
 
@@ -24,8 +41,8 @@ class OpenAIProvider(BaseProvider):
         self,
         api_key: str,
         *,
-        base_url: Optional[str] = None,
-        timeout: Optional[float] = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
         max_retries: int = 2,
         **kwargs: Any,
     ) -> None:
@@ -66,8 +83,8 @@ class OpenAIProvider(BaseProvider):
         return "openai"
 
     def _convert_messages_to_openai(
-        self, messages: List[Message], system: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, messages: list[Message], system: str | None = None
+    ) -> list[dict[str, Any]]:
         """Convert our message format to OpenAI format.
 
         Args:
@@ -77,7 +94,7 @@ class OpenAIProvider(BaseProvider):
         Returns:
             OpenAI message format
         """
-        openai_messages = []
+        openai_messages: list[dict[str, Any]] = []
 
         # Add system message if provided
         if system:
@@ -91,16 +108,14 @@ class OpenAIProvider(BaseProvider):
                 openai_messages.append({"role": role, "content": content})
             elif isinstance(content, list):
                 # Handle multi-part content (images, tool results, etc.)
-                openai_content = []
+                openai_content: list[dict[str, Any]] = []
                 for block in content:
                     if block["type"] == "text":
                         openai_content.append({"type": "text", "text": block["text"]})
                     elif block["type"] == "image":
                         source = block["source"]
                         if source["type"] == "base64":
-                            image_url = (
-                                f"data:{source['media_type']};base64,{source['data']}"
-                            )
+                            image_url = f"data:{source['media_type']};base64,{source['data']}"
                         else:
                             image_url = source["url"]
                         openai_content.append(
@@ -145,7 +160,7 @@ class OpenAIProvider(BaseProvider):
 
         return openai_messages
 
-    def _convert_tools_to_openai(self, tools: List[Tool]) -> List[Dict[str, Any]]:
+    def _convert_tools_to_openai(self, tools: list[Tool]) -> list[dict[str, Any]]:
         """Convert our tool format to OpenAI format.
 
         Args:
@@ -180,7 +195,7 @@ class OpenAIProvider(BaseProvider):
         message = choice.message
 
         # Convert content blocks
-        content_blocks = []
+        content_blocks: list[ResponseContentBlock] = []
 
         # Handle text content
         if message.content:
@@ -213,7 +228,7 @@ class OpenAIProvider(BaseProvider):
             role="assistant",
             content=content_blocks,
             model=model,
-            stop_reason=stop_reason,
+            stop_reason=cast("StopReason | None", stop_reason),
             stop_sequence=None,
             usage=Usage(
                 input_tokens=response.usage.prompt_tokens,
@@ -224,17 +239,17 @@ class OpenAIProvider(BaseProvider):
     def create_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message synchronously."""
@@ -242,7 +257,7 @@ class OpenAIProvider(BaseProvider):
         openai_messages = self._convert_messages_to_openai(messages, system)
 
         # Build request parameters
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": openai_messages,
             "max_tokens": max_tokens,
@@ -279,17 +294,17 @@ class OpenAIProvider(BaseProvider):
     async def acreate_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message asynchronously."""
@@ -297,7 +312,7 @@ class OpenAIProvider(BaseProvider):
         openai_messages = self._convert_messages_to_openai(messages, system)
 
         # Build request parameters
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": openai_messages,
             "max_tokens": max_tokens,
@@ -332,23 +347,23 @@ class OpenAIProvider(BaseProvider):
     def stream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[dict[str, Any]]:
         """Stream a message synchronously."""
         openai_messages = self._convert_messages_to_openai(messages, system)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": openai_messages,
             "max_tokens": max_tokens,
@@ -381,23 +396,23 @@ class OpenAIProvider(BaseProvider):
     async def astream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """Stream a message asynchronously."""
         openai_messages = self._convert_messages_to_openai(messages, system)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": openai_messages,
             "max_tokens": max_tokens,
@@ -428,7 +443,7 @@ class OpenAIProvider(BaseProvider):
             for event in self._convert_stream_chunk(chunk):
                 yield event
 
-    def _convert_stream_chunk(self, chunk: Any) -> Iterator[Dict[str, Any]]:
+    def _convert_stream_chunk(self, chunk: Any) -> Iterator[dict[str, Any]]:
         """Convert OpenAI stream chunk to our event format.
 
         Args:
@@ -467,10 +482,10 @@ class OpenAIProvider(BaseProvider):
     def count_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens synchronously.
@@ -478,15 +493,11 @@ class OpenAIProvider(BaseProvider):
         Note: OpenAI doesn't provide a direct token counting API.
         This is an estimation using tiktoken library if available.
         """
-        try:
-            import tiktoken
-        except ImportError:
+        if not TIKTOKEN_AVAILABLE or tiktoken is None:
             # If tiktoken not available, return estimate
             # Rough estimate: ~4 chars per token
             openai_messages = self._convert_messages_to_openai(messages, system)
-            total_chars = sum(
-                len(str(msg.get("content", ""))) for msg in openai_messages
-            )
+            total_chars = sum(len(str(msg.get("content", ""))) for msg in openai_messages)
             estimated_tokens = total_chars // 4
             return TokenCountResponse(input_tokens=estimated_tokens)
 
@@ -501,7 +512,7 @@ class OpenAIProvider(BaseProvider):
 
         for message in openai_messages:
             num_tokens += 4  # Every message has overhead
-            for key, value in message.items():
+            for _key, value in message.items():
                 if isinstance(value, str):
                     num_tokens += len(encoding.encode(value))
 
@@ -512,10 +523,10 @@ class OpenAIProvider(BaseProvider):
     async def acount_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens asynchronously."""

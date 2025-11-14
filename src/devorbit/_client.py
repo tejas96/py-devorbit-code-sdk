@@ -4,7 +4,7 @@ This module provides the main entry point classes that mirror the Claude SDK's
 Anthropic and AsyncAnthropic clients.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from ._beta import AsyncBeta, Beta
 from ._errors import UnsupportedProviderError
@@ -39,9 +39,9 @@ class Devorbit:
         self,
         *,
         provider: ProviderType,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        timeout: Optional[float] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
         max_retries: int = 2,
         **kwargs: Any,
     ) -> None:
@@ -72,7 +72,7 @@ class Devorbit:
         self.beta = Beta(self._provider)
 
     def _create_provider(
-        self, provider: ProviderType, api_key: Optional[str], **kwargs: Any
+        self, provider: ProviderType, api_key: str | None, **kwargs: Any
     ) -> BaseProvider:
         """Create provider instance.
 
@@ -88,7 +88,7 @@ class Devorbit:
             UnsupportedProviderError: If provider is not supported
         """
         if provider == "anthropic":
-            from .providers.anthropic import AnthropicProvider
+            from .providers.anthropic import AnthropicProvider  # noqa: PLC0415
 
             return AnthropicProvider(
                 api_key=api_key or "",
@@ -97,8 +97,8 @@ class Devorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        elif provider == "openai":
-            from .providers.openai import OpenAIProvider
+        if provider == "openai":
+            from .providers.openai import OpenAIProvider  # noqa: PLC0415
 
             return OpenAIProvider(
                 api_key=api_key or "",
@@ -107,8 +107,8 @@ class Devorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        elif provider == "gemini":
-            from .providers.gemini import GeminiProvider
+        if provider == "gemini":
+            from .providers.gemini import GeminiProvider  # noqa: PLC0415
 
             return GeminiProvider(
                 api_key=api_key or "",
@@ -117,8 +117,8 @@ class Devorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        elif provider == "mistral":
-            from .providers.mistral import MistralProvider
+        if provider == "mistral":
+            from .providers.mistral import MistralProvider  # noqa: PLC0415
 
             return MistralProvider(
                 api_key=api_key or "",
@@ -127,8 +127,8 @@ class Devorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        elif provider == "codellama":
-            from .providers.codellama import CodeLlamaProvider
+        if provider == "codellama":
+            from .providers.codellama import CodeLlamaProvider  # noqa: PLC0415
 
             return CodeLlamaProvider(
                 api_key=api_key or "",
@@ -137,11 +137,10 @@ class Devorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        else:
-            raise UnsupportedProviderError(
-                f"Unsupported provider: {provider}. "
-                f"Supported providers: anthropic, openai, gemini, mistral, codellama"
-            )
+        raise UnsupportedProviderError(
+            f"Unsupported provider: {provider}. "
+            f"Supported providers: anthropic, openai, gemini, mistral, codellama"
+        )
 
 
 class AsyncDevorbit:
@@ -174,9 +173,9 @@ class AsyncDevorbit:
         self,
         *,
         provider: ProviderType,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        timeout: Optional[float] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
         max_retries: int = 2,
         **kwargs: Any,
     ) -> None:
@@ -207,7 +206,7 @@ class AsyncDevorbit:
         self.beta = AsyncBeta(self._provider)
 
     def _create_provider(
-        self, provider: ProviderType, api_key: Optional[str], **kwargs: Any
+        self, provider: ProviderType, api_key: str | None, **kwargs: Any
     ) -> BaseProvider:
         """Create provider instance.
 
@@ -223,7 +222,7 @@ class AsyncDevorbit:
             UnsupportedProviderError: If provider is not supported
         """
         if provider == "anthropic":
-            from .providers.anthropic import AnthropicProvider
+            from .providers.anthropic import AnthropicProvider  # noqa: PLC0415
 
             return AnthropicProvider(
                 api_key=api_key or "",
@@ -232,8 +231,8 @@ class AsyncDevorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        elif provider == "openai":
-            from .providers.openai import OpenAIProvider
+        if provider == "openai":
+            from .providers.openai import OpenAIProvider  # noqa: PLC0415
 
             return OpenAIProvider(
                 api_key=api_key or "",
@@ -242,8 +241,8 @@ class AsyncDevorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        elif provider == "gemini":
-            from .providers.gemini import GeminiProvider
+        if provider == "gemini":
+            from .providers.gemini import GeminiProvider  # noqa: PLC0415
 
             return GeminiProvider(
                 api_key=api_key or "",
@@ -252,8 +251,8 @@ class AsyncDevorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        elif provider == "mistral":
-            from .providers.mistral import MistralProvider
+        if provider == "mistral":
+            from .providers.mistral import MistralProvider  # noqa: PLC0415
 
             return MistralProvider(
                 api_key=api_key or "",
@@ -262,8 +261,8 @@ class AsyncDevorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        elif provider == "codellama":
-            from .providers.codellama import CodeLlamaProvider
+        if provider == "codellama":
+            from .providers.codellama import CodeLlamaProvider  # noqa: PLC0415
 
             return CodeLlamaProvider(
                 api_key=api_key or "",
@@ -272,8 +271,7 @@ class AsyncDevorbit:
                 max_retries=self.max_retries,
                 **kwargs,
             )
-        else:
-            raise UnsupportedProviderError(
-                f"Unsupported provider: {provider}. "
-                f"Supported providers: anthropic, openai, gemini, mistral, codellama"
-            )
+        raise UnsupportedProviderError(
+            f"Unsupported provider: {provider}. "
+            f"Supported providers: anthropic, openai, gemini, mistral, codellama"
+        )

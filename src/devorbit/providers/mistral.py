@@ -3,14 +3,22 @@
 This provider translates between our unified interface and Mistral's API.
 """
 
+from collections.abc import AsyncIterator, Iterator
 import json
 import os
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import Any, cast
 
-from mistralai import Mistral
+from mistralai import Mistral  # type: ignore[import-not-found]
 
-from .._models import MessageResponse, TextBlock, TokenCountResponse, ToolUseBlock, Usage
-from .._types import Message, Tool
+from .._models import (
+    MessageResponse,
+    ResponseContentBlock,
+    TextBlock,
+    TokenCountResponse,
+    ToolUseBlock,
+    Usage,
+)
+from .._types import Message, StopReason, Tool
 from ._base import BaseProvider
 
 
@@ -24,8 +32,8 @@ class MistralProvider(BaseProvider):
         self,
         api_key: str,
         *,
-        base_url: Optional[str] = None,
-        timeout: Optional[float] = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
         max_retries: int = 2,
         **kwargs: Any,
     ) -> None:
@@ -55,8 +63,8 @@ class MistralProvider(BaseProvider):
         return "mistral"
 
     def _convert_messages_to_mistral(
-        self, messages: List[Message], system: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, messages: list[Message], system: str | None = None
+    ) -> list[dict[str, Any]]:
         """Convert our message format to Mistral format.
 
         Args:
@@ -95,7 +103,7 @@ class MistralProvider(BaseProvider):
 
         return mistral_messages
 
-    def _convert_tools_to_mistral(self, tools: List[Tool]) -> List[Dict[str, Any]]:
+    def _convert_tools_to_mistral(self, tools: list[Tool]) -> list[dict[str, Any]]:
         """Convert our tool format to Mistral format.
 
         Args:
@@ -130,7 +138,7 @@ class MistralProvider(BaseProvider):
         message = choice.message
 
         # Convert content blocks
-        content_blocks = []
+        content_blocks: list[ResponseContentBlock] = []
 
         if message.content:
             content_blocks.append(TextBlock(type="text", text=message.content))
@@ -162,7 +170,7 @@ class MistralProvider(BaseProvider):
             role="assistant",
             content=content_blocks,
             model=model,
-            stop_reason=stop_reason,
+            stop_reason=cast("StopReason | None", stop_reason),
             stop_sequence=None,
             usage=Usage(
                 input_tokens=response.usage.prompt_tokens,
@@ -173,23 +181,23 @@ class MistralProvider(BaseProvider):
     def create_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message synchronously."""
         mistral_messages = self._convert_messages_to_mistral(messages, system)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": mistral_messages,
             "max_tokens": max_tokens,
@@ -219,23 +227,23 @@ class MistralProvider(BaseProvider):
     async def acreate_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message asynchronously."""
         mistral_messages = self._convert_messages_to_mistral(messages, system)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": mistral_messages,
             "max_tokens": max_tokens,
@@ -264,23 +272,23 @@ class MistralProvider(BaseProvider):
     def stream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[dict[str, Any]]:
         """Stream a message synchronously."""
         mistral_messages = self._convert_messages_to_mistral(messages, system)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": mistral_messages,
             "max_tokens": max_tokens,
@@ -313,23 +321,23 @@ class MistralProvider(BaseProvider):
     async def astream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """Stream a message asynchronously."""
         mistral_messages = self._convert_messages_to_mistral(messages, system)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": mistral_messages,
             "max_tokens": max_tokens,
@@ -362,10 +370,10 @@ class MistralProvider(BaseProvider):
     def count_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens synchronously.
@@ -384,10 +392,10 @@ class MistralProvider(BaseProvider):
     async def acount_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens asynchronously."""

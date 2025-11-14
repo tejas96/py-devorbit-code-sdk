@@ -3,14 +3,22 @@
 This provider translates between our unified interface and Google's Gemini API.
 """
 
-import json
+from collections.abc import AsyncIterator, Iterator
 import os
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+import random
+from typing import Any, cast
 
-import google.generativeai as genai
+import google.generativeai as genai  # type: ignore[import-untyped]
 
-from .._models import MessageResponse, TextBlock, TokenCountResponse, ToolUseBlock, Usage
-from .._types import Message, Tool
+from .._models import (
+    MessageResponse,
+    ResponseContentBlock,
+    TextBlock,
+    TokenCountResponse,
+    ToolUseBlock,
+    Usage,
+)
+from .._types import Message, StopReason, Tool
 from ._base import BaseProvider
 
 
@@ -24,8 +32,8 @@ class GeminiProvider(BaseProvider):
         self,
         api_key: str,
         *,
-        base_url: Optional[str] = None,
-        timeout: Optional[float] = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
         max_retries: int = 2,
         **kwargs: Any,
     ) -> None:
@@ -56,8 +64,8 @@ class GeminiProvider(BaseProvider):
         return "gemini"
 
     def _convert_messages_to_gemini(
-        self, messages: List[Message], system: Optional[str] = None
-    ) -> tuple[Optional[str], List[Dict[str, Any]]]:
+        self, messages: list[Message], system: str | None = None
+    ) -> tuple[str | None, list[dict[str, Any]]]:
         """Convert our message format to Gemini format.
 
         Args:
@@ -67,7 +75,7 @@ class GeminiProvider(BaseProvider):
         Returns:
             Tuple of (system_instruction, gemini_messages)
         """
-        gemini_messages = []
+        gemini_messages: list[dict[str, Any]] = []
 
         for msg in messages:
             role = "model" if msg["role"] == "assistant" else "user"
@@ -76,16 +84,14 @@ class GeminiProvider(BaseProvider):
             if isinstance(content, str):
                 gemini_messages.append({"role": role, "parts": [{"text": content}]})
             elif isinstance(content, list):
-                parts = []
+                parts: list[dict[str, Any]] = []
                 for block in content:
                     if block["type"] == "text":
                         parts.append({"text": block["text"]})
                     elif block["type"] == "image":
                         source = block["source"]
                         if source["type"] == "base64":
-                            import base64
-
-                            image_data = base64.b64decode(source["data"])
+                            # No need to decode - Gemini accepts base64 directly
                             parts.append(
                                 {
                                     "inline_data": {
@@ -103,7 +109,7 @@ class GeminiProvider(BaseProvider):
 
         return system, gemini_messages
 
-    def _convert_tools_to_gemini(self, tools: List[Tool]) -> List[Dict[str, Any]]:
+    def _convert_tools_to_gemini(self, tools: list[Tool]) -> list[dict[str, Any]]:
         """Convert our tool format to Gemini format.
 
         Args:
@@ -112,7 +118,7 @@ class GeminiProvider(BaseProvider):
         Returns:
             Gemini tool format
         """
-        gemini_tools = []
+        gemini_tools: list[dict[str, Any]] = []
         for tool in tools:
             gemini_tools.append(
                 {
@@ -133,11 +139,17 @@ class GeminiProvider(BaseProvider):
         Returns:
             MessageResponse in our format
         """
-        content_blocks = []
+        content_blocks: list[ResponseContentBlock] = []
 
-        # Extract text content
-        if response.text:
-            content_blocks.append(TextBlock(type="text", text=response.text))
+        # Extract text content (safely handle blocked responses)
+        try:
+            if response.text:
+                content_blocks.append(TextBlock(type="text", text=response.text))
+        except ValueError:
+            # Response was blocked by safety filters, add empty text block
+            content_blocks.append(
+                TextBlock(type="text", text="[Content blocked by safety filters]")
+            )
 
         # Handle function calls (tool use)
         for part in response.parts:
@@ -159,27 +171,35 @@ class GeminiProvider(BaseProvider):
             "SAFETY": "content_filter",
             "RECITATION": "content_filter",
         }
-        stop_reason = finish_reason_map.get(
-            str(response.candidates[0].finish_reason), "end_turn"
-        )
+        stop_reason = finish_reason_map.get(str(response.candidates[0].finish_reason), "end_turn")
 
         # Estimate token usage (Gemini provides token count)
         usage = Usage(
-            input_tokens=response.usage_metadata.prompt_token_count
-            if hasattr(response, "usage_metadata")
-            else 0,
-            output_tokens=response.usage_metadata.candidates_token_count
-            if hasattr(response, "usage_metadata")
-            else 0,
+            input_tokens=(
+                response.usage_metadata.prompt_token_count
+                if hasattr(response, "usage_metadata")
+                else 0
+            ),
+            output_tokens=(
+                response.usage_metadata.candidates_token_count
+                if hasattr(response, "usage_metadata")
+                else 0
+            ),
         )
 
+        # Generate ID safely (handle blocked responses)
+        try:
+            response_id = f"gemini-{hash(response.text)}"
+        except (ValueError, AttributeError):
+            response_id = f"gemini-{random.randint(100000, 999999)}"
+
         return MessageResponse(
-            id=f"gemini-{hash(response.text)}",  # Gemini doesn't provide IDs
+            id=response_id,  # Gemini doesn't provide IDs
             type="message",
             role="assistant",
             content=content_blocks,
             model=model,
-            stop_reason=stop_reason,
+            stop_reason=cast("StopReason | None", stop_reason),
             stop_sequence=None,
             usage=usage,
         )
@@ -187,26 +207,24 @@ class GeminiProvider(BaseProvider):
     def create_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message synchronously."""
-        system_instruction, gemini_messages = self._convert_messages_to_gemini(
-            messages, system
-        )
+        system_instruction, gemini_messages = self._convert_messages_to_gemini(messages, system)
 
         # Create generation config
-        generation_config = {"max_output_tokens": max_tokens}
+        generation_config: dict[str, Any] = {"max_output_tokens": max_tokens}
 
         if temperature is not None:
             generation_config["temperature"] = temperature
@@ -241,26 +259,24 @@ class GeminiProvider(BaseProvider):
     async def acreate_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message asynchronously."""
-        system_instruction, gemini_messages = self._convert_messages_to_gemini(
-            messages, system
-        )
+        system_instruction, gemini_messages = self._convert_messages_to_gemini(messages, system)
 
         # Create generation config
-        generation_config = {"max_output_tokens": max_tokens}
+        generation_config: dict[str, Any] = {"max_output_tokens": max_tokens}
 
         if temperature is not None:
             generation_config["temperature"] = temperature
@@ -295,25 +311,23 @@ class GeminiProvider(BaseProvider):
     def stream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[dict[str, Any]]:
         """Stream a message synchronously."""
-        system_instruction, gemini_messages = self._convert_messages_to_gemini(
-            messages, system
-        )
+        system_instruction, gemini_messages = self._convert_messages_to_gemini(messages, system)
 
-        generation_config = {"max_output_tokens": max_tokens}
+        generation_config: dict[str, Any] = {"max_output_tokens": max_tokens}
 
         if temperature is not None:
             generation_config["temperature"] = temperature
@@ -351,25 +365,23 @@ class GeminiProvider(BaseProvider):
     async def astream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """Stream a message asynchronously."""
-        system_instruction, gemini_messages = self._convert_messages_to_gemini(
-            messages, system
-        )
+        system_instruction, gemini_messages = self._convert_messages_to_gemini(messages, system)
 
-        generation_config = {"max_output_tokens": max_tokens}
+        generation_config: dict[str, Any] = {"max_output_tokens": max_tokens}
 
         if temperature is not None:
             generation_config["temperature"] = temperature
@@ -407,16 +419,14 @@ class GeminiProvider(BaseProvider):
     def count_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens synchronously."""
-        system_instruction, gemini_messages = self._convert_messages_to_gemini(
-            messages, system
-        )
+        system_instruction, gemini_messages = self._convert_messages_to_gemini(messages, system)
 
         gemini_model = genai.GenerativeModel(
             model_name=model, system_instruction=system_instruction
@@ -430,16 +440,14 @@ class GeminiProvider(BaseProvider):
     async def acount_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens asynchronously."""
-        system_instruction, gemini_messages = self._convert_messages_to_gemini(
-            messages, system
-        )
+        system_instruction, gemini_messages = self._convert_messages_to_gemini(messages, system)
 
         gemini_model = genai.GenerativeModel(
             model_name=model, system_instruction=system_instruction

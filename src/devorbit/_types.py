@@ -3,9 +3,8 @@
 This module provides TypedDicts and type aliases that mirror the Claude SDK's type system.
 """
 
-from typing import Any, Dict, List, Literal, Optional, TypedDict, Union
+from typing import Any, Literal, NotRequired, Required, TypedDict
 
-from typing_extensions import NotRequired, Required
 
 # ============================================================================
 # Prompt Caching Types
@@ -70,7 +69,7 @@ class ToolUseContent(TypedDict):
     type: Required[Literal["tool_use"]]
     id: Required[str]
     name: Required[str]
-    input: Required[Dict[str, Any]]
+    input: Required[dict[str, Any]]
 
 
 class ToolResultContent(TypedDict):
@@ -78,14 +77,12 @@ class ToolResultContent(TypedDict):
 
     type: Required[Literal["tool_result"]]
     tool_use_id: Required[str]
-    content: NotRequired[Union[str, List[Union[TextContent, ImageContent]]]]
+    content: NotRequired[str | list[TextContent | ImageContent]]
     is_error: NotRequired[bool]
 
 
 # Union of all content types
-ContentBlock = Union[
-    TextContent, ImageContent, DocumentContent, ToolUseContent, ToolResultContent
-]
+ContentBlock = TextContent | ImageContent | DocumentContent | ToolUseContent | ToolResultContent
 
 # ============================================================================
 # Message Types
@@ -96,7 +93,7 @@ class Message(TypedDict):
     """A message in the conversation."""
 
     role: Required[Literal["user", "assistant"]]
-    content: Required[Union[str, List[ContentBlock]]]
+    content: Required[str | list[ContentBlock]]
 
 
 # ============================================================================
@@ -108,8 +105,8 @@ class ToolInputSchema(TypedDict):
     """JSON Schema for tool input."""
 
     type: Required[Literal["object"]]
-    properties: Required[Dict[str, Any]]
-    required: NotRequired[List[str]]
+    properties: Required[dict[str, Any]]
+    required: NotRequired[list[str]]
 
 
 class Tool(TypedDict):
@@ -169,7 +166,7 @@ class ToolChoiceTool(TypedDict):
     name: Required[str]
 
 
-ToolChoice = Union[ToolChoiceAuto, ToolChoiceAny, ToolChoiceTool]
+ToolChoice = ToolChoiceAuto | ToolChoiceAny | ToolChoiceTool
 
 # ============================================================================
 # Metadata Types
@@ -194,34 +191,46 @@ class MessageCreateParams(TypedDict):
     """
 
     model: Required[str]
-    messages: Required[List[Message]]
+    messages: Required[list[Message]]
     max_tokens: Required[int]
-    system: NotRequired[Union[str, List[TextContent]]]
+    system: NotRequired[str | list[TextContent]]
     temperature: NotRequired[float]
     top_p: NotRequired[float]
     top_k: NotRequired[int]
-    stop_sequences: NotRequired[List[str]]
+    stop_sequences: NotRequired[list[str]]
     stream: NotRequired[bool]
-    tools: NotRequired[List[Tool]]
+    tools: NotRequired[list[Tool]]
     tool_choice: NotRequired[ToolChoice]
     metadata: NotRequired[Metadata]
     # Beta features
-    thinking: NotRequired[Dict[str, Any]]  # Extended thinking configuration
+    thinking: NotRequired[dict[str, Any]]  # Extended thinking configuration
 
 
-class MessageStreamParams(MessageCreateParams):
+class MessageStreamParams(TypedDict):
     """Parameters for streaming a message."""
 
+    model: Required[str]
+    messages: Required[list[Message]]
+    max_tokens: Required[int]
     stream: Required[Literal[True]]
+    system: NotRequired[str | list[TextContent]]
+    temperature: NotRequired[float]
+    top_p: NotRequired[float]
+    top_k: NotRequired[int]
+    stop_sequences: NotRequired[list[str]]
+    tools: NotRequired[list[Tool]]
+    tool_choice: NotRequired[ToolChoice]
+    metadata: NotRequired[Metadata]
+    thinking: NotRequired[dict[str, Any]]
 
 
 class MessageCountTokensParams(TypedDict):
     """Parameters for counting tokens."""
 
     model: Required[str]
-    messages: Required[List[Message]]
-    system: NotRequired[Union[str, List[TextContent]]]
-    tools: NotRequired[List[Tool]]
+    messages: Required[list[Message]]
+    system: NotRequired[str | list[TextContent]]
+    tools: NotRequired[list[Tool]]
 
 
 # ============================================================================
@@ -257,11 +266,11 @@ class BatchRequest(TypedDict):
 class BatchCreateParams(TypedDict):
     """Parameters for creating a message batch."""
 
-    requests: Required[List[BatchRequest]]
+    requests: Required[list[BatchRequest]]
 
 
 class BatchStatus(TypedDict):
     """Batch processing status."""
 
     processing_status: Literal["in_progress", "ended", "canceling", "canceled"]
-    request_counts: Dict[str, int]
+    request_counts: dict[str, int]

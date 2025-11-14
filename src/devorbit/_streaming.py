@@ -4,14 +4,12 @@ This module provides utilities for handling Server-Sent Events (SSE) streaming,
 mirroring the Claude SDK's streaming functionality.
 """
 
-import json
+from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import Any
 
 from ._models import (
-    ContentBlockDeltaEvent,
     MessageResponse,
-    MessageStartEvent,
     ResponseContentBlock,
     TextBlock,
     ToolUseBlock,
@@ -25,18 +23,18 @@ class MessageStream:
     similar to Claude SDK's streaming interface.
     """
 
-    def __init__(self, stream_iterator: Iterator[Dict[str, Any]]) -> None:
+    def __init__(self, stream_iterator: Iterator[dict[str, Any]]) -> None:
         """Initialize stream.
 
         Args:
             stream_iterator: Iterator yielding stream events
         """
         self._iterator = stream_iterator
-        self._message: Optional[MessageResponse] = None
-        self._current_content_blocks: List[ResponseContentBlock] = []
+        self._message: MessageResponse | None = None
+        self._current_content_blocks: list[ResponseContentBlock] = []
         self._finished = False
 
-    def __iter__(self) -> Iterator[Dict[str, Any]]:
+    def __iter__(self) -> Iterator[dict[str, Any]]:
         """Iterate over stream events."""
         return self._iterator
 
@@ -122,18 +120,18 @@ class AsyncMessageStream:
     Async version of MessageStream.
     """
 
-    def __init__(self, stream_iterator: AsyncIterator[Dict[str, Any]]) -> None:
+    def __init__(self, stream_iterator: AsyncIterator[dict[str, Any]]) -> None:
         """Initialize async stream.
 
         Args:
             stream_iterator: Async iterator yielding stream events
         """
         self._iterator = stream_iterator
-        self._message: Optional[MessageResponse] = None
-        self._current_content_blocks: List[ResponseContentBlock] = []
+        self._message: MessageResponse | None = None
+        self._current_content_blocks: list[ResponseContentBlock] = []
         self._finished = False
 
-    def __aiter__(self) -> AsyncIterator[Dict[str, Any]]:
+    def __aiter__(self) -> AsyncIterator[dict[str, Any]]:
         """Async iterate over stream events."""
         return self._iterator
 
@@ -213,7 +211,7 @@ class AsyncMessageStream:
 
 
 @contextmanager
-def sync_stream(stream_iterator: Iterator[Dict[str, Any]]) -> Iterator[MessageStream]:
+def sync_stream(stream_iterator: Iterator[dict[str, Any]]) -> Iterator[MessageStream]:
     """Create a synchronous message stream context.
 
     Args:
@@ -230,7 +228,7 @@ def sync_stream(stream_iterator: Iterator[Dict[str, Any]]) -> Iterator[MessageSt
 
 
 async def async_stream(
-    stream_iterator: AsyncIterator[Dict[str, Any]],
+    stream_iterator: AsyncIterator[dict[str, Any]],
 ) -> AsyncIterator[AsyncMessageStream]:
     """Create an asynchronous message stream context.
 

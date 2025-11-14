@@ -4,10 +4,11 @@ This module defines the abstract base class that all provider implementations mu
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 from .._models import MessageResponse, TokenCountResponse
-from .._types import Message, MessageCreateParams, Tool
+from .._types import Message, Tool
 
 
 class BaseProvider(ABC):
@@ -37,17 +38,17 @@ class BaseProvider(ABC):
     def create_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message synchronously.
@@ -75,17 +76,17 @@ class BaseProvider(ABC):
     async def acreate_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message asynchronously.
@@ -113,19 +114,19 @@ class BaseProvider(ABC):
     def stream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[dict[str, Any]]:
         """Stream a message synchronously.
 
         Args:
@@ -148,22 +149,22 @@ class BaseProvider(ABC):
         pass
 
     @abstractmethod
-    async def astream_message(
+    def astream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """Stream a message asynchronously.
 
         Args:
@@ -182,6 +183,10 @@ class BaseProvider(ABC):
 
         Yields:
             Stream event dictionaries
+
+        Note:
+            Implementations should use 'async def' with 'yield' to create
+            an async generator.
         """
         pass
 
@@ -189,10 +194,10 @@ class BaseProvider(ABC):
     def count_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens synchronously.
@@ -213,10 +218,10 @@ class BaseProvider(ABC):
     async def acount_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens asynchronously.
@@ -243,4 +248,5 @@ class BaseProvider(ABC):
             ValueError: If model is not supported by this provider
         """
         # Default implementation - providers can override
-        pass
+        # Most providers don't need strict validation
+        return

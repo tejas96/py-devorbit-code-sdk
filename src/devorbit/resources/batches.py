@@ -3,7 +3,8 @@
 This module provides the Batches resource class for processing messages in batches.
 """
 
-from typing import Any, Dict, List, Optional
+import builtins
+from typing import Any
 
 from .._models import BatchResult, MessageBatchResponse
 from .._types import BatchRequest
@@ -28,7 +29,7 @@ class MessageBatches:
     def create(
         self,
         *,
-        requests: List[BatchRequest],
+        requests: list[BatchRequest],
         **kwargs: Any,
     ) -> MessageBatchResponse:
         """Create a message batch.
@@ -69,11 +70,11 @@ class MessageBatches:
     def list(
         self,
         *,
-        limit: Optional[int] = None,
-        before_id: Optional[str] = None,
-        after_id: Optional[str] = None,
+        limit: int | None = None,
+        before_id: str | None = None,
+        after_id: str | None = None,
         **kwargs: Any,
-    ) -> List[MessageBatchResponse]:
+    ) -> list[MessageBatchResponse]:
         """List message batches.
 
         Args:
@@ -113,7 +114,7 @@ class MessageBatches:
         *,
         batch_id: str,
         **kwargs: Any,
-    ) -> List[BatchResult]:
+    ) -> builtins.list[BatchResult]:
         """Get results from a message batch.
 
         Args:
@@ -145,7 +146,7 @@ class AsyncMessageBatches:
     async def create(
         self,
         *,
-        requests: List[BatchRequest],
+        requests: list[BatchRequest],
         **kwargs: Any,
     ) -> MessageBatchResponse:
         """Create a message batch asynchronously.
@@ -183,11 +184,11 @@ class AsyncMessageBatches:
     async def list(
         self,
         *,
-        limit: Optional[int] = None,
-        before_id: Optional[str] = None,
-        after_id: Optional[str] = None,
+        limit: int | None = None,
+        before_id: str | None = None,
+        after_id: str | None = None,
         **kwargs: Any,
-    ) -> List[MessageBatchResponse]:
+    ) -> list[MessageBatchResponse]:
         """List message batches asynchronously.
 
         Args:
@@ -227,7 +228,7 @@ class AsyncMessageBatches:
         *,
         batch_id: str,
         **kwargs: Any,
-    ) -> List[BatchResult]:
+    ) -> builtins.list[BatchResult]:
         """Get results from a message batch asynchronously.
 
         Args:

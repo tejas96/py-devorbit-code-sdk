@@ -4,14 +4,23 @@ This provider supports Code Llama models via OpenAI-compatible APIs
 (like Together AI, Replicate, or Anyscale) or direct Meta API.
 """
 
+from collections.abc import AsyncIterator, Iterator
+import contextlib
 import json
 import os
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import Any, cast
 
 import httpx
 
-from .._models import MessageResponse, TextBlock, TokenCountResponse, ToolUseBlock, Usage
-from .._types import Message, Tool
+from .._models import (
+    MessageResponse,
+    ResponseContentBlock,
+    TextBlock,
+    TokenCountResponse,
+    ToolUseBlock,
+    Usage,
+)
+from .._types import Message, StopReason, Tool
 from ._base import BaseProvider
 
 
@@ -32,8 +41,8 @@ class CodeLlamaProvider(BaseProvider):
         self,
         api_key: str,
         *,
-        base_url: Optional[str] = None,
-        timeout: Optional[float] = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
         max_retries: int = 2,
         **kwargs: Any,
     ) -> None:
@@ -54,9 +63,7 @@ class CodeLlamaProvider(BaseProvider):
 
         # Default to Together AI if no base URL provided
         if not base_url:
-            base_url = os.environ.get(
-                "CODELLAMA_BASE_URL", "https://api.together.xyz/v1"
-            )
+            base_url = os.environ.get("CODELLAMA_BASE_URL", "https://api.together.xyz/v1")
 
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -88,8 +95,8 @@ class CodeLlamaProvider(BaseProvider):
         return "codellama"
 
     def _convert_messages_to_openai_format(
-        self, messages: List[Message], system: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, messages: list[Message], system: str | None = None
+    ) -> list[dict[str, Any]]:
         """Convert our message format to OpenAI-compatible format.
 
         Args:
@@ -125,7 +132,7 @@ class CodeLlamaProvider(BaseProvider):
 
         return openai_messages
 
-    def _convert_response(self, response_data: Dict[str, Any], model: str) -> MessageResponse:
+    def _convert_response(self, response_data: dict[str, Any], model: str) -> MessageResponse:
         """Convert API response to our format.
 
         Args:
@@ -139,7 +146,7 @@ class CodeLlamaProvider(BaseProvider):
         message = choice["message"]
 
         # Convert content blocks
-        content_blocks = []
+        content_blocks: list[ResponseContentBlock] = []
 
         if message.get("content"):
             content_blocks.append(TextBlock(type="text", text=message["content"]))
@@ -173,7 +180,7 @@ class CodeLlamaProvider(BaseProvider):
             role="assistant",
             content=content_blocks,
             model=model,
-            stop_reason=stop_reason,
+            stop_reason=cast("StopReason | None", stop_reason),
             stop_sequence=None,
             usage=Usage(
                 input_tokens=usage.get("prompt_tokens", 0),
@@ -184,23 +191,23 @@ class CodeLlamaProvider(BaseProvider):
     def create_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message synchronously."""
         openai_messages = self._convert_messages_to_openai_format(messages, system)
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": openai_messages,
             "max_tokens": max_tokens,
@@ -225,23 +232,23 @@ class CodeLlamaProvider(BaseProvider):
     async def acreate_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> MessageResponse:
         """Create a message asynchronously."""
         openai_messages = self._convert_messages_to_openai_format(messages, system)
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": openai_messages,
             "max_tokens": max_tokens,
@@ -266,23 +273,23 @@ class CodeLlamaProvider(BaseProvider):
     def stream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[dict[str, Any]]:
         """Stream a message synchronously."""
         openai_messages = self._convert_messages_to_openai_format(messages, system)
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": openai_messages,
             "max_tokens": max_tokens,
@@ -323,23 +330,23 @@ class CodeLlamaProvider(BaseProvider):
     async def astream_message(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         max_tokens: int,
         *,
-        system: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        stop_sequences: Optional[List[str]] = None,
-        tools: Optional[List[Tool]] = None,
-        tool_choice: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        system: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        stop_sequences: list[str] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """Stream a message asynchronously."""
         openai_messages = self._convert_messages_to_openai_format(messages, system)
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": openai_messages,
             "max_tokens": max_tokens,
@@ -380,10 +387,10 @@ class CodeLlamaProvider(BaseProvider):
     def count_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens synchronously.
@@ -402,10 +409,10 @@ class CodeLlamaProvider(BaseProvider):
     async def acount_tokens(
         self,
         model: str,
-        messages: List[Message],
+        messages: list[Message],
         *,
-        system: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        system: str | None = None,
+        tools: list[Tool] | None = None,
         **kwargs: Any,
     ) -> TokenCountResponse:
         """Count tokens asynchronously."""
@@ -413,7 +420,5 @@ class CodeLlamaProvider(BaseProvider):
 
     def __del__(self) -> None:
         """Cleanup HTTP clients."""
-        try:
+        with contextlib.suppress(Exception):
             self._client.close()
-        except Exception:
-            pass
