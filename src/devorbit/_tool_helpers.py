@@ -4,10 +4,10 @@ This module provides utilities similar to Claude SDK's beta tool helpers.
 """
 
 import asyncio
-from collections.abc import Callable
-from functools import wraps
 import inspect
 import json
+from collections.abc import Callable
+from functools import wraps
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-def beta_tool[T](func: Callable[..., T]) -> Callable[..., T]:
+def beta_tool(func: Callable[..., T]) -> Callable[..., T]:
     """Decorator to convert a Python function into a tool definition.
 
     This mirrors Claude SDK's @beta_tool decorator.
@@ -252,9 +252,7 @@ class ToolExecutor:
             server_name, tool_name = tool_use.name.split("__", 1)
             if server_name in self.mcp_manager.clients:
                 try:
-                    return await self.mcp_manager.call_tool(
-                        server_name, tool_name, tool_use.input
-                    )
+                    return await self.mcp_manager.call_tool(server_name, tool_name, tool_use.input)
                 except Exception as e:
                     return {"error": f"MCP tool error: {e!s}"}
 
@@ -302,7 +300,7 @@ class ToolExecutor:
 
         for _ in range(max_iterations):
             response = cast(
-                MessageResponse,
+                "MessageResponse",
                 client.messages.create(
                     model=model,
                     max_tokens=max_tokens,
@@ -341,8 +339,10 @@ class ToolExecutor:
                     assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
 
             # Add assistant message and tool results
-            current_messages.append(cast(Message, {"role": "assistant", "content": assistant_content}))
-            current_messages.append(cast(Message, {"role": "user", "content": tool_results}))
+            current_messages.append(
+                cast("Message", {"role": "assistant", "content": assistant_content})
+            )
+            current_messages.append(cast("Message", {"role": "user", "content": tool_results}))
 
         # Max iterations reached
         return response
@@ -377,12 +377,15 @@ class ToolExecutor:
         current_messages = messages.copy()
 
         for _ in range(max_iterations):
-            response = await client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                messages=current_messages,
-                tools=tool_definitions,
-                **kwargs,
+            response = cast(
+                "MessageResponse",
+                await client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    messages=current_messages,
+                    tools=tool_definitions,
+                    **kwargs,
+                ),
             )
 
             if response.stop_reason != "tool_use":
@@ -416,8 +419,10 @@ class ToolExecutor:
                     assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
 
             # Add assistant message and tool results
-            current_messages.append(cast(Message, {"role": "assistant", "content": assistant_content}))
-            current_messages.append(cast(Message, {"role": "user", "content": tool_results}))
+            current_messages.append(
+                cast("Message", {"role": "assistant", "content": assistant_content})
+            )
+            current_messages.append(cast("Message", {"role": "user", "content": tool_results}))
 
         # Max iterations reached
         return response

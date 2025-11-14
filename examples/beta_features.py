@@ -8,13 +8,9 @@ This example demonstrates:
 - Beta namespace usage
 """
 
-import base64
 import os
 
 from devorbit import (
-    BASH_TOOL,
-    COMPUTER_USE_TOOL,
-    TEXT_EDITOR_TOOL,
     Devorbit,
     create_bash_tool,
     create_computer_use_tool,

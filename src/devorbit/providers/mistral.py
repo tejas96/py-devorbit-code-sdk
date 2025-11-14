@@ -3,12 +3,12 @@
 This provider translates between our unified interface and Mistral's API.
 """
 
-from collections.abc import AsyncIterator, Iterator
 import json
 import os
+from collections.abc import AsyncIterator, Iterator
 from typing import Any, cast
 
-from mistralai import Mistral  # type: ignore[import-not-found]
+from mistralai import Mistral
 
 from .._models import (
     MessageResponse,

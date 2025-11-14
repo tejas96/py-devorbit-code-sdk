@@ -389,7 +389,7 @@ async def example_mcp_error_handling():
         await manager.connect_all()
     except Exception as e:
         print(f"❌ Connection failed (expected): {type(e).__name__}")
-        print(f"   Message: {str(e)}")
+        print(f"   Message: {e!s}")
 
     # Clean approach: try connecting to each server individually
     print("\n✅ Better approach - individual server connection:")

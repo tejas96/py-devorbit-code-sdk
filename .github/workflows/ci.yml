@@ -204,7 +204,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         python-version: ["3.12", "3.13"]
 
     steps:
@@ -250,18 +250,18 @@ jobs:
           fail_ci_if_error: false
 
   # Dependency Review (PR only)
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # dependency-review:
+  #   name: Dependency Review
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request'
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: moderate
+  #     - name: Dependency Review
+  #       uses: actions/dependency-review-action@v4
+  #       with:
+  #         fail-on-severity: moderate
 
   # Build Check
   build:

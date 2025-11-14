@@ -3,11 +3,11 @@
 This provider wraps the official Anthropic SDK to provide a unified interface.
 """
 
-from collections.abc import AsyncIterator, Iterator
 import os
+from collections.abc import AsyncIterator, Iterator
 from typing import Any, cast
 
-import anthropic  # type: ignore[import-not-found]
+import anthropic
 
 from .._models import (
     MessageResponse,
