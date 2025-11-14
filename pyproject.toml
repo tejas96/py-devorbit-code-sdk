@@ -101,7 +101,7 @@ select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
     "F",   # pyflakes
-    "I",   # isort
+    # "I", # isort - disabled to use standalone isort
     "N",   # pep8-naming
     "UP",  # pyupgrade
     "B",   # flake8-bugbear

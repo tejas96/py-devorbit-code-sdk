@@ -3,9 +3,9 @@
 This provider translates between our unified interface and Google's Gemini API.
 """
 
-from collections.abc import AsyncIterator, Iterator
 import os
 import random
+from collections.abc import AsyncIterator, Iterator
 from typing import Any, cast
 
 import google.generativeai as genai

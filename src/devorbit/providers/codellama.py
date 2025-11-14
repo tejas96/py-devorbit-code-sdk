@@ -4,10 +4,10 @@ This provider supports Code Llama models via OpenAI-compatible APIs
 (like Together AI, Replicate, or Anyscale) or direct Meta API.
 """
 
-from collections.abc import AsyncIterator, Iterator
 import contextlib
 import json
 import os
+from collections.abc import AsyncIterator, Iterator
 from typing import Any, cast
 
 import httpx

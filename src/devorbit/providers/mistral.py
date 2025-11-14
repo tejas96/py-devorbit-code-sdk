@@ -3,9 +3,9 @@
 This provider translates between our unified interface and Mistral's API.
 """
 
-from collections.abc import AsyncIterator, Iterator
 import json
 import os
+from collections.abc import AsyncIterator, Iterator
 from typing import Any, cast
 
 from mistralai import Mistral
