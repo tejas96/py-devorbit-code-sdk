@@ -9,7 +9,7 @@ This module provides file manipulation tools matching Claude Code's behavior:
 
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ._tool_helpers import beta_tool
 
@@ -22,8 +22,8 @@ from ._tool_helpers import beta_tool
 @beta_tool
 def read_file(
     file_path: str,
-    offset: Optional[int] = None,
-    limit: Optional[int] = None,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """Read a file from the local filesystem.
 
@@ -62,7 +62,7 @@ def read_file(
             }
 
         # Read file
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
+        with path.open(encoding="utf-8", errors="replace") as f:
             lines = f.readlines()
 
         # Apply offset and limit
@@ -80,9 +80,8 @@ def read_file(
         numbered_lines = []
         for i, line in enumerate(selected_lines, start=start_line + 1):
             # Truncate very long lines (>2000 chars)
-            if len(line) > 2000:
-                line = line[:2000] + "... [truncated]\n"
-            numbered_lines.append(f"{i:6d}\t{line}")
+            display_line = line if len(line) <= 2000 else line[:2000] + "... [truncated]\n"
+            numbered_lines.append(f"{i:6d}\t{display_line}")
 
         content = "".join(numbered_lines)
 
@@ -166,7 +165,7 @@ def write_file(
                 }
 
         # Write file
-        with open(path, "w", encoding="utf-8") as f:
+        with path.open("w", encoding="utf-8") as f:
             f.write(content)
 
         # Get file stats
@@ -251,13 +250,13 @@ def edit_file(
             }
 
         # Read file
-        with open(path, "r", encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             content = f.read()
 
         # Check if old_string exists
         if old_string not in content:
             return {
-                "error": f"old_string not found in file",
+                "error": "old_string not found in file",
                 "file_path": file_path,
                 "old_string": old_string,
             }
@@ -286,7 +285,7 @@ def edit_file(
             replacements = 1
 
         # Write back
-        with open(path, "w", encoding="utf-8") as f:
+        with path.open("w", encoding="utf-8") as f:
             f.write(new_content)
 
         return {
@@ -356,7 +355,7 @@ def multi_edit_file(
             }
 
         # Read file
-        with open(path, "r", encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             content = f.read()
 
         # Apply edits sequentially
@@ -374,21 +373,25 @@ def multi_edit_file(
             new_str = edit["new_string"]
 
             if old_str not in current_content:
-                edit_results.append({
-                    "edit_number": i + 1,
-                    "success": False,
-                    "error": "old_string not found",
-                })
+                edit_results.append(
+                    {
+                        "edit_number": i + 1,
+                        "success": False,
+                        "error": "old_string not found",
+                    }
+                )
                 continue
 
             current_content = current_content.replace(old_str, new_str, 1)
-            edit_results.append({
-                "edit_number": i + 1,
-                "success": True,
-            })
+            edit_results.append(
+                {
+                    "edit_number": i + 1,
+                    "success": True,
+                }
+            )
 
         # Write back
-        with open(path, "w", encoding="utf-8") as f:
+        with path.open("w", encoding="utf-8") as f:
             f.write(current_content)
 
         successful_edits = sum(1 for r in edit_results if r["success"])
@@ -430,9 +433,9 @@ def get_all_file_tools() -> list[dict[str, Any]]:
 
 # Export tool instances for direct use
 __all__ = [
+    "edit_file",
+    "get_all_file_tools",
+    "multi_edit_file",
     "read_file",
     "write_file",
-    "edit_file",
-    "multi_edit_file",
-    "get_all_file_tools",
 ]

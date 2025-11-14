@@ -5,10 +5,9 @@ This module provides search tools matching Claude Code's behavior:
 - Grep tool: Powerful content search with regex support
 """
 
-import os
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, cast
 
 from ._tool_helpers import beta_tool
 
@@ -21,7 +20,7 @@ from ._tool_helpers import beta_tool
 @beta_tool
 def glob_files(
     pattern: str,
-    path: Optional[str] = None,
+    path: str | None = None,
 ) -> dict[str, Any]:
     """Fast file pattern matching tool.
 
@@ -37,10 +36,7 @@ def glob_files(
     """
     try:
         # Determine search directory
-        if path:
-            search_path = Path(path)
-        else:
-            search_path = Path.cwd()
+        search_path = Path(path) if path else Path.cwd()
 
         # Validate path
         if not search_path.exists():
@@ -89,15 +85,15 @@ def glob_files(
 @beta_tool
 def grep_code(
     pattern: str,
-    path: Optional[str] = None,
-    glob: Optional[str] = None,
-    type: Optional[str] = None,
+    path: str | None = None,
+    glob: str | None = None,
+    type: str | None = None,
     case_insensitive: bool = False,
     multiline: bool = False,
     context_before: int = 0,
     context_after: int = 0,
     output_mode: str = "files_with_matches",
-    head_limit: Optional[int] = None,
+    head_limit: int | None = None,
     offset: int = 0,
 ) -> dict[str, Any]:
     """Powerful code search tool with regex support.
@@ -123,10 +119,7 @@ def grep_code(
     """
     try:
         # Determine search directory
-        if path:
-            search_path = Path(path)
-        else:
-            search_path = Path.cwd()
+        search_path = Path(path) if path else Path.cwd()
 
         # Validate path
         if not search_path.exists():
@@ -164,13 +157,12 @@ def grep_code(
                 patterns = type_extensions[type]
             elif glob:
                 # Handle brace expansion patterns like *.{js,jsx}
-                if '{' in glob and '}' in glob:
+                if "{" in glob and "}" in glob:
                     # Manual brace expansion
-                    import re as re_module
-                    brace_pattern = r'\{([^}]+)\}'
-                    match = re_module.search(brace_pattern, glob)
+                    brace_pattern = r"\{([^}]+)\}"
+                    match = re.search(brace_pattern, glob)
                     if match:
-                        expansions = match.group(1).split(',')
+                        expansions = match.group(1).split(",")
                         patterns = [glob.replace(match.group(0), exp) for exp in expansions]
                     else:
                         patterns = [glob]
@@ -235,7 +227,7 @@ def grep_code(
 def _grep_files_with_matches(
     files: list[Path],
     regex: re.Pattern[str],
-    head_limit: Optional[int],
+    head_limit: int | None,
     offset: int,
 ) -> dict[str, Any]:
     """Find files that contain matches."""
@@ -243,7 +235,7 @@ def _grep_files_with_matches(
 
     for file_path in files:
         try:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with file_path.open(encoding="utf-8", errors="ignore") as f:
                 content = f.read()
                 if regex.search(content):
                     matching_files.append(str(file_path.absolute()))
@@ -266,7 +258,7 @@ def _grep_files_with_matches(
 def _grep_count(
     files: list[Path],
     regex: re.Pattern[str],
-    head_limit: Optional[int],
+    head_limit: int | None,
     offset: int,
 ) -> dict[str, Any]:
     """Count matches per file."""
@@ -274,19 +266,21 @@ def _grep_count(
 
     for file_path in files:
         try:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with file_path.open(encoding="utf-8", errors="ignore") as f:
                 content = f.read()
                 match_count = len(regex.findall(content))
                 if match_count > 0:
-                    counts.append({
-                        "file": str(file_path.absolute()),
-                        "count": match_count,
-                    })
+                    counts.append(
+                        {
+                            "file": str(file_path.absolute()),
+                            "count": match_count,
+                        }
+                    )
         except Exception:
             continue
 
     # Sort by count (descending)
-    counts.sort(key=lambda x: x["count"], reverse=True)
+    counts.sort(key=lambda x: cast("int", x["count"]), reverse=True)
 
     # Apply offset and head_limit
     total = len(counts)
@@ -306,7 +300,7 @@ def _grep_content(
     regex: re.Pattern[str],
     context_before: int,
     context_after: int,
-    head_limit: Optional[int],
+    head_limit: int | None,
     offset: int,
     multiline: bool,
 ) -> dict[str, Any]:
@@ -315,18 +309,20 @@ def _grep_content(
 
     for file_path in files:
         try:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with file_path.open(encoding="utf-8", errors="ignore") as f:
                 if multiline:
                     # Multiline mode: search entire content
                     content = f.read()
                     for match in regex.finditer(content):
                         # Find line number
-                        line_num = content[:match.start()].count("\n") + 1
-                        all_matches.append({
-                            "file": str(file_path.absolute()),
-                            "line": line_num,
-                            "content": match.group(),
-                        })
+                        line_num = content[: match.start()].count("\n") + 1
+                        all_matches.append(
+                            {
+                                "file": str(file_path.absolute()),
+                                "line": line_num,
+                                "content": match.group(),
+                            }
+                        )
                 else:
                     # Line-by-line mode
                     lines = f.readlines()
@@ -343,11 +339,13 @@ def _grep_content(
                                 prefix = f"{j:6d}:"
                                 formatted.append(f"{prefix} {ctx_line.rstrip()}")
 
-                            all_matches.append({
-                                "file": str(file_path.absolute()),
-                                "line": i,
-                                "content": "\n".join(formatted),
-                            })
+                            all_matches.append(
+                                {
+                                    "file": str(file_path.absolute()),
+                                    "line": i,
+                                    "content": "\n".join(formatted),
+                                }
+                            )
         except Exception:
             continue
 
@@ -383,7 +381,7 @@ def get_all_search_tools() -> list[dict[str, Any]]:
 
 # Export tool instances for direct use
 __all__ = [
+    "get_all_search_tools",
     "glob_files",
     "grep_code",
-    "get_all_search_tools",
 ]

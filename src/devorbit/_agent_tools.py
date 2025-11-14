@@ -73,10 +73,12 @@ class AgentTask:
             role: Message role (user/assistant)
             content: Message content
         """
-        self.messages.append({
-            "role": role,
-            "content": content,
-        })
+        self.messages.append(
+            {
+                "role": role,
+                "content": content,
+            }
+        )
 
 
 # Specialized agent types and their capabilities
@@ -408,7 +410,7 @@ def cleanup_tasks(all_tasks: bool = False) -> None:
 
     Removes completed and failed tasks by default, or all tasks if requested.
     """
-    global _ACTIVE_TASKS
+    global _ACTIVE_TASKS  # noqa: PLW0602
 
     if all_tasks:
         _ACTIVE_TASKS.clear()
@@ -446,14 +448,14 @@ def list_agent_types() -> dict[str, dict[str, Any]]:
 
 # Export tool instances
 __all__ = [
-    "task",
-    "task_status",
-    "task_cancel",
-    "get_all_agent_tools",
-    "list_active_tasks",
+    "AgentCoordinator",
+    "AgentTask",
     "cleanup_tasks",
     "get_agent_info",
+    "get_all_agent_tools",
+    "list_active_tasks",
     "list_agent_types",
-    "AgentTask",
-    "AgentCoordinator",
+    "task",
+    "task_cancel",
+    "task_status",
 ]

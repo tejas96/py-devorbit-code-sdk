@@ -3,8 +3,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from devorbit import clear_todo_state, get_current_todos, todo_read, todo_write
 
 

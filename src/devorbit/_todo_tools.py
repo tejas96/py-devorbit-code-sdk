@@ -5,9 +5,10 @@ This module provides todo list management tools matching Claude Code's behavior:
 - TodoRead tool: Read current task status
 """
 
+import copy
 import json
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from ._tool_helpers import beta_tool
 
@@ -18,7 +19,7 @@ TaskStatus = Literal["pending", "in_progress", "completed"]
 
 # Global todo state (in-memory storage)
 _TODO_STATE: list[dict[str, Any]] = []
-_TODO_FILE_PATH: Optional[Path] = None
+_TODO_FILE_PATH: Path | None = None
 
 
 # ============================================================================
@@ -29,7 +30,7 @@ _TODO_FILE_PATH: Optional[Path] = None
 @beta_tool
 def todo_write(
     todos: list[dict[str, str]],
-    persist_to_file: Optional[str] = None,
+    persist_to_file: str | None = None,
 ) -> dict[str, Any]:
     """Create and manage a structured task list.
 
@@ -44,7 +45,7 @@ def todo_write(
     Returns:
         Dictionary containing success status and task summary
     """
-    global _TODO_STATE, _TODO_FILE_PATH
+    global _TODO_STATE, _TODO_FILE_PATH  # noqa: PLW0603
 
     try:
         # Validate todos
@@ -97,7 +98,7 @@ def todo_write(
             file_path = Path(persist_to_file)
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(file_path, "w", encoding="utf-8") as f:
+            with file_path.open("w", encoding="utf-8") as f:
                 json.dump(todos, f, indent=2)
 
             _TODO_FILE_PATH = file_path
@@ -132,7 +133,7 @@ def todo_write(
 
 @beta_tool
 def todo_read(
-    load_from_file: Optional[str] = None,
+    load_from_file: str | None = None,
 ) -> dict[str, Any]:
     """Read the current task list.
 
@@ -145,7 +146,7 @@ def todo_read(
     Returns:
         Dictionary containing current todo list and statistics
     """
-    global _TODO_STATE, _TODO_FILE_PATH
+    global _TODO_STATE, _TODO_FILE_PATH  # noqa: PLW0603
 
     try:
         # Load from file if requested
@@ -157,7 +158,7 @@ def todo_read(
                     "error": f"Todo file not found: {load_from_file}",
                 }
 
-            with open(file_path, "r", encoding="utf-8") as f:
+            with file_path.open(encoding="utf-8") as f:
                 todos = json.load(f)
 
             _TODO_STATE = todos
@@ -190,13 +191,15 @@ def todo_read(
                 "in_progress": "🔄",
                 "completed": "✅",
             }
-            formatted_todos.append({
-                "number": i,
-                "content": todo["content"],
-                "activeForm": todo["activeForm"],
-                "status": todo["status"],
-                "display": f"{status_emoji.get(todo['status'], '❓')} [{todo['status']}] {todo['content']}",
-            })
+            formatted_todos.append(
+                {
+                    "number": i,
+                    "content": todo["content"],
+                    "activeForm": todo["activeForm"],
+                    "status": todo["status"],
+                    "display": f"{status_emoji.get(todo['status'], '❓')} [{todo['status']}] {todo['content']}",
+                }
+            )
 
         return {
             "todos": formatted_todos,
@@ -238,7 +241,7 @@ def clear_todo_state() -> None:
 
     Useful for testing or resetting the todo list.
     """
-    global _TODO_STATE, _TODO_FILE_PATH
+    global _TODO_STATE, _TODO_FILE_PATH  # noqa: PLW0603
     _TODO_STATE = []
     _TODO_FILE_PATH = None
 
@@ -249,15 +252,14 @@ def get_current_todos() -> list[dict[str, Any]]:
     Returns:
         Current todo list (deep copy)
     """
-    import copy
     return copy.deepcopy(_TODO_STATE)
 
 
 # Export tool instances for direct use
 __all__ = [
-    "todo_write",
-    "todo_read",
-    "get_all_todo_tools",
     "clear_todo_state",
+    "get_all_todo_tools",
     "get_current_todos",
+    "todo_read",
+    "todo_write",
 ]
