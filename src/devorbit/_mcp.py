@@ -107,7 +107,7 @@ class MCPClient:
         """
         if not MCP_AVAILABLE:
             raise ImportError(
-                "MCP support requires the 'mcp' package. " "Install it with: pip install mcp"
+                "MCP support requires the 'mcp' package. Install it with: pip install mcp"
             )
 
         self.config = server_config

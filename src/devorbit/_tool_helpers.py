@@ -252,9 +252,7 @@ class ToolExecutor:
             server_name, tool_name = tool_use.name.split("__", 1)
             if server_name in self.mcp_manager.clients:
                 try:
-                    return await self.mcp_manager.call_tool(
-                        server_name, tool_name, tool_use.input
-                    )
+                    return await self.mcp_manager.call_tool(server_name, tool_name, tool_use.input)
                 except Exception as e:
                     return {"error": f"MCP tool error: {e!s}"}
 
@@ -341,7 +339,9 @@ class ToolExecutor:
                     assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
 
             # Add assistant message and tool results
-            current_messages.append(cast("Message", {"role": "assistant", "content": assistant_content}))
+            current_messages.append(
+                cast("Message", {"role": "assistant", "content": assistant_content})
+            )
             current_messages.append(cast("Message", {"role": "user", "content": tool_results}))
 
         # Max iterations reached
@@ -419,7 +419,9 @@ class ToolExecutor:
                     assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
 
             # Add assistant message and tool results
-            current_messages.append(cast("Message", {"role": "assistant", "content": assistant_content}))
+            current_messages.append(
+                cast("Message", {"role": "assistant", "content": assistant_content})
+            )
             current_messages.append(cast("Message", {"role": "user", "content": tool_results}))
 
         # Max iterations reached

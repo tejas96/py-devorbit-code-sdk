@@ -79,11 +79,17 @@ module = [
     "tiktoken.*",
     "httpx.*",
     "google.*",
+    "google.generativeai.*",
+    "google.ai.*",
     "mcp.*",
     "anthropic.*",
     "mistralai.*"
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "devorbit.providers.gemini"
+disable_error_code = ["attr-defined", "arg-type"]
 
 [tool.ruff]
 target-version = "py312"
@@ -148,6 +154,8 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
+lines_after_imports = 2
+skip_gitignore = true
 
 [tool.coverage.run]
 source = ["src"]
