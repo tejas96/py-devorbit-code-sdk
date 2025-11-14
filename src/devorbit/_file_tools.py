@@ -378,7 +378,7 @@ def multi_edit_file(
             current_content = f.read()
 
         # Apply edits sequentially
-        edit_results = []
+        edit_results: list[dict[str, Any]] = []
         for i, edit in enumerate(edits):
             old_str = edit["old_string"]
             new_str = edit["new_string"]
