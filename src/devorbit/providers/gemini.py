@@ -8,7 +8,7 @@ import os
 import random
 from typing import Any, cast
 
-import google.generativeai as genai  # type: ignore[import-untyped]
+import google.generativeai as genai
 
 from .._models import (
     MessageResponse,

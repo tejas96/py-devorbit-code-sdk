@@ -17,9 +17,9 @@ Requirements:
 
 import asyncio
 import os
-from datetime import datetime
 
 from devorbit import AsyncDevorbit, MCPManager, ToolExecutor, beta_tool
+
 
 # ============================================================================
 # Example MCP Configuration (.mcp.json)
@@ -396,7 +396,7 @@ async def example_create_tasks_via_mcp():
         for task in tasks:
             print(f"\n📝 Creating task in {task['tool']}: {task['title']}")
             result = await agent.create_task(**task)
-            print(f"   ✅ Task created successfully")
+            print("   ✅ Task created successfully")
 
     finally:
         await agent.cleanup()

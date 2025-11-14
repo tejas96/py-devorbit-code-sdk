@@ -57,7 +57,7 @@ def example_basic_beta_tool():
     print("\n=== Example: @beta_tool decorator ===\n")
 
     # The decorator automatically creates tool definitions
-    print(f"get_weather tool definition:")
+    print("get_weather tool definition:")
     print(f"  Name: {get_weather.tool_definition['name']}")
     print(f"  Description: {get_weather.tool_definition['description']}")
     print(f"  Schema: {get_weather.tool_definition['input_schema']}")
@@ -181,7 +181,7 @@ def example_tool_executor():
         max_iterations=5,
     )
 
-    print(f"\nFinal response:")
+    print("\nFinal response:")
     for block in final_response.content:
         if block.type == "text":
             print(block.text)
@@ -252,7 +252,6 @@ def example_complex_tool():
 
 async def example_async_tool_executor():
     """Example using async ToolExecutor."""
-    import asyncio
 
     from devorbit import AsyncDevorbit
 

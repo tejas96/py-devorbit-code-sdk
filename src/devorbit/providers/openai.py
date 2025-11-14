@@ -17,7 +17,7 @@ try:
     TIKTOKEN_AVAILABLE = True
 except ImportError:
     TIKTOKEN_AVAILABLE = False
-    tiktoken = None  # type: ignore[assignment]
+    tiktoken = None
 
 from .._models import (
     MessageResponse,

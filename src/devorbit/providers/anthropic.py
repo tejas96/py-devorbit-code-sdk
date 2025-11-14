@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator, Iterator
 import os
 from typing import Any, cast
 
-import anthropic  # type: ignore[import-not-found]
+import anthropic
 
 from .._models import (
     MessageResponse,

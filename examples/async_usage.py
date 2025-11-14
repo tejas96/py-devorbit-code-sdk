@@ -123,7 +123,7 @@ async def example_async_with_timeout():
 
         print(f"Response: {message.content[0].text[:200]}...")
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         print("Request timed out!")
 
 
@@ -192,7 +192,7 @@ async def example_error_handling():
         )
     except Exception as e:
         print(f"Caught error: {type(e).__name__}")
-        print(f"Error message: {str(e)}")
+        print(f"Error message: {e!s}")
 
 
 async def example_with_semaphore():

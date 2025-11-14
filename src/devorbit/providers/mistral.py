@@ -8,7 +8,7 @@ import json
 import os
 from typing import Any, cast
 
-from mistralai import Mistral  # type: ignore[import-not-found]
+from mistralai import Mistral
 
 from .._models import (
     MessageResponse,
