@@ -3,6 +3,24 @@
 A unified Python SDK for multiple LLM providers with a Claude SDK-like interface.
 """
 
+from ._agent_tools import (
+    cleanup_tasks,
+    get_agent_info,
+    get_all_agent_tools,
+    list_active_tasks,
+    list_agent_types,
+    task,
+    task_cancel,
+    task_status,
+)
+from ._bash_tools import (
+    bash,
+    bash_output,
+    cleanup_sessions,
+    get_all_bash_tools,
+    kill_shell,
+    list_active_sessions,
+)
 from ._beta import AsyncBeta, Beta
 from ._builtin_tools import (
     BASH_TOOL,
@@ -32,6 +50,13 @@ from ._errors import (
     UnprocessableEntityError,
     UnsupportedProviderError,
 )
+from ._file_tools import (
+    edit_file,
+    get_all_file_tools,
+    multi_edit_file,
+    read_file,
+    write_file,
+)
 from ._mcp import MCPClient, MCPManager, MCPServerConfig, load_mcp_config
 from ._models import (
     BatchRequestCounts,
@@ -50,6 +75,14 @@ from ._models import (
     TokenCountResponse,
     ToolUseBlock,
     Usage,
+)
+from ._search_tools import get_all_search_tools, glob_files, grep_code
+from ._todo_tools import (
+    clear_todo_state,
+    get_all_todo_tools,
+    get_current_todos,
+    todo_read,
+    todo_write,
 )
 from ._tool_helpers import ToolExecutor, beta_tool, gather_tools
 from ._types import (
@@ -148,13 +181,46 @@ __all__ = [
     "UnprocessableEntityError",
     "UnsupportedProviderError",
     "Usage",
+    # Enhanced bash tools
+    "bash",
+    "bash_output",
     # Tool helpers
     "beta_tool",
-    "create_bash_tool",
+    "cleanup_sessions",
+    "cleanup_tasks",
+    "clear_todo_state",
     # Built-in tools
+    "create_bash_tool",
     "create_computer_use_tool",
     "create_text_editor_tool",
+    "edit_file",
     "gather_tools",
+    "get_agent_info",
+    "get_all_agent_tools",
+    "get_all_bash_tools",
     "get_all_builtin_tools",
+    "get_all_file_tools",
+    "get_all_search_tools",
+    "get_all_todo_tools",
+    "get_current_todos",
+    # Search tools
+    "glob_files",
+    "grep_code",
+    "kill_shell",
+    "list_active_sessions",
+    "list_active_tasks",
+    "list_agent_types",
+    # MCP
     "load_mcp_config",
+    "multi_edit_file",
+    # File operation tools
+    "read_file",
+    # Agent/Task tools
+    "task",
+    "task_cancel",
+    "task_status",
+    "todo_read",
+    # Todo management tools
+    "todo_write",
+    "write_file",
 ]
