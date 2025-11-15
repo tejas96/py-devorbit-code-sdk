@@ -90,7 +90,9 @@ def example_image_from_url():
     )
 
     # Use a public image URL
-    image_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat03.jpg/1200px-Cat03.jpg"
+    image_url = (
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat03.jpg/1200px-Cat03.jpg"
+    )
 
     message = client.messages.create(
         model="claude-sonnet-4-5-20250929",
@@ -251,9 +253,7 @@ def example_vision_with_conversation():
 if __name__ == "__main__":
     print("Vision Examples")
     print("=" * 50)
-    print(
-        "Note: These examples require valid image URLs or local image files."
-    )
+    print("Note: These examples require valid image URLs or local image files.")
     print("Uncomment and modify the examples with your own images.")
     print("=" * 50)
 

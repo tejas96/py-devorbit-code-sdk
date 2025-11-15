@@ -186,9 +186,7 @@ def example_computer_use_tool():
         model="claude-sonnet-4-5-20250929",
         max_tokens=1024,
         tools=[computer_tool],
-        messages=[
-            {"role": "user", "content": "Open a web browser and navigate to example.com"}
-        ],
+        messages=[{"role": "user", "content": "Open a web browser and navigate to example.com"}],
     )
 
     print(f"Response: {response}")
