@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+
 try:
     from rich.console import Console as RichConsole
     from rich.panel import Panel as RichPanel
@@ -16,6 +17,7 @@ except ImportError:
     HAS_RICH = False
 
 from devorbit import Devorbit
+
 
 if TYPE_CHECKING:
     from devorbit._types import Message

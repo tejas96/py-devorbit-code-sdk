@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+
 try:
     import click
 except ImportError:
@@ -14,7 +15,6 @@ except ImportError:
     sys.exit(1)
 
 from devorbit import __version__
-
 
 from .repl import DevorbitREPL
 from .session import CLISession
