@@ -101,6 +101,16 @@ from ._models import (
     ToolUseBlock,
     Usage,
 )
+from ._notebook_tools import (
+    NotebookCell,
+    NotebookContent,
+    NotebookReadResult,
+    create_notebook_edit_tool,
+    create_notebook_read_tool,
+    get_all_notebook_tools,
+    notebook_edit,
+    notebook_read,
+)
 from ._search_tools import get_all_search_tools, glob_files, grep_code
 from ._todo_tools import (
     clear_todo_state,
@@ -131,6 +141,18 @@ from ._types import (
     ToolChoice,
     ToolResultContent,
     ToolUseContent,
+)
+from ._web_tools import (
+    WebFetchResult,
+    WebSearchResult,
+    create_web_fetch_tool,
+    create_web_search_tool,
+    get_all_web_tools,
+    html_to_markdown,
+    web_fetch,
+    web_fetch_sync,
+    web_search,
+    web_search_sync,
 )
 
 
@@ -194,6 +216,9 @@ __all__ = [
     "MessageStartEvent",
     "MessageStopEvent",
     "NotFoundError",
+    "NotebookCell",
+    "NotebookContent",
+    "NotebookReadResult",
     "OverloadedError",
     "PermissionDeniedError",
     "ProviderError",
@@ -215,6 +240,8 @@ __all__ = [
     "UnprocessableEntityError",
     "UnsupportedProviderError",
     "Usage",
+    "WebFetchResult",
+    "WebSearchResult",
     # Enhanced bash tools
     "bash",
     "bash_output",
@@ -226,7 +253,11 @@ __all__ = [
     # Built-in tools
     "create_bash_tool",
     "create_computer_use_tool",
+    "create_notebook_edit_tool",
+    "create_notebook_read_tool",
     "create_text_editor_tool",
+    "create_web_fetch_tool",
+    "create_web_search_tool",
     "edit_file",
     # Commands
     "execute_command",
@@ -240,13 +271,16 @@ __all__ = [
     "get_all_config_tools",
     "get_all_file_tools",
     "get_all_hook_tools",
+    "get_all_notebook_tools",
     "get_all_search_tools",
     "get_all_todo_tools",
+    "get_all_web_tools",
     "get_current_todos",
     "get_registry",
     # Search tools
     "glob_files",
     "grep_code",
+    "html_to_markdown",
     "kill_shell",
     # Hooks
     "list_active_sessions",
@@ -261,6 +295,8 @@ __all__ = [
     # MCP
     "load_mcp_config",
     "multi_edit_file",
+    "notebook_edit",
+    "notebook_read",
     "parse_command_invocation",
     # File operation tools
     "read_config",
@@ -278,5 +314,9 @@ __all__ = [
     "todo_write",
     "trigger_hook",
     "update_config",
+    "web_fetch",
+    "web_fetch_sync",
+    "web_search",
+    "web_search_sync",
     "write_file",
 ]
