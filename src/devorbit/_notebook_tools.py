@@ -250,7 +250,7 @@ def notebook_edit(
     # Perform operation
     if operation == "delete":
         if cell_index < 0 or cell_index >= len(cells):
-            raise IndexError(f"Cell index {cell_index} out of range (0-{len(cells)-1})")
+            raise IndexError(f"Cell index {cell_index} out of range (0-{len(cells) - 1})")
         deleted_cell = cells.pop(cell_index)
         result_msg = f"Deleted cell {cell_index}"
         result_data = {"deleted_cell": deleted_cell}
@@ -276,7 +276,7 @@ def notebook_edit(
 
     else:  # replace
         if cell_index < 0 or cell_index >= len(cells):
-            raise IndexError(f"Cell index {cell_index} out of range (0-{len(cells)-1})")
+            raise IndexError(f"Cell index {cell_index} out of range (0-{len(cells) - 1})")
 
         old_source = cells[cell_index].get("source", "")
         cells[cell_index]["source"] = new_source.split("\n") if "\n" in new_source else [new_source]
