@@ -93,7 +93,10 @@ module = [
     "google.ai.*",
     "mcp.*",
     "anthropic.*",
-    "mistralai.*"
+    "mistralai.*",
+    "prompt_toolkit.*",
+    "rich.*",
+    "click.*"
 ]
 ignore_missing_imports = true
 
