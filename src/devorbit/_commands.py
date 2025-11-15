@@ -135,109 +135,99 @@ _REGISTRY = CommandRegistry()
 # ============================================================================
 
 
-def parse_command_file(
-    file_path: Path,
-) -> Command | None:  # noqa: PLR0912 - Command file parsing requires multiple formats
-    """Parse a command file.
+def parse_frontmatter(content: str) -> tuple[str | None, str, str, list[str] | None] | None:
+    """Extract frontmatter and content if present."""
+    pattern = r"^---\s*\n(.*?)\n---\s*\n(.*)$"
+    match = re.match(pattern, content, re.DOTALL)
+    if not match:
+        return None
 
-    Supports two formats:
-    1. Markdown with frontmatter:
-       ```
-       ---
-       name: review
-       description: Review code changes
-       aliases: [check, validate]
-       ---
-       Command content here...
-       ```
+    raw_meta, command_content = match.groups()
+    meta: dict[str, str | list[str] | None] = {"name": None, "description": "", "aliases": []}
+    for line in raw_meta.splitlines():
+        if ":" not in line:
+            continue
+        key, value = [x.strip() for x in line.split(":", 1)]
+        if key == "aliases":
+            aliases_str: str = value.strip("[]")
+            meta["aliases"] = [a.strip("'\" ") for a in aliases_str.split(",") if a.strip()]
+        else:
+            meta[key] = value
 
-    2. Simple markdown:
-       ```
-       # Command Name
-       Description here
+    # Ensure correct types
+    name: str | None = None
+    if meta["name"] is not None:
+        if isinstance(meta["name"], str):
+            name = meta["name"]
+        elif isinstance(meta["name"], list) and meta["name"]:
+            name = str(meta["name"][0])
 
-       Command content...
-       ```
+    description: str = ""
+    if meta["description"] is not None:
+        if isinstance(meta["description"], str):
+            description = meta["description"]
+        elif isinstance(meta["description"], list) and meta["description"]:
+            description = str(meta["description"][0])
 
-    Args:
-        file_path: Path to command file
+    aliases_list: list[str] | None = None
+    if meta["aliases"] and isinstance(meta["aliases"], list):
+        aliases_list = meta["aliases"]
 
-    Returns:
-        Parsed Command or None if parsing fails
-    """
+    return (
+        name,
+        description,
+        command_content.strip(),
+        aliases_list,
+    )
+
+
+def parse_simple_markdown(content: str, fallback_name: str) -> tuple[str, str, str]:
+    """Parse markdown without frontmatter."""
+    lines = content.splitlines()
+    name = fallback_name
+    description = ""
+    command_body = content
+
+    for i, line in enumerate(lines):
+        if line.startswith("# "):
+            name = line[2:].strip()
+            # Try next non-empty line as description
+            for j in range(i + 1, len(lines)):
+                if lines[j].strip() and not lines[j].startswith("#"):
+                    description = lines[j].strip()
+                    break
+            command_body = "\n".join(lines[i + 1 :]).strip()
+            break
+
+    return name, description, command_body
+
+
+def parse_command_file(file_path: Path) -> Command | None:
+    """Parse a command file using frontmatter or simple markdown formats."""
     try:
         content = file_path.read_text(encoding="utf-8")
     except Exception:
         return None
 
-    # Try frontmatter format first
-    frontmatter_pattern = r"^---\s*\n(.*?)\n---\s*\n(.*)$"
-    match = re.match(frontmatter_pattern, content, re.DOTALL)
-
-    if match:
-        # Parse YAML-like frontmatter
-        frontmatter = match.group(1)
-        command_content = match.group(2).strip()
-
-        name = None
-        description = ""
-        aliases = []
-
-        for line in frontmatter.split("\n"):
-            if ":" in line:
-                key, value = line.split(":", 1)
-                key = key.strip()
-                value = value.strip()
-
-                if key == "name":
-                    name = value
-                elif key == "description":
-                    description = value
-                elif key == "aliases":
-                    # Parse list format: [alias1, alias2]
-                    aliases_str = value.strip("[]")
-                    aliases = [a.strip().strip("'\"") for a in aliases_str.split(",") if a.strip()]
-
-        if not name:
-            # Use filename as name
-            name = file_path.stem
-
+    # 1. Try frontmatter
+    fm = parse_frontmatter(content)
+    if fm:
+        name, description, body, aliases = fm
         return Command(
-            name=name,
+            name=name or file_path.stem,
             description=description,
-            content=command_content,
-            aliases=aliases or None,
+            content=body,
+            aliases=aliases,
             file_path=str(file_path.absolute()),
         )
 
-    # Try simple markdown format
-    lines = content.split("\n")
-    name = None
-    description = ""
-    command_content = content
-
-    # Check for heading
-    for i, line in enumerate(lines):
-        if line.startswith("# "):
-            name = line[2:].strip()
-            # Next non-empty line might be description
-            for j in range(i + 1, len(lines)):
-                if lines[j].strip():
-                    if not lines[j].startswith("#"):
-                        description = lines[j].strip()
-                    break
-            # Rest is content
-            command_content = "\n".join(lines[i + 1 :]).strip()
-            break
-
-    if not name:
-        # Use filename as name
-        name = file_path.stem
+    # 2. Fallback to markdown
+    name, description, body = parse_simple_markdown(content, file_path.stem)
 
     return Command(
         name=name,
         description=description,
-        content=command_content,
+        content=body,
         aliases=None,
         file_path=str(file_path.absolute()),
     )
