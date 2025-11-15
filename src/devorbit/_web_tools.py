@@ -6,7 +6,8 @@ searching the web, and converting HTML to markdown.
 
 import asyncio
 import re
-from typing import Any, Optional
+from collections.abc import Callable
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -20,7 +21,7 @@ class WebFetchResult(TypedDict):
     content: str
     content_type: str
     status_code: int
-    redirect_url: Optional[str]
+    redirect_url: str | None
 
 
 class WebSearchResult(TypedDict):
@@ -49,10 +50,18 @@ def html_to_markdown(html: str) -> str:
     html = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL | re.IGNORECASE)
 
     # Convert headers
+    def make_header_replacer(level: int) -> Callable[[re.Match[str]], str]:
+        """Create a header replacement function for a specific level."""
+
+        def replacer(match: re.Match[str]) -> str:
+            return f"{'#' * level} {match.group(1)}\n\n"
+
+        return replacer
+
     for i in range(6, 0, -1):
         html = re.sub(
             rf"<h{i}[^>]*>(.*?)</h{i}>",
-            lambda m: f"{'#' * i} {m.group(1)}\n\n",
+            make_header_replacer(i),
             html,
             flags=re.DOTALL | re.IGNORECASE,
         )
@@ -81,7 +90,9 @@ def html_to_markdown(html: str) -> str:
     html = re.sub(r'<img[^>]+src=["\']([^"\']+)["\'][^>]*>', r"![](\1)", html, flags=re.IGNORECASE)
 
     # Convert bold and italic
-    html = re.sub(r"<(?:strong|b)(?:\s[^>]*)?>([^<]+)</(?:strong|b)>", r"**\1**", html, flags=re.IGNORECASE)
+    html = re.sub(
+        r"<(?:strong|b)(?:\s[^>]*)?>([^<]+)</(?:strong|b)>", r"**\1**", html, flags=re.IGNORECASE
+    )
     html = re.sub(r"<(?:em|i)(?:\s[^>]*)?>([^<]+)</(?:em|i)>", r"*\1*", html, flags=re.IGNORECASE)
 
     # Convert code blocks
@@ -94,9 +105,7 @@ def html_to_markdown(html: str) -> str:
     html = re.sub(r"<code[^>]*>(.*?)</code>", r"`\1`", html, flags=re.DOTALL | re.IGNORECASE)
 
     # Convert lists
-    html = re.sub(
-        r"<li[^>]*>(.*?)</li>", r"- \1\n", html, flags=re.DOTALL | re.IGNORECASE
-    )
+    html = re.sub(r"<li[^>]*>(.*?)</li>", r"- \1\n", html, flags=re.DOTALL | re.IGNORECASE)
     html = re.sub(r"</?[uo]l[^>]*>", "\n", html, flags=re.IGNORECASE)
 
     # Convert paragraphs and breaks
@@ -114,7 +123,7 @@ def html_to_markdown(html: str) -> str:
     html = html.replace("&quot;", '"')
     html = html.replace("&#39;", "'")
     html = html.replace("&mdash;", "—")
-    html = html.replace("&ndash;", "–")
+    html = html.replace("&ndash;", "-")
 
     # Clean up multiple newlines
     html = re.sub(r"\n{3,}", "\n\n", html)
@@ -210,9 +219,7 @@ async def web_fetch(
         raise ValueError(f"Invalid URL: {url}")
 
     # Fetch content
-    async with httpx.AsyncClient(
-        follow_redirects=follow_redirects, timeout=timeout
-    ) as client:
+    async with httpx.AsyncClient(follow_redirects=follow_redirects, timeout=timeout) as client:
         response = await client.get(url)
         response.raise_for_status()
 

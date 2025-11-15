@@ -5,7 +5,8 @@ This module provides tools for reading and editing Jupyter notebooks (.ipynb fil
 
 import json
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
+
 from typing_extensions import TypedDict
 
 
@@ -15,9 +16,9 @@ class NotebookCell(TypedDict):
     cell_type: Literal["code", "markdown", "raw"]
     source: str
     metadata: dict[str, Any]
-    execution_count: Optional[int]
-    outputs: Optional[list[dict[str, Any]]]
-    id: Optional[str]
+    execution_count: int | None
+    outputs: list[dict[str, Any]] | None
+    id: str | None
 
 
 class NotebookContent(TypedDict):
@@ -85,7 +86,7 @@ Use this when you need to:
 def notebook_read(
     notebook_path: str,
     include_outputs: bool = True,
-    cell_range: Optional[dict[str, int]] = None,
+    cell_range: dict[str, int] | None = None,
 ) -> NotebookReadResult:
     """Read a Jupyter notebook file.
 
@@ -110,7 +111,7 @@ def notebook_read(
         raise ValueError(f"File is not a Jupyter notebook: {notebook_path}")
 
     # Read notebook file
-    with open(path, encoding="utf-8") as f:
+    with path.open(encoding="utf-8") as f:
         try:
             notebook_data = json.load(f)
         except json.JSONDecodeError as e:
@@ -241,7 +242,7 @@ def notebook_edit(
         raise ValueError(f"File is not a Jupyter notebook: {notebook_path}")
 
     # Read notebook
-    with open(path, encoding="utf-8") as f:
+    with path.open(encoding="utf-8") as f:
         notebook_data = json.load(f)
 
     cells = notebook_data.get("cells", [])
@@ -278,9 +279,7 @@ def notebook_edit(
             raise IndexError(f"Cell index {cell_index} out of range (0-{len(cells)-1})")
 
         old_source = cells[cell_index].get("source", "")
-        cells[cell_index]["source"] = (
-            new_source.split("\n") if "\n" in new_source else [new_source]
-        )
+        cells[cell_index]["source"] = new_source.split("\n") if "\n" in new_source else [new_source]
 
         # Update cell type if specified
         if cell_type != cells[cell_index].get("cell_type"):
@@ -296,7 +295,7 @@ def notebook_edit(
         result_data = {"old_source": old_source, "new_source": new_source}
 
     # Write back to file
-    with open(path, "w", encoding="utf-8") as f:
+    with path.open("w", encoding="utf-8") as f:
         json.dump(notebook_data, f, indent=2, ensure_ascii=False)
 
     return {

@@ -1,7 +1,8 @@
 """Tests for web operation tools."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from devorbit import (
     create_web_fetch_tool,

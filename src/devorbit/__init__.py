@@ -119,18 +119,6 @@ from ._todo_tools import (
     todo_read,
     todo_write,
 )
-from ._web_tools import (
-    WebFetchResult,
-    WebSearchResult,
-    create_web_fetch_tool,
-    create_web_search_tool,
-    get_all_web_tools,
-    html_to_markdown,
-    web_fetch,
-    web_fetch_sync,
-    web_search,
-    web_search_sync,
-)
 from ._tool_helpers import ToolExecutor, beta_tool, gather_tools
 from ._types import (
     BashTool,
@@ -153,6 +141,18 @@ from ._types import (
     ToolChoice,
     ToolResultContent,
     ToolUseContent,
+)
+from ._web_tools import (
+    WebFetchResult,
+    WebSearchResult,
+    create_web_fetch_tool,
+    create_web_search_tool,
+    get_all_web_tools,
+    html_to_markdown,
+    web_fetch,
+    web_fetch_sync,
+    web_search,
+    web_search_sync,
 )
 
 
