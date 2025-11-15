@@ -2,13 +2,10 @@
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 try:
     import click
-    from prompt_toolkit import PromptSession
-    from prompt_toolkit.history import FileHistory
-except ImportError as e:
+except ImportError:
     print(
         "Error: CLI dependencies not installed. "
         "Install with: pip install devorbit-multi-llm-sdk[cli]",
@@ -17,7 +14,7 @@ except ImportError as e:
     sys.exit(1)
 
 from devorbit import __version__
-from devorbit._types import ProviderType
+
 
 from .repl import DevorbitREPL
 from .session import CLISession
@@ -51,7 +48,7 @@ from .session import CLISession
     "--working-dir",
     "-w",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=Path.cwd(),
+    default=None,
     help="Working directory for file operations (default: current directory)",
 )
 @click.option(
@@ -68,9 +65,9 @@ from .session import CLISession
 )
 def main(
     provider: str,
-    model: Optional[str],
-    api_key: Optional[str],
-    working_dir: Path,
+    model: str | None,
+    api_key: str | None,
+    working_dir: Path | None,
     no_color: bool,
     debug: bool,
 ) -> None:
@@ -114,11 +111,9 @@ def main(
         )
         sys.exit(1)
 
-    # Create CLI session
-    # Cast provider string to ProviderType literal
-    provider_type: ProviderType = provider  # type: ignore[assignment]
+    # Create CLI session - provider is already validated by click.Choice
     session = CLISession(
-        provider=provider_type,
+        provider=provider,
         model=model,
         api_key=api_key,
         working_dir=working_dir,

@@ -21,6 +21,6 @@ __all__ = [
 # Lazy import to avoid loading CLI dependencies unless needed
 def main() -> None:
     """Main entry point for the Devorbit CLI."""
-    from .main import main as cli_main
+    from .main import main as cli_main  # noqa: PLC0415
 
     cli_main()

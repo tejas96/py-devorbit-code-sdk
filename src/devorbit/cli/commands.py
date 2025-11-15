@@ -1,6 +1,10 @@
 """Command handler for slash commands in Devorbit CLI."""
 
-from typing import Callable, Dict
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from .session import CLISession
 
@@ -17,7 +21,7 @@ class CommandHandler:
         self.session = session
 
         # Register built-in commands
-        self.commands: Dict[str, Callable[[list[str]], bool]] = {
+        self.commands: dict[str, Callable[[list[str]], bool]] = {
             "help": self.cmd_help,
             "exit": self.cmd_exit,
             "quit": self.cmd_exit,
@@ -216,8 +220,6 @@ Session Status:
         if not args:
             self.session.print_error("Usage: /cd <path>")
             return True
-
-        from pathlib import Path
 
         new_dir = Path(args[0]).expanduser().resolve()
         if not new_dir.exists():

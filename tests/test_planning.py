@@ -4,6 +4,7 @@ from devorbit import (
     cancel_plan,
     enter_planning_mode,
     exit_plan_mode,
+    get_all_planning_tools,
     get_current_plan,
     get_planning_status,
     is_planning_active,
@@ -170,8 +171,6 @@ class TestPlanningToolDefinitions:
 
     def test_get_all_planning_tools(self) -> None:
         """Test getting all planning tools."""
-        from devorbit import get_all_planning_tools
-
         tools = get_all_planning_tools()
 
         assert isinstance(tools, list)

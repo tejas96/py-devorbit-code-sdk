@@ -1,8 +1,7 @@
 """CLI session management."""
 
-import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
 
 try:
     from rich.console import Console as RichConsole
@@ -17,7 +16,9 @@ except ImportError:
     HAS_RICH = False
 
 from devorbit import Devorbit
-from devorbit._types import Message, ProviderType
+
+if TYPE_CHECKING:
+    from devorbit._types import Message
 
 
 class CLISession:
@@ -25,10 +26,10 @@ class CLISession:
 
     def __init__(
         self,
-        provider: ProviderType,
+        provider: str,
         api_key: str,
-        model: Optional[str] = None,
-        working_dir: Path = Path.cwd(),
+        model: str | None = None,
+        working_dir: Path | None = None,
         no_color: bool = False,
         debug: bool = False,
     ) -> None:
@@ -38,26 +39,25 @@ class CLISession:
             provider: LLM provider to use
             api_key: API key for the provider
             model: Specific model to use (optional)
-            working_dir: Working directory for file operations
+            working_dir: Working directory for file operations (default: current directory)
             no_color: Disable colored output
             debug: Enable debug mode
         """
         self.provider = provider
         self.api_key = api_key
         self.model = model
-        self.working_dir = working_dir
+        self.working_dir = working_dir or Path.cwd()
         self.no_color = no_color
         self.debug = debug
 
         # Initialize console
+        self.console: RichConsole | None = None
         if HAS_RICH and RichConsole is not None:
             self.console = RichConsole(no_color=no_color)
-        else:
-            self.console = None
 
         # Initialize Devorbit client
         self.client = Devorbit(
-            provider=provider,
+            provider=provider,  # type: ignore[arg-type]
             api_key=api_key,
         )
 
@@ -78,12 +78,12 @@ class CLISession:
 
         welcome_text = RichText()
         welcome_text.append("Devorbit CLI\n", style="bold cyan")
-        welcome_text.append(f"Provider: ", style="dim")
+        welcome_text.append("Provider: ", style="dim")
         welcome_text.append(f"{self.provider}\n", style="green")
         if self.model:
-            welcome_text.append(f"Model: ", style="dim")
+            welcome_text.append("Model: ", style="dim")
             welcome_text.append(f"{self.model}\n", style="green")
-        welcome_text.append(f"Working directory: ", style="dim")
+        welcome_text.append("Working directory: ", style="dim")
         welcome_text.append(f"{self.working_dir}\n", style="yellow")
         welcome_text.append("\nType ", style="dim")
         welcome_text.append("/help", style="bold")
@@ -158,6 +158,6 @@ class CLISession:
             message: Info message to display
         """
         if HAS_RICH and self.console is not None:
-            self.console.print(f"[bold cyan]ℹ[/bold cyan] {message}")
+            self.console.print(f"[bold cyan]i[/bold cyan] {message}")
         else:
-            print(f"ℹ {message}")
+            print(f"i {message}")
