@@ -3,6 +3,34 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from devorbit import (
+    ToolExecutor,
+    bash,
+    bash_output,
+    edit_file,
+    get_all_agent_tools,
+    get_all_bash_tools,
+    get_all_file_tools,
+    get_all_planning_tools,
+    get_all_search_tools,
+    get_all_todo_tools,
+    get_all_web_tools,
+    glob_files,
+    grep_code,
+    kill_shell,
+    ls_directory,
+    multi_edit_file,
+    read_file,
+    task,
+    task_cancel,
+    task_status,
+    todo_read,
+    todo_write,
+    web_fetch_sync,
+    web_search_sync,
+    write_file,
+)
+
 
 if TYPE_CHECKING:
     from prompt_toolkit import PromptSession
@@ -39,6 +67,34 @@ class DevorbitREPL:
         """
         self.session = session
         self.command_handler = CommandHandler(session)
+
+        # Setup tool executor with all available tools
+        self.tools = {
+            # File tools
+            "read_file": read_file,
+            "write_file": write_file,
+            "edit_file": edit_file,
+            "multi_edit_file": multi_edit_file,
+            "ls_directory": ls_directory,
+            # Search tools
+            "glob_files": glob_files,
+            "grep_code": grep_code,
+            # Bash tools
+            "bash": bash,
+            "bash_output": bash_output,
+            "kill_shell": kill_shell,
+            # Web tools
+            "web_fetch": web_fetch_sync,
+            "web_search": web_search_sync,
+            # Todo tools
+            "todo_read": todo_read,
+            "todo_write": todo_write,
+            # Agent/Task tools
+            "task": task,
+            "task_status": task_status,
+            "task_cancel": task_cancel,
+        }
+        self.executor = ToolExecutor(tools=self.tools)
 
         # Setup prompt session with history
         history_file = Path.home() / ".devorbit_history"
@@ -114,23 +170,67 @@ class DevorbitREPL:
         if user_input.startswith("/"):
             return self.command_handler.handle_command(user_input)
 
-        # Regular message - send to LLM
+        # Regular message - send to LLM with tool execution
         try:
             self.session.add_message("user", user_input)
             self.session.print_info("Processing your request...")
 
-            # TODO: Implement LLM message sending and tool execution
-            # For now, just echo back
-            response = f"[Echo] You said: {user_input}"
-            self.session.print(f"\n{response}\n")
+            # Get model to use (use session model or default)
+            model = self.session.model or self._get_default_model()
 
-            self.session.add_message("assistant", response)
+            # Execute tool loop with LLM
+            response = self.executor.execute_tool_loop(
+                client=self.session.client,
+                messages=self.session.messages,
+                model=model,
+                max_tokens=4096,
+                max_iterations=15,
+            )
+
+            # Extract and display text response
+            response_text = ""
+            for block in response.content:
+                if hasattr(block, "text"):
+                    response_text += block.text
+
+            if response_text:
+                self.session.print(f"\n{response_text}\n")
+                self.session.add_message("assistant", response_text)
+            else:
+                self.session.print_info("Request completed (no text response)")
+
+            # Display usage statistics if available
+            if hasattr(response, "usage") and response.usage:
+                usage = response.usage
+                self.session.print(
+                    f"[dim]Tokens: {usage.input_tokens} in, "
+                    f"{usage.output_tokens} out[/dim]"
+                )
+
         except Exception as e:
             self.session.print_error(f"Failed to process message: {e}")
             if self.session.debug:
-                raise
+                import traceback
+
+                traceback.print_exc()
 
         return True
+
+    def _get_default_model(self) -> str:
+        """Get the default model for the current provider.
+
+        Returns:
+            Default model name
+        """
+        provider = self.session.provider
+        defaults = {
+            "anthropic": "claude-sonnet-4-5-20250929",
+            "openai": "gpt-4-turbo-preview",
+            "gemini": "gemini-pro",
+            "mistral": "mistral-medium",
+            "codellama": "codellama-34b",
+        }
+        return defaults.get(provider, "claude-sonnet-4-5-20250929")
 
     def run(self) -> None:
         """Start the REPL loop."""
@@ -148,5 +248,4 @@ class DevorbitREPL:
                 break
 
 
-__all__ = ["DevorbitREPL"]
 __all__ = ["DevorbitREPL"]
