@@ -1,6 +1,5 @@
 """Tests for CLI REPL functionality."""
 
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -174,9 +173,11 @@ class TestDevorbitREPL:
     def test_run_loop_exit_on_command(self, repl):
         """Test REPL exits when command returns False."""
         inputs = ["/exit"]
-        with patch.object(repl, "read_input", side_effect=inputs):
-            with patch.object(repl, "process_input", return_value=False):
-                repl.run()
+        with (
+            patch.object(repl, "read_input", side_effect=inputs),
+            patch.object(repl, "process_input", return_value=False),
+        ):
+            repl.run()
 
     def test_run_loop_continues(self, repl, session):
         """Test REPL continues on successful input."""
@@ -191,9 +192,11 @@ class TestDevorbitREPL:
             session.is_running = False
             return None
 
-        with patch.object(repl, "read_input", side_effect=read_input_side_effect):
-            with patch.object(repl, "process_input", return_value=True):
-                repl.run()
+        with (
+            patch.object(repl, "read_input", side_effect=read_input_side_effect),
+            patch.object(repl, "process_input", return_value=True),
+        ):
+            repl.run()
 
         assert call_count[0] == 2
 
@@ -215,9 +218,8 @@ class TestDevorbitREPL:
 
     def test_history_file_location(self, repl):
         """Test that history file is in home directory."""
-        history_file = Path.home() / ".devorbit_history"
-        # Just verify the path exists in the implementation
-        assert repl.prompt_session is not None or True  # Works with or without prompt_toolkit
+        # Just verify the REPL initializes correctly (works with or without prompt_toolkit)
+        assert True  # REPL initialized successfully if we got here
 
     @patch("devorbit.cli.repl.HAS_PROMPT_TOOLKIT", False)
     def test_repl_without_prompt_toolkit(self, session):

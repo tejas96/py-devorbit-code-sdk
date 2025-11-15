@@ -1,20 +1,14 @@
 """REPL (Read-Eval-Print Loop) implementation for Devorbit CLI."""
 
+import traceback
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from devorbit import (
     ToolExecutor,
     bash,
     bash_output,
     edit_file,
-    get_all_agent_tools,
-    get_all_bash_tools,
-    get_all_file_tools,
-    get_all_planning_tools,
-    get_all_search_tools,
-    get_all_todo_tools,
-    get_all_web_tools,
     glob_files,
     grep_code,
     kill_shell,
@@ -33,6 +27,8 @@ from devorbit import (
 
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from prompt_toolkit import PromptSession
     from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.history import FileHistory
@@ -69,7 +65,7 @@ class DevorbitREPL:
         self.command_handler = CommandHandler(session)
 
         # Setup tool executor with all available tools
-        self.tools = {
+        self.tools: dict[str, Callable[..., Any]] = {
             # File tools
             "read_file": read_file,
             "write_file": write_file,
@@ -203,15 +199,12 @@ class DevorbitREPL:
             if hasattr(response, "usage") and response.usage:
                 usage = response.usage
                 self.session.print(
-                    f"[dim]Tokens: {usage.input_tokens} in, "
-                    f"{usage.output_tokens} out[/dim]"
+                    f"[dim]Tokens: {usage.input_tokens} in, {usage.output_tokens} out[/dim]"
                 )
 
         except Exception as e:
             self.session.print_error(f"Failed to process message: {e}")
             if self.session.debug:
-                import traceback
-
                 traceback.print_exc()
 
         return True
