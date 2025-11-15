@@ -383,12 +383,12 @@ def list_hooks(hook_type: str | None = None) -> dict[str, Any]:
             except ValueError:
                 return {
                     "error": f"Invalid hook type: {hook_type}",
-                    "valid_types": [t.value for t in HookType],
+                    "valid_types": [t.value for t in list(HookType)],
                 }
         else:
             # Get all hooks
             hooks = []
-            for ht in HookType:
+            for ht in list(HookType):
                 hooks.extend(_REGISTRY.get_hooks(ht))
 
         for hook in hooks:
@@ -435,7 +435,7 @@ def trigger_hook(
         except ValueError:
             return {
                 "error": f"Invalid hook type: {hook_type}",
-                "valid_types": [t.value for t in HookType],
+                "valid_types": [t.value for t in list(HookType)],
             }
 
         # Execute hooks
