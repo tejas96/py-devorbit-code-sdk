@@ -1,6 +1,7 @@
 """Tests for web operation tools."""
 
 from unittest.mock import AsyncMock, Mock, patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -83,6 +84,15 @@ class TestHTMLToMarkdown:
         assert "xss" not in result
         assert "Content" in result
 
+    def test_remove_scripts_malformed_closing_tags(self) -> None:
+        """Test removal of script tags with malformed closing tags."""
+        # Security test: malicious closing tags with extra content like </script\t\n bar>
+        html = "<script>alert('xss')</script\t\n bar><p>Safe</p>"
+        result = html_to_markdown(html)
+        assert "alert" not in result
+        assert "xss" not in result
+        assert "Safe" in result
+
     def test_decode_html_entities(self) -> None:
         """Test HTML entity decoding."""
         html = "AT&amp;T &lt;test&gt; &quot;quote&quot;"
@@ -140,10 +150,12 @@ class TestWebFetchTool:
                 return_value=mock_response
             )
 
-            # Test URL without scheme - verify the actual URL starts with https://example.com
+            # Test URL without scheme - verify HTTPS upgrade happened
             result = await web_fetch("example.com")
-            # Ensure the URL was properly upgraded and starts with the expected domain
-            assert result["url"].startswith("https://example.com")
+            # Parse URL to verify domain matches exactly (not substring)
+            parsed = urlparse(result["url"])
+            assert parsed.scheme == "https"
+            assert parsed.netloc == "example.com"
 
     @pytest.mark.asyncio
     async def test_web_fetch_invalid_url(self) -> None:
@@ -267,4 +279,5 @@ class TestWebToolsHelpers:
             assert "name" in tool
             assert "description" in tool
             assert "input_schema" in tool
+            assert "properties" in tool["input_schema"]
             assert "properties" in tool["input_schema"]
