@@ -9,10 +9,10 @@ This module provides an event-driven hook framework:
 
 import os
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
-from collections.abc import Callable
 
 from ._tool_helpers import beta_tool
 

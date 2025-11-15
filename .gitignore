@@ -68,3 +68,7 @@ dmypy.json
 
 # Ruff
 .ruff_cache/
+
+# Security reports
+bandit-report.json
+safety-report.json

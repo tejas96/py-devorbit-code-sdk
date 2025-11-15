@@ -135,7 +135,9 @@ _REGISTRY = CommandRegistry()
 # ============================================================================
 
 
-def parse_command_file(file_path: Path) -> Command | None:  # noqa: PLR0912 - Command file parsing requires multiple formats
+def parse_command_file(
+    file_path: Path,
+) -> Command | None:  # noqa: PLR0912 - Command file parsing requires multiple formats
     """Parse a command file.
 
     Supports two formats:

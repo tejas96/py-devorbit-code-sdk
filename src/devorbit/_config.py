@@ -9,6 +9,7 @@ This module provides a comprehensive configuration system supporting:
 Priority order: env vars > programmatic > .devorbit.json > PROJECT.md > defaults
 """
 
+import contextlib
 import json
 import os
 from dataclasses import dataclass, field
@@ -16,7 +17,6 @@ from pathlib import Path
 from typing import Any
 
 from ._tool_helpers import beta_tool
-import contextlib
 
 
 # ============================================================================
@@ -63,9 +63,11 @@ class DevorbitConfig:
             system_prompt=other.system_prompt or self.system_prompt,
             hooks_enabled=other.hooks_enabled,
             hooks={**self.hooks, **other.hooks},
-            commands_dir=other.commands_dir
-            if other.commands_dir != ".devorbit/commands"
-            else self.commands_dir,
+            commands_dir=(
+                other.commands_dir
+                if other.commands_dir != ".devorbit/commands"
+                else self.commands_dir
+            ),
             custom_settings={**self.custom_settings, **other.custom_settings},
         )
 
