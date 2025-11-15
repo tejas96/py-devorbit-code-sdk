@@ -69,7 +69,14 @@ from ._errors import (
     UnprocessableEntityError,
     UnsupportedProviderError,
 )
-from ._file_tools import edit_file, get_all_file_tools, multi_edit_file, read_file, write_file
+from ._file_tools import (
+    edit_file,
+    get_all_file_tools,
+    ls_directory,
+    multi_edit_file,
+    read_file,
+    write_file,
+)
 from ._hooks import (
     Hook,
     HookRegistry,
@@ -110,6 +117,16 @@ from ._notebook_tools import (
     get_all_notebook_tools,
     notebook_edit,
     notebook_read,
+)
+from ._planning import (
+    PlanningState,
+    cancel_plan,
+    enter_planning_mode,
+    exit_plan_mode,
+    get_all_planning_tools,
+    get_current_plan,
+    get_planning_status,
+    is_planning_active,
 )
 from ._search_tools import get_all_search_tools, glob_files, grep_code
 from ._todo_tools import (
@@ -221,6 +238,8 @@ __all__ = [
     "NotebookReadResult",
     "OverloadedError",
     "PermissionDeniedError",
+    # Planning
+    "PlanningState",
     "ProviderError",
     "ProviderType",
     "RateLimitError",
@@ -247,6 +266,7 @@ __all__ = [
     "bash_output",
     # Tool helpers
     "beta_tool",
+    "cancel_plan",
     "cleanup_sessions",
     "cleanup_tasks",
     "clear_todo_state",
@@ -259,9 +279,11 @@ __all__ = [
     "create_web_fetch_tool",
     "create_web_search_tool",
     "edit_file",
+    "enter_planning_mode",
     # Commands
     "execute_command",
     "execute_hooks",
+    "exit_plan_mode",
     "gather_tools",
     "get_agent_info",
     "get_all_agent_tools",
@@ -272,15 +294,19 @@ __all__ = [
     "get_all_file_tools",
     "get_all_hook_tools",
     "get_all_notebook_tools",
+    "get_all_planning_tools",
     "get_all_search_tools",
     "get_all_todo_tools",
     "get_all_web_tools",
+    "get_current_plan",
     "get_current_todos",
+    "get_planning_status",
     "get_registry",
     # Search tools
     "glob_files",
     "grep_code",
     "html_to_markdown",
+    "is_planning_active",
     "kill_shell",
     # Hooks
     "list_active_sessions",
@@ -294,6 +320,8 @@ __all__ = [
     "load_hooks_from_config",
     # MCP
     "load_mcp_config",
+    # File operations (continued)
+    "ls_directory",
     "multi_edit_file",
     "notebook_edit",
     "notebook_read",
