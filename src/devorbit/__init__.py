@@ -69,7 +69,14 @@ from ._errors import (
     UnprocessableEntityError,
     UnsupportedProviderError,
 )
-from ._file_tools import edit_file, get_all_file_tools, multi_edit_file, read_file, write_file
+from ._file_tools import (
+    edit_file,
+    get_all_file_tools,
+    ls_directory,
+    multi_edit_file,
+    read_file,
+    write_file,
+)
 from ._hooks import (
     Hook,
     HookRegistry,
@@ -110,6 +117,16 @@ from ._notebook_tools import (
     get_all_notebook_tools,
     notebook_edit,
     notebook_read,
+)
+from ._planning import (
+    PlanningState,
+    cancel_plan,
+    enter_planning_mode,
+    exit_plan_mode,
+    get_all_planning_tools,
+    get_current_plan,
+    get_planning_status,
+    is_planning_active,
 )
 from ._plugins import (
     BasePlugin,
@@ -251,6 +268,8 @@ __all__ = [
     "NotebookReadResult",
     "OverloadedError",
     "PermissionDeniedError",
+    # Planning
+    "PlanningState",
     "PluginMetadata",
     "PluginRegistry",
     "ProviderError",
@@ -281,6 +300,7 @@ __all__ = [
     "bash_output",
     # Tool helpers
     "beta_tool",
+    "cancel_plan",
     "cleanup_sessions",
     "cleanup_tasks",
     "clear_todo_state",
@@ -296,10 +316,12 @@ __all__ = [
     "discover_all_plugins",
     "edit_file",
     "enable_plugin",
+    "enter_planning_mode",
     # Commands
     "execute_command",
     "execute_hooks",
     "execute_skill",
+    "exit_plan_mode",
     "gather_tools",
     "get_agent_info",
     "get_all_agent_tools",
@@ -310,12 +332,15 @@ __all__ = [
     "get_all_file_tools",
     "get_all_hook_tools",
     "get_all_notebook_tools",
+    "get_all_planning_tools",
     "get_all_plugin_tools",
     "get_all_search_tools",
     "get_all_skill_tools",
     "get_all_todo_tools",
     "get_all_web_tools",
+    "get_current_plan",
     "get_current_todos",
+    "get_planning_status",
     "get_plugin_registry",
     "get_plugin_tools",
     "get_registry",
@@ -324,6 +349,7 @@ __all__ = [
     "glob_files",
     "grep_code",
     "html_to_markdown",
+    "is_planning_active",
     "kill_shell",
     # Hooks
     "list_active_sessions",
@@ -341,6 +367,8 @@ __all__ = [
     # MCP
     "load_mcp_config",
     "load_skills",
+    # File operations (continued)
+    "ls_directory",
     "multi_edit_file",
     "notebook_edit",
     "notebook_read",
@@ -358,8 +386,8 @@ __all__ = [
     "task",
     "task_cancel",
     "task_status",
-    "todo_read",
     # Todo management tools
+    "todo_read",
     "todo_write",
     "trigger_hook",
     "update_config",

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from devorbit import edit_file, multi_edit_file, read_file, write_file
+from devorbit import edit_file, ls_directory, multi_edit_file, read_file, write_file
 
 
 class TestReadFile:
@@ -238,3 +238,106 @@ class TestMultiEditFile:
 
         assert "error" in result
         assert "missing" in result["error"].lower()
+
+
+class TestLsDirectory:
+    """Tests for ls_directory tool."""
+
+    def test_ls_simple_directory(self, tmp_path: Path) -> None:
+        """Test listing a simple directory."""
+        # Create test files
+        (tmp_path / "file1.txt").write_text("content1")
+        (tmp_path / "file2.txt").write_text("content2")
+        (tmp_path / "subdir").mkdir()
+
+        result = ls_directory(str(tmp_path))
+
+        assert result["success"] is True
+        assert result["total_entries"] == 3
+        assert any("file1.txt" in e["name"] for e in result["entries"])
+        assert any("file2.txt" in e["name"] for e in result["entries"])
+        assert any("subdir/" in e["name"] for e in result["entries"])
+
+    def test_ls_with_hidden_files(self, tmp_path: Path) -> None:
+        """Test listing with hidden files."""
+        (tmp_path / "visible.txt").write_text("visible")
+        (tmp_path / ".hidden").write_text("hidden")
+
+        # Without all_files flag
+        result = ls_directory(str(tmp_path), all_files=False)
+        assert result["total_entries"] == 1
+        assert not any(".hidden" in e["name"] for e in result["entries"])
+
+        # With all_files flag
+        result_all = ls_directory(str(tmp_path), all_files=True)
+        assert result_all["total_entries"] == 2
+        assert any(".hidden" in e["name"] for e in result_all["entries"])
+
+    def test_ls_long_format(self, tmp_path: Path) -> None:
+        """Test listing with long format."""
+        (tmp_path / "file.txt").write_text("content")
+
+        result = ls_directory(str(tmp_path), long_format=True)
+
+        assert result["success"] is True
+        entries = result["entries"]
+        assert len(entries) == 1
+        assert "size" in entries[0]
+        assert "permissions" in entries[0]
+        assert "modified" in entries[0]
+
+    def test_ls_recursive(self, tmp_path: Path) -> None:
+        """Test recursive directory listing."""
+        # Create nested structure
+        (tmp_path / "file1.txt").write_text("top")
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+        (subdir / "file2.txt").write_text("nested")
+
+        result = ls_directory(str(tmp_path), recursive=True)
+
+        assert result["success"] is True
+        assert result["total_entries"] >= 3  # file1.txt, subdir/, subdir/file2.txt
+        assert any("subdir/file2.txt" in e["name"] for e in result["entries"])
+
+    def test_ls_nonexistent_directory(self) -> None:
+        """Test listing nonexistent directory."""
+        result = ls_directory("/nonexistent/directory")
+
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_ls_file_not_directory(self, tmp_path: Path) -> None:
+        """Test listing a file (should fail)."""
+        test_file = tmp_path / "file.txt"
+        test_file.write_text("content")
+
+        result = ls_directory(str(test_file))
+
+        assert "error" in result
+        assert "not a directory" in result["error"].lower()
+
+    def test_ls_empty_directory(self, tmp_path: Path) -> None:
+        """Test listing an empty directory."""
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+
+        result = ls_directory(str(empty_dir))
+
+        assert result["success"] is True
+        assert result["total_entries"] == 0
+        assert result["entries"] == []
+
+    def test_ls_output_format(self, tmp_path: Path) -> None:
+        """Test output formatting."""
+        (tmp_path / "test.txt").write_text("content")
+
+        # Simple format
+        result_simple = ls_directory(str(tmp_path))
+        assert "output" in result_simple
+        assert "test.txt" in result_simple["output"]
+
+        # Long format
+        result_long = ls_directory(str(tmp_path), long_format=True)
+        assert "output" in result_long
+        assert "test.txt" in result_long["output"]

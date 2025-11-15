@@ -418,6 +418,138 @@ def multi_edit_file(
 
 
 # ============================================================================
+# LS Tool (List Directory)
+# ============================================================================
+
+
+@beta_tool
+def ls_directory(
+    path: str = ".",
+    all_files: bool = False,
+    long_format: bool = False,
+    recursive: bool = False,
+) -> dict[str, Any]:
+    """List directory contents similar to `ls` command.
+
+    Provides directory listing with detailed information. Supports showing
+    hidden files, long format with details, and recursive listing.
+
+    Args:
+        path: Directory path (default: current directory)
+        all_files: Show hidden files starting with '.' (like ls -a)
+        long_format: Long format with size and permissions (like ls -l)
+        recursive: Recursive listing of subdirectories (like ls -R)
+
+    Returns:
+        Dictionary containing directory listing or error message
+    """
+    try:
+        dir_path = Path(path)
+
+        # Validate path
+        if not dir_path.exists():
+            return {
+                "error": f"Directory not found: {path}",
+                "path": path,
+            }
+
+        if not dir_path.is_dir():
+            return {
+                "error": f"Path is not a directory: {path}",
+                "path": path,
+            }
+
+        # Check permissions
+        if not os.access(dir_path, os.R_OK):
+            return {
+                "error": f"Permission denied: {path}",
+                "path": path,
+            }
+
+        entries: list[dict[str, Any]] = []
+
+        def list_dir(current_path: Path, prefix: str = "") -> None:
+            """Recursively list directory contents."""
+            try:
+                items = sorted(current_path.iterdir(), key=lambda p: (not p.is_dir(), p.name))
+            except PermissionError:
+                entries.append(
+                    {
+                        "name": f"{prefix}{current_path.name}/",
+                        "error": "Permission denied",
+                    }
+                )
+                return
+
+            for item in items:
+                # Skip hidden files unless requested
+                if not all_files and item.name.startswith("."):
+                    continue
+
+                try:
+                    stat = item.stat()
+                    is_dir = item.is_dir()
+                    display_name = f"{prefix}{item.name}/" if is_dir else f"{prefix}{item.name}"
+
+                    entry: dict[str, Any] = {
+                        "name": display_name,
+                        "type": "directory" if is_dir else "file",
+                    }
+
+                    if long_format:
+                        # Add detailed information
+                        entry["size"] = stat.st_size if not is_dir else 0
+                        entry["permissions"] = oct(stat.st_mode)[-3:]
+                        entry["modified"] = stat.st_mtime
+
+                    entries.append(entry)
+
+                    # Recurse into subdirectories if requested
+                    if recursive and is_dir:
+                        list_dir(item, prefix=f"{prefix}{item.name}/")
+
+                except (PermissionError, OSError) as e:
+                    entries.append(
+                        {
+                            "name": f"{prefix}{item.name}",
+                            "error": str(e),
+                        }
+                    )
+
+        # List the directory
+        list_dir(dir_path)
+
+        # Format output
+        if long_format:
+            output_lines = []
+            for entry in entries:
+                if "error" in entry:
+                    output_lines.append(f"{entry['name']:<50} ERROR: {entry['error']}")
+                else:
+                    size_str = f"{entry.get('size', 0):>10}"
+                    perms = entry.get("permissions", "???")
+                    output_lines.append(f"{perms}  {size_str}  {entry['name']}")
+            output = "\n".join(output_lines)
+        else:
+            # Simple format (just names)
+            output = "\n".join(e["name"] for e in entries)
+
+        return {
+            "success": True,
+            "path": str(dir_path.absolute()),
+            "entries": entries,
+            "total_entries": len(entries),
+            "output": output,
+        }
+
+    except Exception as e:
+        return {
+            "error": f"Failed to list directory: {e!s}",
+            "path": path,
+        }
+
+
+# ============================================================================
 # Helper Functions
 # ============================================================================
 
@@ -433,6 +565,7 @@ def get_all_file_tools() -> list[dict[str, Any]]:
         write_file.tool_definition,  # type: ignore[attr-defined]
         edit_file.tool_definition,  # type: ignore[attr-defined]
         multi_edit_file.tool_definition,  # type: ignore[attr-defined]
+        ls_directory.tool_definition,  # type: ignore[attr-defined]
     ]
 
 
@@ -440,6 +573,7 @@ def get_all_file_tools() -> list[dict[str, Any]]:
 __all__ = [
     "edit_file",
     "get_all_file_tools",
+    "ls_directory",
     "multi_edit_file",
     "read_file",
     "write_file",

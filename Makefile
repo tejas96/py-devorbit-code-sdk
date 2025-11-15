@@ -185,9 +185,10 @@ pre-commit: ## Run all pre-commit checks manually
 
 ##@ CI/CD
 
-check: ## Run all checks (linting, formatting, type-check)
+check: ## Run all checks (linting, formatting, type-check, import sorting)
 	@echo "$(BLUE)Running all code quality checks...$(NC)"
 	@$(MAKE) format-check
+	@$(MAKE) isort-check
 	@$(MAKE) lint
 	@$(MAKE) type-check
 	@echo "$(GREEN)✓ All checks passed$(NC)"
@@ -215,7 +216,7 @@ all: clean install ci build ## Run everything: clean, install, CI checks, and bu
 	@echo "$(GREEN)✓ All Tasks Completed!$(NC)"
 	@echo "$(GREEN)================================$(NC)"
 
-quick-check: format-check lint ## Quick checks before committing (fast)
+quick-check: format-check isort-check lint ## Quick checks before committing (fast)
 	@echo "$(GREEN)✓ Quick checks passed$(NC)"
 
 ##@ Development
