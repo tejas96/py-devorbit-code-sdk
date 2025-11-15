@@ -45,9 +45,9 @@ def html_to_markdown(html: str) -> str:
     Returns:
         Markdown formatted text
     """
-    # Remove script and style tags
-    html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
-    html = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove script and style tags (handle whitespace before closing >)
+    html = re.sub(r"<script\b[^>]*>.*?</script\s*>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r"<style\b[^>]*>.*?</style\s*>", "", html, flags=re.DOTALL | re.IGNORECASE)
 
     # Convert headers
     def make_header_replacer(level: int) -> Callable[[re.Match[str]], str]:

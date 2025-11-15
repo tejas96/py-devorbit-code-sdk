@@ -74,6 +74,15 @@ class TestHTMLToMarkdown:
         assert "body{}" not in result
         assert "Content" in result
 
+    def test_remove_scripts_with_whitespace(self) -> None:
+        """Test removal of script tags with whitespace before closing bracket."""
+        # Security test: ensure malicious scripts with whitespace are also removed
+        html = "<script>alert('xss')</script ><p>Content</p><script >alert('xss2')</script >"
+        result = html_to_markdown(html)
+        assert "alert" not in result
+        assert "xss" not in result
+        assert "Content" in result
+
     def test_decode_html_entities(self) -> None:
         """Test HTML entity decoding."""
         html = "AT&amp;T &lt;test&gt; &quot;quote&quot;"
@@ -131,9 +140,10 @@ class TestWebFetchTool:
                 return_value=mock_response
             )
 
-            # Test URL without scheme
+            # Test URL without scheme - verify the actual URL starts with https://example.com
             result = await web_fetch("example.com")
-            assert "example.com" in result["url"] or "https://" in result["url"]
+            # Ensure the URL was properly upgraded and starts with the expected domain
+            assert result["url"].startswith("https://example.com")
 
     @pytest.mark.asyncio
     async def test_web_fetch_invalid_url(self) -> None:
