@@ -32,6 +32,25 @@ from ._builtin_tools import (
     get_all_builtin_tools,
 )
 from ._client import AsyncDevorbit, Devorbit
+from ._commands import (
+    Command,
+    CommandRegistry,
+    execute_command,
+    get_all_command_tools,
+    list_slash_commands,
+    load_commands,
+    parse_command_invocation,
+    register_command,
+    run_slash_command,
+)
+from ._config import (
+    DevorbitConfig,
+    get_all_config_tools,
+    load_config,
+    read_config,
+    save_config,
+    update_config,
+)
 from ._errors import (
     APIConnectionError,
     APIError,
@@ -50,12 +69,18 @@ from ._errors import (
     UnprocessableEntityError,
     UnsupportedProviderError,
 )
-from ._file_tools import (
-    edit_file,
-    get_all_file_tools,
-    multi_edit_file,
-    read_file,
-    write_file,
+from ._file_tools import edit_file, get_all_file_tools, multi_edit_file, read_file, write_file
+from ._hooks import (
+    Hook,
+    HookRegistry,
+    HookType,
+    execute_hooks,
+    get_all_hook_tools,
+    get_registry,
+    list_hooks,
+    load_hooks_from_config,
+    register_hook,
+    trigger_hook,
 )
 from ._mcp import MCPClient, MCPManager, MCPServerConfig, load_mcp_config
 from ._models import (
@@ -132,6 +157,9 @@ __all__ = [
     # Beta namespace
     "Beta",
     "CacheControl",
+    # Commands
+    "Command",
+    "CommandRegistry",
     "ComputerUseTool",
     "ContentBlock",
     "ContentBlockDeltaEvent",
@@ -139,11 +167,17 @@ __all__ = [
     "ContentBlockStopEvent",
     # Main clients
     "Devorbit",
+    # Configuration
+    "DevorbitConfig",
     # Errors
     "DevorbitError",
     "DocumentBlock",
     "DocumentContent",
     "DocumentSource",
+    # Hooks
+    "Hook",
+    "HookRegistry",
+    "HookType",
     "ImageContent",
     "InternalServerError",
     # MCP support
@@ -194,27 +228,47 @@ __all__ = [
     "create_computer_use_tool",
     "create_text_editor_tool",
     "edit_file",
+    # Commands
+    "execute_command",
+    "execute_hooks",
     "gather_tools",
     "get_agent_info",
     "get_all_agent_tools",
     "get_all_bash_tools",
     "get_all_builtin_tools",
+    "get_all_command_tools",
+    "get_all_config_tools",
     "get_all_file_tools",
+    "get_all_hook_tools",
     "get_all_search_tools",
     "get_all_todo_tools",
     "get_current_todos",
+    "get_registry",
     # Search tools
     "glob_files",
     "grep_code",
     "kill_shell",
+    # Hooks
     "list_active_sessions",
     "list_active_tasks",
     "list_agent_types",
+    "list_hooks",
+    "list_slash_commands",
+    # Configuration
+    "load_commands",
+    "load_config",
+    "load_hooks_from_config",
     # MCP
     "load_mcp_config",
     "multi_edit_file",
+    "parse_command_invocation",
     # File operation tools
+    "read_config",
     "read_file",
+    "register_command",
+    "register_hook",
+    "run_slash_command",
+    "save_config",
     # Agent/Task tools
     "task",
     "task_cancel",
@@ -222,5 +276,7 @@ __all__ = [
     "todo_read",
     # Todo management tools
     "todo_write",
+    "trigger_hook",
+    "update_config",
     "write_file",
 ]

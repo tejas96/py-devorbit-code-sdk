@@ -93,9 +93,7 @@ def example_basic_tool_use():
                 print(f"Tool result: {tool_result}")
 
                 # Send tool result back to the model
-                messages.append(
-                    {"role": "assistant", "content": response.content[0].text or ""}
-                )
+                messages.append({"role": "assistant", "content": response.content[0].text or ""})
                 messages.append(
                     {
                         "role": "user",
