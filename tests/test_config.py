@@ -199,9 +199,7 @@ class TestEnvLoader:
 class TestConfigLoading:
     """Test complete configuration loading."""
 
-    def test_load_complete_config(
-        self, temp_project: Path, clean_env: None
-    ) -> None:
+    def test_load_complete_config(self, temp_project: Path, clean_env: None) -> None:
         """Test loading from all sources."""
         # Create PROJECT.md
         (temp_project / "PROJECT.md").write_text("Project context")
@@ -217,13 +215,9 @@ class TestConfigLoading:
         assert config.model == "gpt-4"
         assert config.max_tokens == 2000
 
-    def test_env_priority(
-        self, temp_project: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_env_priority(self, temp_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test environment variables override config file."""
-        (temp_project / ".devorbit.json").write_text(
-            json.dumps({"model": "gpt-4"})
-        )
+        (temp_project / ".devorbit.json").write_text(json.dumps({"model": "gpt-4"}))
 
         monkeypatch.setenv("DEVORBIT_MODEL", "claude-3")
 
@@ -261,9 +255,7 @@ class TestConfigTools:
 
     def test_read_config_tool(self, temp_project: Path) -> None:
         """Test read_config tool."""
-        (temp_project / ".devorbit.json").write_text(
-            json.dumps({"model": "gpt-4"})
-        )
+        (temp_project / ".devorbit.json").write_text(json.dumps({"model": "gpt-4"}))
 
         result = read_config(str(temp_project))
 

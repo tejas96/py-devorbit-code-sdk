@@ -1,6 +1,5 @@
 """Tests for hooks system."""
 
-
 from devorbit._hooks import (
     Hook,
     HookContext,

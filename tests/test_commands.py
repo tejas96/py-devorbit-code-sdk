@@ -223,9 +223,7 @@ class TestCommandLoading:
 
         assert len(commands) == 0
 
-    def test_load_commands_multiple_locations(
-        self, temp_project: Path
-    ) -> None:
+    def test_load_commands_multiple_locations(self, temp_project: Path) -> None:
         """Test loading from multiple standard locations."""
         # Create commands in different locations
         devorbit_dir = temp_project / ".devorbit" / "commands"
