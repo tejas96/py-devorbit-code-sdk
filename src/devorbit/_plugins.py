@@ -261,14 +261,13 @@ def discover_pip_plugins() -> list[PluginMetadata]:
         entry_points = importlib.metadata.entry_points()
 
         # Handle both old and new entry_points API
+        plugin_eps: Any
         if hasattr(entry_points, "select"):
             # Python 3.10+
             plugin_eps = entry_points.select(group="devorbit.plugins")
         else:
             # Python 3.9 - entry_points returns a dict
-            plugin_eps = (
-                entry_points.get("devorbit.plugins", []) if isinstance(entry_points, dict) else []
-            )
+            plugin_eps = entry_points.get("devorbit.plugins", [])  # type: ignore[attr-defined]
 
         for ep in plugin_eps:
             try:
