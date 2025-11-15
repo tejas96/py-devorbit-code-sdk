@@ -3,6 +3,7 @@
 import sys
 from typing import Optional
 
+
 try:
     from prompt_toolkit import PromptSession
     from prompt_toolkit.formatted_text import HTML
@@ -60,9 +61,7 @@ class DevorbitREPL:
         """
         if HTML is not None and self.prompt_style is not None:
             cwd = self.session.working_dir.name
-            return HTML(
-                f'<prompt>devorbit</prompt> <path>{cwd}</path><prompt>></prompt> '
-            ).value
+            return HTML(f"<prompt>devorbit</prompt> <path>{cwd}</path><prompt>></prompt> ").value
         return "devorbit> "
 
     def read_input(self) -> Optional[str]:
@@ -139,4 +138,5 @@ class DevorbitREPL:
                 break
 
 
+__all__ = ["DevorbitREPL"]
 __all__ = ["DevorbitREPL"]
