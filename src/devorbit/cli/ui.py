@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .interactive_prompt import InteractivePrompt
+
 
 try:
     from rich.console import Console
@@ -531,9 +533,24 @@ class CLIFormatter:
         self.console.print()
         self.console.print(panel)
 
-        # Get user input
-        response = Prompt.ask("Enter choice", choices=["1", "2", "3"], default="1")
-        return int(response)
+        # Get user input with arrow-based selection
+        context = self._extract_context_from_tool(tool_name, tool_input)
+        option2_text = (
+            f"Yes, and always allow access to {context} from this project"
+            if context
+            else "Yes, allow all tools this session"
+        )
+
+        choice = InteractivePrompt.select(
+            message="",  # Message already shown in panel
+            choices=[
+                ("Yes", "1"),
+                (option2_text, "2"),
+                ("No, and tell Claude what to do differently", "3"),
+            ],
+            default="1",
+        )
+        return int(choice)
 
     def confirm_edit(  # noqa: PLR0911
         self,

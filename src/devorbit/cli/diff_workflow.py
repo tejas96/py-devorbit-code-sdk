@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .diff_engine import DiffManager, FileDiff
+from .interactive_prompt import InteractivePrompt
 
 try:
     from rich.console import Console
@@ -125,7 +126,7 @@ class DiffWorkflow:
         return results
 
     def _prompt_action(self, file_diff: FileDiff) -> str:
-        """Prompt user for action on a diff.
+        """Prompt user for action on a diff with arrow-key selection.
 
         Args:
             file_diff: FileDiff to review
@@ -133,87 +134,25 @@ class DiffWorkflow:
         Returns:
             Action: 'apply', 'reject', or 'skip'
         """
-        if HAS_RICH and self.console and not self.no_color:
-            return self._prompt_action_rich(file_diff)
-        return self._prompt_action_plain(file_diff)
-
-    def _prompt_action_rich(self, file_diff: FileDiff) -> str:
-        """Prompt with Rich UI.
-
-        Args:
-            file_diff: FileDiff to review
-
-        Returns:
-            Action string
-        """
-        if not self.console:
-            return "reject"
-
-        # Show options panel
-        panel = Panel(
-            "[green]a[/green] - Apply changes\n"
-            "[red]r[/red] - Reject changes\n"
-            "[yellow]s[/yellow] - Skip (review later)\n"
-            "[cyan]v[/cyan] - View diff again",
-            title="Options",
-            border_style="cyan",
-        )
-        self.console.print(panel)
-
         while True:
-            if Prompt:
-                choice = Prompt.ask(
-                    "Choose action",
-                    choices=["a", "r", "s", "v"],
-                    default="a",
-                    show_choices=False,
-                )
-            else:
-                choice = input("Choose action [a/r/s/v] (default: a): ").strip().lower() or "a"
+            # Show interactive selection with arrow keys
+            choice = InteractivePrompt.select(
+                message="What would you like to do?",
+                choices=[
+                    ("✓ Apply changes", "apply"),
+                    ("✗ Reject changes", "reject"),
+                    ("⏭  Skip (review later)", "skip"),
+                    ("👁  View diff again", "view"),
+                ],
+                default="apply",
+            )
 
-            if choice == "a":
-                return "apply"
-            if choice == "r":
-                return "reject"
-            if choice == "s":
-                return "skip"
-            if choice == "v":
-                # Re-render diff
+            # Handle view option
+            if choice == "view":
                 self.diff_manager.diff_engine.render_diff(file_diff)
                 continue
 
-        return "reject"
-
-    def _prompt_action_plain(self, file_diff: FileDiff) -> str:
-        """Prompt with plain text.
-
-        Args:
-            file_diff: FileDiff to review
-
-        Returns:
-            Action string
-        """
-        print("\nOptions:")
-        print("  a - Apply changes")
-        print("  r - Reject changes")
-        print("  s - Skip (review later)")
-        print("  v - View diff again")
-
-        while True:
-            choice = input("\nChoose action [a/r/s/v] (default: a): ").strip().lower() or "a"
-
-            if choice in {"a", "apply"}:
-                return "apply"
-            if choice in {"r", "reject"}:
-                return "reject"
-            if choice in {"s", "skip"}:
-                return "skip"
-            if choice in {"v", "view"}:
-                # Re-render diff
-                self.diff_manager.diff_engine.render_diff(file_diff)
-                continue
-
-            print("Invalid choice. Please enter a, r, s, or v.")
+            return choice
 
     def _apply_diff(self, file_diff: FileDiff) -> None:
         """Apply a file diff.
