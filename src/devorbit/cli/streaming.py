@@ -60,7 +60,7 @@ class StreamingHandler:
         event_type = event.get("type") if isinstance(event, dict) else getattr(event, "type", None)
 
         if event_type == "message_start":
-            # Show thinking indicator at start
+            # Show thinking indicator at start (⏺ symbol)
             if not self.thinking_displayed:
                 self.formatter.print_thinking()
                 self.thinking_displayed = True

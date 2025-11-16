@@ -333,7 +333,10 @@ class DevorbitREPL:
 
             try:
                 result = tool_func(**tool_use["input"])
-                self.formatter.print_tool_result(tool_use["name"], True, result)
+
+                # Extract meaningful content from result
+                display_result = self._extract_result_content(tool_use["name"], result)
+                self.formatter.print_tool_result(tool_use["name"], True, display_result)
 
                 # Add to results
                 tool_results.append(
@@ -374,6 +377,48 @@ class DevorbitREPL:
                 self._process_with_streaming(model)
             else:
                 self._process_without_streaming(model)
+
+    def _extract_result_content(self, tool_name: str, result: Any) -> str:
+        """Extract meaningful content from tool result for display.
+
+        Args:
+            tool_name: Name of the tool
+            result: Tool result
+
+        Returns:
+            Meaningful content to display
+        """
+        # If result is a string, return it
+        if isinstance(result, str):
+            return result
+
+        # If result is a dict, extract relevant content based on tool
+        if isinstance(result, dict):
+            # File tools: show content
+            if "content" in result:
+                content = result["content"]
+                total_lines = result.get("total_lines", result.get("lines_shown", 0))
+                if total_lines:
+                    header = f"Read {total_lines} lines from {result.get('file_path', 'file')}"
+                    return f"{header}\n{content}"
+                return content
+
+            # Bash tools: show stdout
+            if "stdout" in result:
+                return result["stdout"]
+
+            # List/glob tools: show matches
+            if "matches" in result:
+                matches = result["matches"]
+                if isinstance(matches, list):
+                    return "\n".join(str(m) for m in matches)
+                return str(matches)
+
+            # Generic: show formatted dict
+            return "\n".join(f"{k}: {v}" for k, v in result.items())
+
+        # Fallback: convert to string
+        return str(result)
 
     def _get_default_model(self) -> str:
         """Get default model for current provider.

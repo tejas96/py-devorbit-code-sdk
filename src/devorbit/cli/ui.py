@@ -1,4 +1,4 @@
-"""UI components for Claude Code-style CLI experience."""
+"""UI components for pixel-perfect Claude Code CLI experience."""
 
 from typing import Any
 
@@ -7,9 +7,8 @@ try:
     from rich.console import Console
     from rich.markdown import Markdown
     from rich.panel import Panel
-    from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
+    from rich.prompt import Confirm
     from rich.syntax import Syntax
-    from rich.table import Table
     from rich.text import Text
 
     HAS_RICH = True
@@ -18,7 +17,7 @@ except ImportError:
 
 
 class CLIFormatter:
-    """Claude Code-style CLI formatter with rich UI elements."""
+    """Pixel-perfect Claude Code-style CLI formatter."""
 
     def __init__(self, no_color: bool = False) -> None:
         """Initialize CLI formatter.
@@ -39,12 +38,8 @@ class CLIFormatter:
             print(f"\n> {message}\n")
             return
 
-        user_text = Text()
-        user_text.append("❯ ", style="bold cyan")  # noqa: RUF001
-        user_text.append(message, style="white")
-
         self.console.print()
-        self.console.print(user_text)
+        self.console.print(f"> {message}", style="bold white")
         self.console.print()
 
     def print_assistant_message(self, message: str, streaming: bool = False) -> None:
@@ -70,73 +65,133 @@ class CLIFormatter:
             self.console.print(message, end="", markup=False)
 
     def print_thinking(self) -> None:
-        """Display thinking indicator."""
+        """Display thinking indicator (⏺ symbol)."""
         if not HAS_RICH or self.console is None:
-            print("🤔 Thinking...")
+            print("⏺ Thinking...")
             return
 
         text = Text()
-        text.append("🤔 ", style="bold yellow")
-        text.append("Thinking...", style="dim")
-        self.console.print(text)
+        text.append("⏺ ", style="bold cyan")
+        self.console.print()
+        self.console.print(text, end="")
 
     def print_tool_use(self, tool_name: str, tool_input: dict[str, Any]) -> None:
         """Display tool usage in Claude Code style.
+
+        Format: ⏺ ToolName(param1, param2...)
 
         Args:
             tool_name: Name of the tool being used
             tool_input: Tool input parameters
         """
         if not HAS_RICH or self.console is None:
-            print(f"\n⚡ Using tool: {tool_name}")
-            print(f"   Input: {tool_input}")
+            params = ", ".join(f"{k}={v!r}" for k, v in tool_input.items())
+            print(f"⏺ {tool_name}({params})")
             return
 
-        # Create tool panel
-        tool_text = Text()
-        tool_text.append("⚡ ", style="bold yellow")
-        tool_text.append("Tool: ", style="dim")
-        tool_text.append(tool_name, style="bold cyan")
+        # Convert snake_case tool names to PascalCase for display
+        display_name = self._format_tool_name(tool_name)
 
-        # Format input
-        input_lines = []
+        # Format parameters
+        params = []
         for key, value in tool_input.items():
-            input_lines.append(f"{key}: {value!r}")
+            # Truncate long values
+            value_str = str(value)
+            if len(value_str) > 50:
+                value_str = value_str[:47] + "…"
+            params.append(f"{key}={value_str!r}")
 
-        panel = Panel(
-            "\n".join(input_lines) if input_lines else "(no parameters)",
-            title=tool_text,
-            border_style="yellow",
-            padding=(0, 1),
-        )
+        params_str = ", ".join(params) if params else ""
+
+        text = Text()
+        text.append("⏺ ", style="bold cyan")
+        text.append(f"{display_name}(", style="cyan")
+        text.append(params_str, style="dim")
+        text.append(")", style="cyan")
 
         self.console.print()
-        self.console.print(panel)
+        self.console.print(text)
 
-    def print_tool_result(self, tool_name: str, success: bool, result: Any = None) -> None:
+    def print_tool_result(
+        self,
+        tool_name: str,
+        success: bool = True,
+        result: Any = None,
+        truncate: int = 10,
+    ) -> None:
         """Display tool result in Claude Code style.
+
+        Format:   ⎿ Result message
+                  Content (indented 2 spaces)
+                  … +N lines (ctrl+o to expand)
 
         Args:
             tool_name: Name of the tool
             success: Whether tool execution succeeded
             result: Tool execution result
+            truncate: Number of lines to show before truncating
         """
         if not HAS_RICH or self.console is None:
-            status = "✓" if success else "✗"
-            print(f"{status} Tool completed: {tool_name}")
+            print(f"  ⎿ {tool_name} completed")
             if result:
-                print(f"   Result: {result}")
+                print(f"     {result}")
             return
 
-        status_icon = "✓" if success else "✗"
-        status_color = "green" if success else "red"
-
+        # Display result indicator
         text = Text()
-        text.append(f"{status_icon} ", style=f"bold {status_color}")
-        text.append(tool_name, style="cyan")
-        text.append(" completed", style="dim")
+        text.append("  ⎿  ", style="cyan")
+
+        if success:
+            display_name = self._format_tool_name(tool_name)
+            text.append(f"{display_name} completed", style="dim")
+        else:
+            text.append("Error", style="red")
 
         self.console.print(text)
+
+        # Display result content if available
+        if result:
+            self._print_result_content(result, truncate)
+
+    def _print_result_content(self, content: Any, truncate: int = 10) -> None:
+        """Print result content with truncation.
+
+        Args:
+            content: Content to print
+            truncate: Number of lines before truncating
+        """
+        if not self.console:
+            return
+
+        content_str = str(content)
+        lines = content_str.split("\n")
+
+        if len(lines) <= truncate:
+            # Show all lines
+            for line in lines:
+                self.console.print(f"     {line}", style="dim")
+        else:
+            # Show first few lines then truncate
+            for line in lines[:truncate]:
+                self.console.print(f"     {line}", style="dim")
+
+            remaining = len(lines) - truncate
+            truncate_text = Text()
+            truncate_text.append(f"     … +{remaining} lines", style="dim cyan")
+            truncate_text.append(" (ctrl+o to expand)", style="dim italic")
+            self.console.print(truncate_text)
+
+    def print_tool_confirmation(self, tool_name: str, tool_input: dict[str, Any]) -> None:
+        """Display tool that's about to execute (before confirmation).
+
+        This shows the tool in a different format before asking for confirmation.
+
+        Args:
+            tool_name: Name of the tool
+            tool_input: Tool input parameters
+        """
+        # Show tool use without confirmation prompt
+        self.print_tool_use(tool_name, tool_input)
 
     def print_token_usage(
         self,
@@ -150,8 +205,8 @@ class CLIFormatter:
         Args:
             input_tokens: Number of input tokens
             output_tokens: Number of output tokens
-            cache_creation_tokens: Cache creation tokens
-            cache_read_tokens: Cache read tokens
+            cache_creation_tokens: Tokens used for cache creation
+            cache_read_tokens: Tokens read from cache
         """
         if not HAS_RICH or self.console is None:
             total = input_tokens + output_tokens
@@ -160,34 +215,25 @@ class CLIFormatter:
                 print(f"   Cache: {cache_creation_tokens} created, {cache_read_tokens} read")
             return
 
-        # Create token usage table
-        table = Table(show_header=False, box=None, padding=(0, 1))
-        table.add_column("Label", style="dim")
-        table.add_column("Value", style="bold cyan")
-
-        table.add_row("Input tokens:", f"{input_tokens:,}")
-        table.add_row("Output tokens:", f"{output_tokens:,}")
-
-        if cache_creation_tokens:
-            table.add_row("Cache created:", f"{cache_creation_tokens:,}")
-        if cache_read_tokens:
-            table.add_row("Cache read:", f"{cache_read_tokens:,}")
-
+        # Format token numbers with commas
         total = input_tokens + output_tokens
-        table.add_row("Total:", f"{total:,}", style="bold green")
 
-        panel = Panel(
-            table,
-            title="📊 Token Usage",
-            border_style="blue",
-            padding=(0, 1),
-        )
-
+        # Create compact display
         self.console.print()
-        self.console.print(panel)
+        token_text = Text()
+        token_text.append("  ", style="")
+        token_text.append(f"{input_tokens:,}", style="cyan")
+        token_text.append(" in, ", style="dim")
+        token_text.append(f"{output_tokens:,}", style="cyan")
+        token_text.append(" out", style="dim")
+
+        if cache_read_tokens > 0:
+            token_text.append(f" ({cache_read_tokens:,} cached)", style="dim green")
+
+        self.console.print(token_text)
 
     def print_error(self, message: str, details: str | None = None) -> None:
-        """Display error message in Claude Code style.
+        """Display error message.
 
         Args:
             message: Error message
@@ -199,22 +245,14 @@ class CLIFormatter:
                 print(f"  Details: {details}")
             return
 
-        error_text = Text()
-        error_text.append("✗ ", style="bold red")
-        error_text.append("Error: ", style="bold red")
-        error_text.append(message, style="red")
+        text = Text()
+        text.append("\n✗ ", style="bold red")
+        text.append(message, style="red")
 
-        self.console.print()
-        self.console.print(error_text)
+        self.console.print(text)
 
         if details:
-            panel = Panel(
-                details,
-                title="Details",
-                border_style="red",
-                padding=(0, 1),
-            )
-            self.console.print(panel)
+            self.console.print(f"  {details}", style="dim red")
 
     def print_success(self, message: str) -> None:
         """Display success message.
@@ -243,7 +281,7 @@ class CLIFormatter:
 
         text = Text()
         text.append("ℹ ", style="bold blue")  # noqa: RUF001
-        text.append(message, style="blue")
+        text.append(message, style="dim")
         self.console.print(text)
 
     def print_code_block(self, code: str, language: str = "python") -> None:
@@ -251,7 +289,7 @@ class CLIFormatter:
 
         Args:
             code: Code to display
-            language: Programming language for syntax highlighting
+            language: Programming language
         """
         if not HAS_RICH or self.console is None:
             print(f"\n```{language}")
@@ -259,29 +297,9 @@ class CLIFormatter:
             print("```")
             return
 
-        syntax = Syntax(code, language, theme="monokai", line_numbers=True)
+        syntax = Syntax(code, language, theme="monokai", line_numbers=False)
         self.console.print()
         self.console.print(syntax)
-
-    def create_progress(self, description: str = "Processing...") -> Any:
-        """Create progress indicator for long operations.
-
-        Args:
-            description: Progress description
-
-        Returns:
-            Progress object (or None if rich not available)
-        """
-        if not HAS_RICH:
-            return None
-
-        return Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            console=self.console,
-        )
 
     def confirm(self, question: str, default: bool = True) -> bool:
         """Ask for user confirmation (Claude Code style).
@@ -291,30 +309,44 @@ class CLIFormatter:
             default: Default answer
 
         Returns:
-            User's response
+            User's confirmation
         """
         if not HAS_RICH or self.console is None:
-            default_text = "Y/n" if default else "y/N"
-            response = input(f"\n{question} [{default_text}]: ").strip().lower()
+            response = input(f"\n❓ {question} [{'Y/n' if default else 'y/N'}]: ")
             if not response:
                 return default
-            return response in ("y", "yes")
-
-        # Rich formatted confirmation
-        text = Text()
-        text.append("❓ ", style="bold yellow")
-        text.append(question, style="bold")
-
-        default_text = "Y/n" if default else "y/N"
-        text.append(f" [{default_text}]: ", style="dim")
+            return response.lower() in ("y", "yes")
 
         self.console.print()
-        self.console.print(text, end="")
+        return Confirm.ask(f"❓ {question}", default=default)
 
-        response = input().strip().lower()
-        if not response:
-            return default
-        return response in ("y", "yes")
+    def _format_tool_name(self, tool_name: str) -> str:
+        """Convert snake_case tool name to PascalCase for display.
+
+        Args:
+            tool_name: Tool name in snake_case
+
+        Returns:
+            Tool name in PascalCase
+        """
+        # Special cases for common tools
+        special_names = {
+            "read_file": "Read",
+            "write_file": "Write",
+            "edit_file": "Edit",
+            "bash": "Bash",
+            "ls_directory": "List",
+            "glob": "Glob",
+            "grep": "Grep",
+            "task": "Task",
+        }
+
+        if tool_name in special_names:
+            return special_names[tool_name]
+
+        # Convert snake_case to PascalCase
+        words = tool_name.split("_")
+        return "".join(word.capitalize() for word in words)
 
 
 __all__ = ["CLIFormatter"]
