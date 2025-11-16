@@ -336,7 +336,17 @@ class DevorbitREPL:
 
                 # Extract meaningful content from result
                 display_result = self._extract_result_content(tool_use["name"], result)
-                self.formatter.print_tool_result(tool_use["name"], True, display_result)
+
+                # Generate Claude Code-style result message
+                result_message = self._generate_result_message(tool_use["name"], result)
+
+                # Display result with custom message
+                self.formatter.print_tool_result(
+                    tool_use["name"],
+                    True,
+                    display_result,
+                    custom_message=result_message,
+                )
 
                 # Add to results
                 tool_results.append(
@@ -378,7 +388,7 @@ class DevorbitREPL:
             else:
                 self._process_without_streaming(model)
 
-    def _extract_result_content(self, tool_name: str, result: Any) -> str:
+    def _extract_result_content(self, tool_name: str, result: Any) -> str:  # noqa: PLR0911
         """Extract meaningful content from tool result for display.
 
         Args:
@@ -396,16 +406,11 @@ class DevorbitREPL:
         if isinstance(result, dict):
             # File tools: show content
             if "content" in result:
-                content = result["content"]
-                total_lines = result.get("total_lines", result.get("lines_shown", 0))
-                if total_lines:
-                    header = f"Read {total_lines} lines from {result.get('file_path', 'file')}"
-                    return f"{header}\n{content}"
-                return content
+                return str(result["content"])
 
             # Bash tools: show stdout
             if "stdout" in result:
-                return result["stdout"]
+                return str(result["stdout"])
 
             # List/glob tools: show matches
             if "matches" in result:
@@ -419,6 +424,81 @@ class DevorbitREPL:
 
         # Fallback: convert to string
         return str(result)
+
+    def _generate_result_message(self, tool_name: str, result: Any) -> str:  # noqa: PLR0911
+        """Generate Claude Code-style result message.
+
+        Args:
+            tool_name: Name of the tool that was executed
+            result: Result from tool execution
+
+        Returns:
+            Descriptive result message (e.g., "Wrote 170 lines to file.py")
+        """
+        if isinstance(result, dict):
+            # Write/Edit file tools
+            if tool_name in ("write_file", "edit_file") and "file_path" in result:
+                file_path = result["file_path"]
+                if "lines_written" in result:
+                    lines = result["lines_written"]
+                    return f"Wrote {lines} lines to {file_path}"
+                if "content" in result:
+                    lines = len(result["content"].splitlines())
+                    return f"Wrote {lines} lines to {file_path}"
+                return f"Updated {file_path}"
+
+            # Read file tools
+            if tool_name == "read_file" and "file_path" in result:
+                file_path = result["file_path"]
+                total_lines = result.get("total_lines", result.get("lines_shown", 0))
+                if total_lines:
+                    return f"Read {total_lines} lines from {file_path}"
+                return f"Read {file_path}"
+
+            # Bash tools
+            if tool_name == "bash" and "stdout" in result:
+                stdout = result["stdout"].strip()
+                lines = len(stdout.splitlines()) if stdout else 0
+                if lines > 0:
+                    return f"Executed command ({lines} lines output)"
+                return "Executed command"
+
+            # List/glob tools
+            if "matches" in result:
+                matches = result["matches"]
+                count = len(matches) if isinstance(matches, list) else 1
+                return f"Found {count} matches"
+
+        # Default message
+        display_name = self._format_tool_name(tool_name)
+        return f"{display_name} completed"
+
+    def _format_tool_name(self, tool_name: str) -> str:
+        """Convert snake_case tool name to PascalCase for display.
+
+        Args:
+            tool_name: Tool name in snake_case
+
+        Returns:
+            Tool name in PascalCase
+        """
+        special_names = {
+            "read_file": "Read",
+            "write_file": "Write",
+            "edit_file": "Edit",
+            "bash": "Bash",
+            "ls_directory": "List",
+            "glob_files": "Glob",
+            "grep_code": "Grep",
+            "task": "Task",
+        }
+
+        if tool_name in special_names:
+            return special_names[tool_name]
+
+        # Convert snake_case to PascalCase
+        words = tool_name.split("_")
+        return "".join(word.capitalize() for word in words)
 
     def _get_default_model(self) -> str:
         """Get default model for current provider.

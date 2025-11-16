@@ -26,6 +26,7 @@ class StreamingHandler:
         self.tool_uses: list[dict[str, Any]] = []
         self.thinking_displayed = False
         self.usage_data: dict[str, int] | None = None
+        self.text_started = False
 
     def handle_stream(self, stream: Any) -> tuple[str, list[dict[str, Any]], dict[str, int] | None]:
         """Handle streaming response from LLM.
@@ -40,6 +41,7 @@ class StreamingHandler:
         self.tool_uses = []
         self.thinking_displayed = False
         self.usage_data = None
+        self.text_started = False
 
         try:
             for event in stream:
@@ -66,16 +68,30 @@ class StreamingHandler:
                 self.thinking_displayed = True
 
         elif event_type == "content_block_start":
-            block = event.get("content_block") if isinstance(event, dict) else getattr(event, "content_block", None)
+            block = (
+                event.get("content_block")
+                if isinstance(event, dict)
+                else getattr(event, "content_block", None)
+            )
             if block:
-                block_type = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+                block_type = (
+                    block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+                )
                 if block_type == "text":
-                    # Start of text block - print newline
-                    print()
+                    # Start of text block - print ⏺ symbol
+                    if not self.text_started:
+                        self.formatter.print_assistant_prefix()
+                        self.text_started = True
                 elif block_type == "tool_use":
                     # Tool use starting
-                    tool_name = block.get("name", "unknown") if isinstance(block, dict) else getattr(block, "name", "unknown")
-                    tool_id = block.get("id", "") if isinstance(block, dict) else getattr(block, "id", "")
+                    tool_name = (
+                        block.get("name", "unknown")
+                        if isinstance(block, dict)
+                        else getattr(block, "name", "unknown")
+                    )
+                    tool_id = (
+                        block.get("id", "") if isinstance(block, dict) else getattr(block, "id", "")
+                    )
                     self.tool_uses.append(
                         {
                             "type": "tool_use",
@@ -88,17 +104,27 @@ class StreamingHandler:
         elif event_type == "content_block_delta":
             delta = event.get("delta") if isinstance(event, dict) else getattr(event, "delta", None)
             if delta:
-                delta_type = delta.get("type") if isinstance(delta, dict) else getattr(delta, "type", None)
+                delta_type = (
+                    delta.get("type") if isinstance(delta, dict) else getattr(delta, "type", None)
+                )
                 if delta_type == "text_delta":
                     # Stream text token by token
-                    text = delta.get("text", "") if isinstance(delta, dict) else getattr(delta, "text", "")
+                    text = (
+                        delta.get("text", "")
+                        if isinstance(delta, dict)
+                        else getattr(delta, "text", "")
+                    )
                     self.current_text += text
                     self.formatter.print_assistant_message(text, streaming=True)
 
                 elif delta_type == "input_json_delta":
                     # Accumulate tool input
                     if self.tool_uses:
-                        partial_json = delta.get("partial_json", "") if isinstance(delta, dict) else getattr(delta, "partial_json", "")
+                        partial_json = (
+                            delta.get("partial_json", "")
+                            if isinstance(delta, dict)
+                            else getattr(delta, "partial_json", "")
+                        )
                         # Accumulate the JSON (will parse when complete)
                         if "partial_input" not in self.tool_uses[-1]:
                             self.tool_uses[-1]["partial_input"] = ""
@@ -148,7 +174,9 @@ class StreamingHandler:
                     self.usage_data = {
                         "input_tokens": getattr(usage, "input_tokens", 0),
                         "output_tokens": getattr(usage, "output_tokens", 0),
-                        "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0),
+                        "cache_creation_input_tokens": getattr(
+                            usage, "cache_creation_input_tokens", 0
+                        ),
                         "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0),
                     }
 

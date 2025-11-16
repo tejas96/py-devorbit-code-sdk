@@ -6,14 +6,15 @@ from typing import Any
 try:
     from rich.console import Console
     from rich.markdown import Markdown
-    from rich.panel import Panel
-    from rich.prompt import Confirm
+    from rich.prompt import Confirm, Prompt
     from rich.syntax import Syntax
     from rich.text import Text
 
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
+
+import difflib
 
 
 class CLIFormatter:
@@ -75,6 +76,17 @@ class CLIFormatter:
         self.console.print()
         self.console.print(text, end="")
 
+    def print_assistant_prefix(self) -> None:
+        """Display assistant text prefix (⏺ symbol with newline)."""
+        if not HAS_RICH or self.console is None:
+            print("\n⏺ ", end="", flush=True)
+            return
+
+        text = Text()
+        text.append("⏺ ", style="bold cyan")
+        self.console.print()
+        self.console.print(text, end="")
+
     def print_tool_use(self, tool_name: str, tool_input: dict[str, Any]) -> None:
         """Display tool usage in Claude Code style.
 
@@ -93,15 +105,15 @@ class CLIFormatter:
         display_name = self._format_tool_name(tool_name)
 
         # Format parameters
-        params = []
+        param_list: list[str] = []
         for key, value in tool_input.items():
             # Truncate long values
             value_str = str(value)
             if len(value_str) > 50:
                 value_str = value_str[:47] + "…"
-            params.append(f"{key}={value_str!r}")
+            param_list.append(f"{key}={value_str!r}")
 
-        params_str = ", ".join(params) if params else ""
+        params_str = ", ".join(param_list) if param_list else ""
 
         text = Text()
         text.append("⏺ ", style="bold cyan")
@@ -118,6 +130,7 @@ class CLIFormatter:
         success: bool = True,
         result: Any = None,
         truncate: int = 10,
+        custom_message: str | None = None,
     ) -> None:
         """Display tool result in Claude Code style.
 
@@ -130,9 +143,11 @@ class CLIFormatter:
             success: Whether tool execution succeeded
             result: Tool execution result
             truncate: Number of lines to show before truncating
+            custom_message: Custom message to display instead of default
         """
         if not HAS_RICH or self.console is None:
-            print(f"  ⎿ {tool_name} completed")
+            msg = custom_message or f"{tool_name} completed"
+            print(f"  ⎿ {msg}")
             if result:
                 print(f"     {result}")
             return
@@ -142,8 +157,11 @@ class CLIFormatter:
         text.append("  ⎿  ", style="cyan")
 
         if success:
-            display_name = self._format_tool_name(tool_name)
-            text.append(f"{display_name} completed", style="dim")
+            if custom_message:
+                text.append(custom_message, style="dim")
+            else:
+                display_name = self._format_tool_name(tool_name)
+                text.append(f"{display_name} completed", style="dim")
         else:
             text.append("Error", style="red")
 
@@ -318,7 +336,117 @@ class CLIFormatter:
             return response.lower() in ("y", "yes")
 
         self.console.print()
-        return Confirm.ask(f"❓ {question}", default=default)
+        result = Confirm.ask(f"❓ {question}", default=default)
+        return bool(result)
+
+    def confirm_edit(  # noqa: PLR0911
+        self,
+        file_path: str,
+        old_content: str,
+        new_content: str,
+        allow_all_session: bool = False,
+    ) -> tuple[bool, bool]:
+        """Ask for edit confirmation with diff preview (Claude Code style).
+
+        Args:
+            file_path: Path to file being edited
+            old_content: Original content
+            new_content: New content
+            allow_all_session: Whether "allow all" option was already chosen
+
+        Returns:
+            Tuple of (confirmed, allow_all_edits)
+        """
+        if allow_all_session:
+            return True, True
+
+        if not HAS_RICH or self.console is None:
+            print(f"\n📝 Edit: {file_path}")
+            print("─" * 50)
+            print("Choose an option:")
+            print("  1: Yes")
+            print("  2: Yes, allow all edits during this session")
+            print("  3: No, and tell Claude what to do differently")
+            response = input("Enter choice [1-3] (default: 1): ").strip()
+
+            if response == "2":
+                return True, True
+            if response == "3":
+                return False, False
+            return True, False
+
+        # Show file being edited
+        self.console.print()
+        file_text = Text()
+        file_text.append("📝 Edit: ", style="bold yellow")
+        file_text.append(file_path, style="cyan")
+        self.console.print(file_text)
+
+        # Show diff preview
+        self._print_diff(old_content, new_content)
+
+        # Show options
+        self.console.print()
+        self.console.print("Choose an option:", style="bold")
+        self.console.print("  1: Yes", style="green")
+        self.console.print("  2: Yes, allow all edits during this session", style="green")
+        self.console.print("  3: No, and tell Claude what to do differently", style="red")
+
+        # Get user choice
+        choice = Prompt.ask(
+            "Enter choice",
+            choices=["1", "2", "3"],
+            default="1",
+        )
+
+        if choice == "2":
+            return True, True
+        if choice == "3":
+            return False, False
+        return True, False
+
+    def _print_diff(self, old_content: str, new_content: str, max_lines: int = 20) -> None:
+        """Print diff between old and new content.
+
+        Args:
+            old_content: Original content
+            new_content: New content
+            max_lines: Maximum lines to show
+        """
+        if not self.console:
+            return
+
+        old_lines = old_content.splitlines(keepends=True)
+        new_lines = new_content.splitlines(keepends=True)
+
+        diff = difflib.unified_diff(
+            old_lines,
+            new_lines,
+            lineterm="",
+            n=3,
+        )
+
+        diff_lines = list(diff)
+        if not diff_lines:
+            self.console.print("  (no changes)", style="dim")
+            return
+
+        # Show diff with syntax highlighting
+        for idx, diff_line in enumerate(diff_lines[2:]):  # Skip the header lines
+            if idx >= max_lines:
+                remaining = len(diff_lines) - 2 - idx
+                self.console.print(f"  ... +{remaining} more lines", style="dim cyan")
+                break
+
+            stripped_line = diff_line.rstrip()
+            if stripped_line.startswith("+"):
+                self.console.print(f"  {stripped_line}", style="green")
+            elif stripped_line.startswith("-"):
+                self.console.print(f"  {stripped_line}", style="red")
+            elif stripped_line.startswith("@@"):
+                self.console.print(f"  {stripped_line}", style="cyan dim")
+            else:
+                self.console.print(f"  {stripped_line}", style="dim")
 
     def _format_tool_name(self, tool_name: str) -> str:
         """Convert snake_case tool name to PascalCase for display.
