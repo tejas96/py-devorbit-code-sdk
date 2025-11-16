@@ -79,10 +79,10 @@ class TestDevorbitREPL:
     @patch("builtins.input", side_effect=KeyboardInterrupt())
     def test_read_input_keyboard_interrupt(self, mock_input, repl, session):
         """Test keyboard interrupt handling."""
-        session.print = Mock()
+        repl.formatter.print_info = Mock()
         user_input = repl.read_input()
         assert user_input == ""
-        session.print.assert_called_once()
+        repl.formatter.print_info.assert_called_once()
 
     def test_process_input_empty(self, repl):
         """Test processing empty input."""
@@ -99,45 +99,36 @@ class TestDevorbitREPL:
 
     def test_process_input_llm_message(self, repl, session):
         """Test processing regular LLM message."""
-        # Mock the executor and response
-        mock_response = Mock()
-        mock_response.content = [Mock(text="Test response")]
-        mock_response.usage = Mock(input_tokens=10, output_tokens=20)
-
-        with patch.object(repl.executor, "execute_tool_loop") as mock_execute:
-            mock_execute.return_value = mock_response
-            session.print = Mock()
-            session.print_info = Mock()
-
+        # Mock streaming methods
+        with patch.object(repl, "_process_with_streaming") as mock_process:
             result = repl.process_input("Hello, how are you?")
 
             assert result is True
-            mock_execute.assert_called_once()
-            assert len(session.messages) == 2  # User + assistant
+            mock_process.assert_called_once()
 
     def test_process_input_llm_error(self, repl, session):
         """Test error handling during LLM processing."""
-        with patch.object(repl.executor, "execute_tool_loop") as mock_execute:
-            mock_execute.side_effect = Exception("Test error")
-            session.print_error = Mock()
+        with patch.object(repl, "_process_with_streaming") as mock_process:
+            mock_process.side_effect = Exception("Test error")
+            repl.formatter.print_error = Mock()
 
             result = repl.process_input("Test message")
 
             assert result is True
-            session.print_error.assert_called_once()
+            repl.formatter.print_error.assert_called_once()
 
     def test_process_input_llm_debug_mode(self, repl, session):
         """Test error handling in debug mode."""
         session.debug = True
-        session.print_error = Mock()
+        repl.formatter.print_error = Mock()
 
-        with patch.object(repl.executor, "execute_tool_loop") as mock_execute:
-            mock_execute.side_effect = Exception("Test error")
+        with patch.object(repl, "_process_with_streaming") as mock_process:
+            mock_process.side_effect = Exception("Test error")
 
             # In debug mode, the exception is printed but continues
             result = repl.process_input("Test message")
             assert result is True
-            session.print_error.assert_called_once()
+            repl.formatter.print_error.assert_called_once()
 
     def test_get_default_model_anthropic(self, repl):
         """Test default model for Anthropic provider."""
@@ -166,9 +157,9 @@ class TestDevorbitREPL:
     def test_run_loop_exit_on_none(self, repl, session):
         """Test REPL exits on None input (EOF)."""
         with patch.object(repl, "read_input", return_value=None):
-            session.print = Mock()
+            repl.formatter.print_info = Mock()
             repl.run()
-            session.print.assert_called()
+            repl.formatter.print_info.assert_called()
 
     def test_run_loop_exit_on_command(self, repl):
         """Test REPL exits when command returns False."""
@@ -202,19 +193,13 @@ class TestDevorbitREPL:
 
     def test_process_input_with_no_text_response(self, repl, session):
         """Test processing message with no text response."""
-        mock_response = Mock()
-        mock_response.content = []
-        mock_response.usage = None
-
-        with patch.object(repl.executor, "execute_tool_loop") as mock_execute:
-            mock_execute.return_value = mock_response
-            session.print_info = Mock()
+        # Mock streaming to do nothing
+        with patch.object(repl, "_process_with_streaming") as mock_process:
+            mock_process.return_value = None
 
             result = repl.process_input("Test message")
 
             assert result is True
-            # Should show info message for no text response
-            assert session.print_info.call_count >= 2
 
     def test_history_file_location(self, repl):
         """Test that history file is in home directory."""

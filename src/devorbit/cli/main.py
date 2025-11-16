@@ -17,7 +17,7 @@ except ImportError:
 
 from devorbit import __version__
 
-from .repl_enhanced import EnhancedREPL
+from .repl import DevorbitREPL
 from .session import CLISession
 
 
@@ -157,8 +157,8 @@ def main(
     if not no_color:
         session.display_welcome()
 
-    # Start Enhanced REPL with Claude Code-style UX
-    repl = EnhancedREPL(
+    # Start REPL with Claude Code-style UX
+    repl = DevorbitREPL(
         session=session,
         confirm_tools=not no_confirm,
         stream=not no_stream,

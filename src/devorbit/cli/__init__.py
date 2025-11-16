@@ -23,7 +23,6 @@ __all__ = [
     "CLISession",
     "CommandHandler",
     "DevorbitREPL",
-    "EnhancedREPL",
     "StreamingHandler",
     "main",
 ]
