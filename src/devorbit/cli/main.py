@@ -17,9 +17,11 @@ except ImportError:
 
 from devorbit import __version__
 
+from .project_context import ProjectDetector
 from .repl import DevorbitREPL
 from .session import CLISession
 from .session_manager import SessionManager
+from .workspace import WorkspaceContext, WorkspaceManager
 
 
 # Map providers to their environment variable names
@@ -170,6 +172,60 @@ def main(  # noqa: PLR0912, PLR0915
             err=True,
         )
         sys.exit(1)
+
+    # Initialize workspace (Claude Code style .claude directory)
+    workspace_path = working_dir or Path.cwd()
+    workspace_mgr = WorkspaceManager(base_path=workspace_path)
+
+    # Create workspace if it doesn't exist
+    if not workspace_mgr.workspace_exists():
+        workspace_mgr.create_workspace()
+
+        # Detect project type and save context
+        detector = ProjectDetector(path=workspace_path)
+        project_info = detector.detect_project_type()
+
+        context = WorkspaceContext(
+            project_type=project_info.project_type,
+            language=project_info.language,
+            frameworks=project_info.frameworks,
+            dependencies=project_info.dependencies,
+            working_directory=str(workspace_path),
+        )
+        workspace_mgr.save_context(context)
+
+        if debug:
+            click.echo(f"✨ Created workspace: {workspace_mgr.claude_dir}")
+            click.echo(f"📁 Detected project type: {project_info.project_type}")
+    else:
+        # Load existing context
+        try:
+            context = workspace_mgr.load_context()
+            if debug:
+                click.echo(f"📂 Loaded workspace: {context.project_type}")
+        except FileNotFoundError:
+            # Context file missing, recreate it
+            detector = ProjectDetector(path=workspace_path)
+            project_info = detector.detect_project_type()
+            context = WorkspaceContext(
+                project_type=project_info.project_type,
+                language=project_info.language,
+                frameworks=project_info.frameworks,
+                dependencies=project_info.dependencies,
+                working_directory=str(workspace_path),
+            )
+            workspace_mgr.save_context(context)
+
+    # Load workspace preferences
+    try:
+        preferences = workspace_mgr.load_preferences()
+        # Override no_confirm if workspace has auto_confirm_tools enabled
+        if preferences.auto_confirm_tools and not no_confirm:
+            no_confirm = True
+            if debug:
+                click.echo("🔧 Auto-confirm enabled from workspace preferences")
+    except FileNotFoundError:
+        preferences = None
 
     # Initialize session manager
     session_mgr = SessionManager()

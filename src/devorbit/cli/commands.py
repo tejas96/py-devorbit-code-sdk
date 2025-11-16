@@ -12,6 +12,7 @@ from devorbit import get_current_todos
 
 from .session import CLISession
 from .session_manager import SessionManager
+from .workspace import WorkspaceManager
 
 
 class CommandHandler:
@@ -45,6 +46,7 @@ class CommandHandler:
             "config": self.cmd_config,
             "todos": self.cmd_todos,
             "sessions": self.cmd_sessions,
+            "workspace": self.cmd_workspace,
         }
 
     def handle_command(self, command_line: str) -> bool:
@@ -100,6 +102,7 @@ Available Commands:
     /config            - Show current configuration
     /todos             - Show current todo list
     /sessions          - List and manage sessions
+    /workspace         - Show workspace information
 
 System Information:
     - Provider: {provider}
@@ -500,6 +503,46 @@ Modes:
             else:
                 self.session.print_error(f"Unknown action: {action}")
                 self.session.print("Usage: /sessions [delete <id>]")
+
+        return True
+
+    def cmd_workspace(self, args: list[str]) -> bool:
+        """Show workspace information (.claude directory).
+
+        Args:
+            args: Command arguments
+
+        Returns:
+            True to continue REPL
+        """
+        workspace_mgr = WorkspaceManager(base_path=self.session.working_dir)
+
+        if not workspace_mgr.workspace_exists():
+            self.session.print_error("No workspace found in this directory")
+            self.session.print("Workspace will be created automatically on startup")
+            return True
+
+        info = workspace_mgr.get_workspace_info()
+
+        self.session.print("\n📂 Workspace Information:\n")
+        self.session.print(f"  Path: {info['path']}")
+
+        if "project_type" in info:
+            self.session.print(f"  Project Type: {info['project_type']}")
+            self.session.print(f"  Language: {info['language']}")
+
+            if info.get("frameworks"):
+                frameworks = ", ".join(info["frameworks"])
+                self.session.print(f"  Frameworks: {frameworks}")
+
+            self.session.print(f"  Last Updated: {info.get('last_updated', 'N/A')}")
+
+        if "auto_confirm_tools" in info:
+            self.session.print("\n⚙️  Preferences:")
+            self.session.print(f"  Auto-confirm tools: {info['auto_confirm_tools']}")
+            self.session.print(f"  Session allow-all: {info['session_allow_all']}")
+
+        self.session.print("\n💡 Tip: The .claude directory stores project context and preferences")
 
         return True
 
