@@ -16,7 +16,7 @@ except ImportError:
 
 from devorbit import __version__
 
-from .repl import DevorbitREPL
+from .repl_enhanced import EnhancedREPL
 from .session import CLISession
 
 
@@ -63,6 +63,18 @@ from .session import CLISession
     default=False,
     help="Enable debug mode with verbose logging",
 )
+@click.option(
+    "--no-confirm",
+    is_flag=True,
+    default=False,
+    help="Disable tool execution confirmation prompts",
+)
+@click.option(
+    "--no-stream",
+    is_flag=True,
+    default=False,
+    help="Disable streaming responses",
+)
 def main(
     provider: str,
     model: str | None,
@@ -70,6 +82,8 @@ def main(
     working_dir: Path | None,
     no_color: bool,
     debug: bool,
+    no_confirm: bool,
+    no_stream: bool,
 ) -> None:
     """Devorbit - Multi-provider LLM CLI with Claude Code-like experience.
 
@@ -77,23 +91,24 @@ def main(
 
     \b
     Features:
+    - Claude Code-style streaming responses
+    - Interactive tool confirmation prompts
+    - Rich UI with token usage display
     - Multi-provider support (Anthropic, OpenAI, Gemini, Mistral, CodeLlama)
-    - Interactive REPL with slash commands
     - File operations (Read, Write, Edit, Glob, Grep)
     - Agent orchestration and task delegation
-    - Planning mode for safe code analysis
     - Web search and fetching capabilities
 
     \b
     Examples:
-        # Start with Anthropic (default)
+        # Start with Anthropic (default, streaming enabled)
         $ devorbit
 
-        # Use OpenAI GPT-4
-        $ devorbit --provider openai --model gpt-4-turbo
+        # Use OpenAI GPT-4 without streaming
+        $ devorbit --provider openai --model gpt-4-turbo --no-stream
 
-        # Use Gemini in a specific directory
-        $ devorbit --provider gemini --working-dir /path/to/project
+        # Disable tool confirmation prompts
+        $ devorbit --no-confirm
 
     \b
     Environment Variables:
@@ -125,8 +140,12 @@ def main(
     if not no_color:
         session.display_welcome()
 
-    # Start REPL
-    repl = DevorbitREPL(session)
+    # Start Enhanced REPL with Claude Code-style UX
+    repl = EnhancedREPL(
+        session=session,
+        confirm_tools=not no_confirm,
+        stream=not no_stream,
+    )
     try:
         repl.run()
     except KeyboardInterrupt:

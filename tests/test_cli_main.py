@@ -21,7 +21,7 @@ class TestCLIMain:
     @pytest.fixture
     def mock_repl(self):
         """Mock REPL class."""
-        with patch("devorbit.cli.main.DevorbitREPL") as mock:
+        with patch("devorbit.cli.main.EnhancedREPL") as mock:
             yield mock
 
     @pytest.fixture

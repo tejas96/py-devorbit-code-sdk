@@ -2,18 +2,29 @@
 
 This module provides a Claude Code-like CLI experience with:
 - Interactive REPL with rich terminal UI
+- Streaming responses with token-by-token display
+- Interactive tool confirmation prompts
+- Token usage tracking and display
 - Slash commands support
 - Agent orchestration
 - File operations and code manipulation
 - Multi-provider LLM support
 
 Usage:
-    $ devorbit                    # Start interactive REPL
-    $ devorbit --help             # Show help
-    $ devorbit --provider openai  # Use OpenAI provider
+    $ devorbit                     # Start interactive REPL
+    $ devorbit --help              # Show help
+    $ devorbit --no-confirm        # Disable tool confirmations
+    $ devorbit --no-stream         # Disable streaming responses
+    $ devorbit --provider openai   # Use OpenAI provider
 """
 
 __all__ = [
+    "CLIFormatter",
+    "CLISession",
+    "CommandHandler",
+    "DevorbitREPL",
+    "EnhancedREPL",
+    "StreamingHandler",
     "main",
 ]
 
