@@ -146,7 +146,9 @@ class StreamingHandler:
                     # Display tool use
                     tool_name = self.tool_uses[-1]["name"]
                     tool_input = self.tool_uses[-1]["input"]
-                    self.formatter.print_tool_use(tool_name, tool_input)
+
+                    # Extract description if available (from tool input)
+                    description = tool_input.get("description") if isinstance(tool_input, dict) else None
 
                     # Check if session allows all tools
                     session_allows_all = (
@@ -155,13 +157,23 @@ class StreamingHandler:
 
                     # Ask for confirmation if enabled and not session-allowed
                     if self.confirm_tools and not session_allows_all:
-                        confirmed = self.formatter.confirm(
-                            f"Execute {tool_name}?",
-                            default=True,
+                        # Use boxed confirmation dialog (Claude Code style)
+                        choice = self.formatter.confirm_tool_boxed(
+                            tool_name,
+                            tool_input,
+                            description=description,
                         )
-                        self.tool_uses[-1]["confirmed"] = confirmed
+                        self.tool_uses[-1]["confirmed"] = choice == 1
+
+                        # If choice is 2, enable session allow all
+                        if choice == 2:
+                            self.tool_uses[-1]["enable_session_allow_all"] = True
                     else:
                         self.tool_uses[-1]["confirmed"] = True
+
+                    # Display tool use after confirmation (with description)
+                    if self.tool_uses[-1]["confirmed"]:
+                        self.formatter.print_tool_use(tool_name, tool_input, description=description)
 
                 except json.JSONDecodeError:
                     self.formatter.print_error(

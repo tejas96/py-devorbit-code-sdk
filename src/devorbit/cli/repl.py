@@ -369,6 +369,11 @@ class DevorbitREPL:
         assistant_content = []
 
         for tool_use in tool_uses:
+            # Check if user chose "allow all" option
+            if tool_use.get("enable_session_allow_all"):
+                self.session_allow_all = True
+                self.formatter.print_info("✓ Session-level 'Always Allow' enabled for all tools")
+
             if not tool_use.get("confirmed", False):
                 # Tool execution declined
                 self.formatter.print_info(f"Skipped {tool_use['name']}")

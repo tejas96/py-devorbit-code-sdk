@@ -6,6 +6,7 @@ from typing import Any
 try:
     from rich.console import Console
     from rich.markdown import Markdown
+    from rich.panel import Panel
     from rich.prompt import Confirm, Prompt
     from rich.syntax import Syntax
     from rich.text import Text
@@ -99,18 +100,24 @@ class CLIFormatter:
         self.console.print()
         self.console.print(text, end="")
 
-    def print_tool_use(self, tool_name: str, tool_input: dict[str, Any]) -> None:
+    def print_tool_use(
+        self, tool_name: str, tool_input: dict[str, Any], description: str | None = None
+    ) -> None:
         """Display tool usage in Claude Code style.
 
         Format: ⏺ ToolName(param1, param2...)
+                  ⎿  Description
 
         Args:
             tool_name: Name of the tool being used
             tool_input: Tool input parameters
+            description: Optional description of what the tool does
         """
         if not HAS_RICH or self.console is None:
             params = ", ".join(f"{k}={v!r}" for k, v in tool_input.items())
             print(f"⏺ {tool_name}({params})")
+            if description:
+                print(f"  ⎿  {description}")
             return
 
         # Convert snake_case tool names to PascalCase for display
@@ -135,6 +142,13 @@ class CLIFormatter:
 
         self.console.print()
         self.console.print(text)
+
+        # Print description if provided
+        if description:
+            desc_text = Text()
+            desc_text.append("  ⎿  ", style="cyan")
+            desc_text.append(description, style="dim")
+            self.console.print(desc_text)
 
     def print_tool_result(
         self,
@@ -350,6 +364,82 @@ class CLIFormatter:
         self.console.print()
         result = Confirm.ask(f"❓ {question}", default=default)
         return bool(result)
+
+    def confirm_tool_boxed(
+        self,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        description: str | None = None,
+        context_options: list[str] | None = None,
+    ) -> int:
+        """Ask for tool execution confirmation with boxed dialog (Claude Code style).
+
+        Args:
+            tool_name: Name of the tool
+            tool_input: Tool input parameters
+            description: Optional description of what the tool does
+            context_options: Optional context-aware permission options
+
+        Returns:
+            User choice (1 = Yes, 2 = Yes + allow context, 3 = No)
+        """
+        if not HAS_RICH or self.console is None or Panel is None:
+            # Fallback to simple confirmation
+            print(f"\n{tool_name} - {description or 'Execute tool'}")
+            print("1. Yes")
+            print("2. Yes, allow all")
+            print("3. No")
+            response = input("Choice [1-3]: ").strip()
+            return int(response) if response.isdigit() else 1
+
+        # Build panel content
+        content = Text()
+
+        # Tool name as title
+        display_name = self._format_tool_name(tool_name)
+        content.append(f"{display_name}\n\n", style="bold cyan")
+
+        # Tool parameters (formatted nicely)
+        for _key, value in tool_input.items():
+            value_str = str(value)
+            # Wrap long values
+            if len(value_str) > 70:
+                lines = [value_str[i : i + 70] for i in range(0, len(value_str), 70)]
+                content.append(f"  {value_str[:70]}\n", style="dim")
+                for line in lines[1:]:
+                    content.append(f"  {line}\n", style="dim")
+            else:
+                content.append(f"  {value_str}\n", style="dim")
+
+        # Description if provided
+        if description:
+            content.append(f"  {description}\n", style="dim italic")
+
+        content.append("\nDo you want to proceed?\n", style="white")
+
+        # Options
+        content.append("❯ 1. Yes\n", style="cyan")  # noqa: RUF001
+        if context_options:
+            for i, option in enumerate(context_options, 2):
+                content.append(f"  {i}. {option}\n", style="dim")
+        else:
+            content.append("  2. Yes, allow all tools this session\n", style="dim")
+        content.append("  3. No, and tell Claude what to do differently (esc)\n", style="dim")
+
+        # Create panel
+        panel = Panel(
+            content,
+            title=f"[bold cyan]{tool_name}[/bold cyan]",
+            border_style="cyan",
+            padding=(1, 2),
+        )
+
+        self.console.print()
+        self.console.print(panel)
+
+        # Get user input
+        response = Prompt.ask("Enter choice", choices=["1", "2", "3"], default="1")
+        return int(response)
 
     def confirm_edit(  # noqa: PLR0911
         self,
