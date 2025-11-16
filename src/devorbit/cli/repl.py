@@ -78,6 +78,8 @@ class DevorbitREPL:
         self.confirm_tools = confirm_tools
         self.stream = stream
         self.session_allow_all = False  # Session-level always allow
+        self.total_tokens_used = 0  # Track token usage
+        self.context_warning_shown = False  # Track if warning was shown
 
         # Initialize UI formatter
         self.formatter = CLIFormatter(no_color=session.no_color)
@@ -212,6 +214,18 @@ class DevorbitREPL:
         # Process @ file references
         processed_input = self._process_file_references(user_input)
 
+        # Check context window and warn if needed
+        self._check_context_window()
+
+        # If planning mode is enabled, request a plan first
+        if self.session.planning_mode and not processed_input.lower().startswith("plan"):
+            processed_input = (
+                f"First, create a detailed plan for: {processed_input}\n\n"
+                "Show the plan with architecture, steps, and files to be modified. "
+                "Wait for approval before executing."
+            )
+            self.formatter.print_info("Planning mode: Requesting detailed plan first")
+
         # Display user message in Claude Code style
         self.formatter.print_user_message(processed_input)
 
@@ -270,11 +284,19 @@ class DevorbitREPL:
 
             # Display token usage
             if usage_data:
+                input_tokens = usage_data.get("input_tokens", 0)
+                output_tokens = usage_data.get("output_tokens", 0)
+                cache_creation = usage_data.get("cache_creation_input_tokens", 0)
+                cache_read = usage_data.get("cache_read_input_tokens", 0)
+
+                # Track total tokens
+                self.total_tokens_used += input_tokens + output_tokens
+
                 self.formatter.print_token_usage(
-                    input_tokens=usage_data.get("input_tokens", 0),
-                    output_tokens=usage_data.get("output_tokens", 0),
-                    cache_creation_tokens=usage_data.get("cache_creation_input_tokens", 0),
-                    cache_read_tokens=usage_data.get("cache_read_input_tokens", 0),
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cache_creation_tokens=cache_creation,
+                    cache_read_tokens=cache_read,
                 )
 
     def _process_without_streaming(self, model: str) -> None:
@@ -310,11 +332,19 @@ class DevorbitREPL:
         # Display token usage
         if hasattr(response, "usage") and response.usage:
             usage = response.usage
+            input_tokens = usage.input_tokens
+            output_tokens = usage.output_tokens
+            cache_creation = getattr(usage, "cache_creation_input_tokens", 0)
+            cache_read = getattr(usage, "cache_read_input_tokens", 0)
+
+            # Track total tokens
+            self.total_tokens_used += input_tokens + output_tokens
+
             self.formatter.print_token_usage(
-                input_tokens=usage.input_tokens,
-                output_tokens=usage.output_tokens,
-                cache_creation_tokens=getattr(usage, "cache_creation_input_tokens", 0),
-                cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cache_creation_tokens=cache_creation,
+                cache_read_tokens=cache_read,
             )
 
     def _execute_tools(
@@ -613,6 +643,39 @@ class DevorbitREPL:
             self.formatter.print_error(f"Failed to execute command: {e!s}")
 
         return True
+
+    def _check_context_window(self) -> None:
+        """Check context window usage and warn if approaching limit."""
+        # Estimate tokens from messages (rough approximation: 4 chars = 1 token)
+        estimated_tokens = sum(
+            len(str(msg.get("content", ""))) // 4 for msg in self.session.messages
+        )
+
+        # Context window limits (approximate)
+        context_limits = {
+            "claude-sonnet-4-5-20250929": 200000,
+            "claude-opus-4-20250514": 200000,
+            "gpt-4-turbo-preview": 128000,
+            "gemini-2.5-flash": 1000000,
+        }
+
+        model = self.session.model or self._get_default_model()
+        limit = context_limits.get(model, 100000)
+
+        # Warn at 75% usage
+        threshold = int(limit * 0.75)
+
+        if estimated_tokens > threshold and not self.context_warning_shown:
+            percentage = (estimated_tokens / limit) * 100
+            self.formatter.print_error(
+                f"⚠️  Context window warning: {estimated_tokens:,} / {limit:,} tokens used ({percentage:.0f}%)"
+            )
+            self.formatter.print_info("Consider using /compact to reduce context size")
+            self.context_warning_shown = True
+
+        # Reset warning if context is reduced
+        if estimated_tokens < threshold:
+            self.context_warning_shown = False
 
     def _get_default_model(self) -> str:
         """Get default model for current provider.
