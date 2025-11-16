@@ -304,6 +304,9 @@ class DevorbitREPL:
                     cache_read_tokens=cache_read,
                 )
 
+            # Auto-display TODO list if it exists (Claude Code style)
+            self._auto_display_todos()
+
     def _process_without_streaming(self, model: str) -> None:
         """Process request without streaming.
 
@@ -352,6 +355,9 @@ class DevorbitREPL:
                 cache_read_tokens=cache_read,
             )
 
+        # Auto-display TODO list if it exists (Claude Code style)
+        self._auto_display_todos()
+
     def _execute_tools(
         self,
         tool_uses: list[dict[str, Any]],
@@ -385,21 +391,21 @@ class DevorbitREPL:
                 self.formatter.print_error(f"Tool not found: {tool_use['name']}")
                 continue
 
+            # Show "Running..." status (Claude Code style)
+            self.formatter.print_tool_running()
+
             try:
                 result = tool_func(**tool_use["input"])
 
                 # Extract meaningful content from result
                 display_result = self._extract_result_content(tool_use["name"], result)
 
-                # Generate Claude Code-style result message
-                result_message = self._generate_result_message(tool_use["name"], result)
-
-                # Display result with custom message
+                # Display result directly (Claude Code style - no custom message prefix)
                 self.formatter.print_tool_result(
                     tool_use["name"],
                     True,
                     display_result,
-                    custom_message=result_message,
+                    custom_message=None,  # Just show content, no prefix
                 )
 
                 # If todo_write was executed, automatically display the todo list
@@ -724,6 +730,21 @@ class DevorbitREPL:
                 return f"{user_input}\n\n[Please think carefully and provide a detailed analysis.]"
 
         return user_input
+
+    def _auto_display_todos(self) -> None:
+        """Automatically display TODO list if it exists (Claude Code style).
+
+        This checks if there's an active TODO list and displays it inline,
+        matching Claude Code's behavior of showing todos during conversation flow.
+        """
+        try:
+            current_todos = get_current_todos()
+            if current_todos:
+                # Display TODO list automatically (don't require explicit tool call)
+                self.formatter.print_todo_list(current_todos)
+        except Exception:
+            # Silently ignore errors in TODO display (non-critical feature)
+            pass
 
     def _get_default_model(self) -> str:
         """Get default model for current provider.

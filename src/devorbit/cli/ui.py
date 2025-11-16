@@ -1,5 +1,8 @@
 """UI components for pixel-perfect Claude Code CLI experience."""
 
+import difflib
+import re
+from pathlib import Path
 from typing import Any
 
 
@@ -14,8 +17,6 @@ try:
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
-
-import difflib
 
 
 class CLIFormatter:
@@ -150,7 +151,18 @@ class CLIFormatter:
             desc_text.append(description, style="dim")
             self.console.print(desc_text)
 
-    def print_tool_result(
+    def print_tool_running(self) -> None:
+        """Display tool running indicator (⎿ Running…)."""
+        if not HAS_RICH or self.console is None:
+            print("  ⎿ Running…", flush=True)
+            return
+
+        text = Text()
+        text.append("  ⎿  ", style="cyan")
+        text.append("Running…", style="dim")
+        self.console.print(text)
+
+    def print_tool_result(  # noqa: PLR0912
         self,
         tool_name: str,
         success: bool = True,
@@ -178,24 +190,57 @@ class CLIFormatter:
                 print(f"     {result}")
             return
 
-        # Display result indicator
-        text = Text()
-        text.append("  ⎿  ", style="cyan")
+        # Claude Code style: Show content directly on ⎿ line if no custom message
+        if result and not custom_message:
+            # Show result content directly on the ⎿ line
+            result_str = str(result)
+            lines = result_str.split("\n")
 
-        if success:
-            if custom_message:
-                text.append(custom_message, style="dim")
+            if len(lines) <= truncate:
+                # Show all lines directly
+                for i, line in enumerate(lines):
+                    text = Text()
+                    if i == 0:
+                        text.append("  ⎿  ", style="cyan")
+                    else:
+                        text.append("     ", style="cyan")
+                    text.append(line, style="dim")
+                    self.console.print(text)
             else:
-                display_name = self._format_tool_name(tool_name)
-                text.append(f"{display_name} completed", style="dim")
+                # Show first line on ⎿, rest truncated
+                text = Text()
+                text.append("  ⎿  ", style="cyan")
+                text.append(lines[0], style="dim")
+                self.console.print(text)
+
+                # Show remaining lines (truncated)
+                for line in lines[1:truncate]:
+                    self.console.print(f"     {line}", style="dim")
+
+                remaining = len(lines) - truncate
+                truncate_text = Text()
+                truncate_text.append(f"     … +{remaining} lines", style="dim cyan")
+                truncate_text.append(" (ctrl+o to expand)", style="dim italic")
+                self.console.print(truncate_text)
         else:
-            text.append("Error", style="red")
+            # Show custom message or default message
+            text = Text()
+            text.append("  ⎿  ", style="cyan")
 
-        self.console.print(text)
+            if success:
+                if custom_message:
+                    text.append(custom_message, style="dim")
+                else:
+                    display_name = self._format_tool_name(tool_name)
+                    text.append(f"{display_name} completed", style="dim")
+            else:
+                text.append("Error", style="red")
 
-        # Display result content if available
-        if result:
-            self._print_result_content(result, truncate)
+            self.console.print(text)
+
+            # Display result content if available (on separate lines)
+            if result:
+                self._print_result_content(result, truncate)
 
     def _print_result_content(self, content: Any, truncate: int = 10) -> None:
         """Print result content with truncation.
@@ -365,6 +410,46 @@ class CLIFormatter:
         result = Confirm.ask(f"❓ {question}", default=default)
         return bool(result)
 
+    def _extract_context_from_tool(
+        self, tool_name: str, tool_input: dict[str, Any]
+    ) -> str | None:
+        """Extract context (file/directory) from tool parameters.
+
+        Args:
+            tool_name: Name of the tool
+            tool_input: Tool input parameters
+
+        Returns:
+            Context string (e.g., "sessions/", "config files") or None
+        """
+        # Try to find file/directory references in tool parameters
+        for key, value in tool_input.items():
+            if not isinstance(value, str):
+                continue
+
+            # Look for common path patterns
+            # Pattern 1: .devorbit/sessions/
+            if ".devorbit" in value:
+                match = re.search(r"\.devorbit/([^/\s]+)", value)
+                if match:
+                    return f"{match.group(1)}/"
+
+            # Pattern 2: Explicit path= or file= parameters
+            if key in ("path", "file", "file_path", "directory", "dir"):
+                try:
+                    p = Path(value)
+                    # Get the most specific directory name
+                    if p.name:
+                        return f"{p.name}/" if p.is_dir() or "/" in value else p.name
+                except Exception:
+                    pass
+
+            # Pattern 3: Config files
+            if any(ext in value for ext in [".json", ".yaml", ".yml", ".toml", ".ini"]):
+                return "config files"
+
+        return None
+
     def confirm_tool_boxed(
         self,
         tool_name: str,
@@ -395,11 +480,11 @@ class CLIFormatter:
         # Build panel content
         content = Text()
 
-        # Tool name as title
+        # Tool name as header (e.g., "Bash command")
         display_name = self._format_tool_name(tool_name)
-        content.append(f"{display_name}\n\n", style="bold cyan")
+        content.append(f"{display_name} command\n\n", style="white")
 
-        # Tool parameters (formatted nicely)
+        # Tool parameters (formatted nicely, indented)
         for _key, value in tool_input.items():
             value_str = str(value)
             # Wrap long values
@@ -411,25 +496,36 @@ class CLIFormatter:
             else:
                 content.append(f"  {value_str}\n", style="dim")
 
-        # Description if provided
+        # Description if provided (on its own line, indented)
         if description:
-            content.append(f"  {description}\n", style="dim italic")
+            content.append(f"  {description}\n", style="dim")
 
         content.append("\nDo you want to proceed?\n", style="white")
 
         # Options
         content.append("❯ 1. Yes\n", style="cyan")  # noqa: RUF001
+
+        # Generate context-aware option 2 if possible
         if context_options:
             for i, option in enumerate(context_options, 2):
                 content.append(f"  {i}. {option}\n", style="dim")
         else:
-            content.append("  2. Yes, allow all tools this session\n", style="dim")
+            # Try to extract context from tool parameters
+            context = self._extract_context_from_tool(tool_name, tool_input)
+            if context:
+                content.append(
+                    f"  2. Yes, and always allow access to {context} from this project\n",
+                    style="dim",
+                )
+            else:
+                content.append("  2. Yes, allow all tools this session\n", style="dim")
+
         content.append("  3. No, and tell Claude what to do differently (esc)\n", style="dim")
 
-        # Create panel
+        # Create panel (title is lowercase tool name for border)
         panel = Panel(
             content,
-            title=f"[bold cyan]{tool_name}[/bold cyan]",
+            title=f"[bold]{tool_name.lower()}[/bold]",
             border_style="cyan",
             padding=(1, 2),
         )
