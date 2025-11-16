@@ -120,14 +120,80 @@ class GeminiProvider(BaseProvider):
         """
         gemini_tools: list[dict[str, Any]] = []
         for tool in tools:
+            # Convert JSON Schema to Gemini's format
+            # Gemini uses uppercase type names (STRING, INTEGER, etc.)
+            input_schema = self._convert_json_schema_to_gemini(tool["input_schema"])
+
             gemini_tools.append(
                 {
                     "name": tool["name"],
                     "description": tool["description"],
-                    "parameters": tool["input_schema"],
+                    "parameters": input_schema,
                 }
             )
         return gemini_tools
+
+    def _convert_json_schema_to_gemini(self, schema: dict[str, Any]) -> dict[str, Any]:
+        """Convert JSON Schema format to Gemini's schema format.
+
+        Args:
+            schema: JSON Schema format
+
+        Returns:
+            Gemini schema format
+        """
+        gemini_schema: dict[str, Any] = {}
+
+        # Map JSON Schema types to Gemini types
+        type_map = {
+            "string": "STRING",
+            "integer": "INTEGER",
+            "number": "NUMBER",
+            "boolean": "BOOLEAN",
+            "array": "ARRAY",
+            "object": "OBJECT",
+        }
+
+        # Convert properties
+        if "properties" in schema:
+            gemini_properties = {}
+            for prop_name, prop_schema in schema["properties"].items():
+                gemini_prop: dict[str, Any] = {}
+
+                # Convert type
+                if "type" in prop_schema:
+                    gemini_prop["type"] = type_map.get(prop_schema["type"], "STRING")
+
+                # Add description if present
+                if "description" in prop_schema:
+                    gemini_prop["description"] = prop_schema["description"]
+
+                # Handle nested properties for objects
+                if prop_schema.get("type") == "object" and "properties" in prop_schema:
+                    nested = self._convert_json_schema_to_gemini(prop_schema)
+                    if "properties" in nested:
+                        gemini_prop["properties"] = nested["properties"]
+
+                # Handle array items
+                if prop_schema.get("type") == "array" and "items" in prop_schema:
+                    items_schema = prop_schema["items"]
+                    if "type" in items_schema:
+                        gemini_prop["items"] = {
+                            "type": type_map.get(items_schema["type"], "STRING")
+                        }
+
+                gemini_properties[prop_name] = gemini_prop
+
+            gemini_schema["properties"] = gemini_properties
+
+        # Convert required fields
+        if "required" in schema:
+            gemini_schema["required"] = schema["required"]
+
+        # Set type to OBJECT for root schema
+        gemini_schema["type"] = "OBJECT"
+
+        return gemini_schema
 
     def _convert_response(self, response: Any, model: str) -> MessageResponse:
         """Convert Gemini response to our format.
@@ -140,29 +206,37 @@ class GeminiProvider(BaseProvider):
             MessageResponse in our format
         """
         content_blocks: list[ResponseContentBlock] = []
+        has_function_call = False
 
-        # Extract text content (safely handle blocked responses)
-        try:
-            if response.text:
-                content_blocks.append(TextBlock(type="text", text=response.text))
-        except ValueError:
-            # Response was blocked by safety filters, add empty text block
-            content_blocks.append(
-                TextBlock(type="text", text="[Content blocked by safety filters]")
-            )
-
-        # Handle function calls (tool use)
+        # First, check for function calls and text in parts
         for part in response.parts:
+            # Handle function calls (tool use)
             if hasattr(part, "function_call") and part.function_call:
+                has_function_call = True
                 func_call = part.function_call
                 content_blocks.append(
                     ToolUseBlock(
                         type="tool_use",
-                        id=func_call.name,  # Gemini doesn't have separate IDs
+                        id=f"{func_call.name}-{random.randint(1000, 9999)}",
                         name=func_call.name,
                         input=dict(func_call.args),
                     )
                 )
+            # Handle text parts
+            elif hasattr(part, "text") and part.text:
+                content_blocks.append(TextBlock(type="text", text=part.text))
+
+        # If no content blocks were added, check if response was blocked by safety
+        if not content_blocks:
+            # Check finish reason for safety blocks
+            finish_reason_name = str(response.candidates[0].finish_reason)
+            if finish_reason_name in ("SAFETY", "RECITATION"):
+                content_blocks.append(
+                    TextBlock(type="text", text="[Content blocked by safety filters]")
+                )
+            else:
+                # Empty response
+                content_blocks.append(TextBlock(type="text", text=""))
 
         # Map finish reason
         finish_reason_map = {
@@ -171,7 +245,14 @@ class GeminiProvider(BaseProvider):
             "SAFETY": "content_filter",
             "RECITATION": "content_filter",
         }
-        stop_reason = finish_reason_map.get(str(response.candidates[0].finish_reason), "end_turn")
+
+        # If we have a function call, set stop_reason to tool_use
+        if has_function_call:
+            stop_reason = "tool_use"
+        else:
+            stop_reason = finish_reason_map.get(
+                str(response.candidates[0].finish_reason), "end_turn"
+            )
 
         # Estimate token usage (Gemini provides token count)
         usage = Usage(
