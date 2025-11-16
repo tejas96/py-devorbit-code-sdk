@@ -1,5 +1,6 @@
 """Main entry point for Devorbit CLI."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -18,6 +19,16 @@ from devorbit import __version__
 
 from .repl_enhanced import EnhancedREPL
 from .session import CLISession
+
+
+# Map providers to their environment variable names
+PROVIDER_ENV_VARS = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GOOGLE_API_KEY",
+    "mistral": "MISTRAL_API_KEY",
+    "codellama": "CODELLAMA_API_KEY",
+}
 
 
 @click.command()
@@ -41,7 +52,6 @@ from .session import CLISession
     "-k",
     type=str,
     default=None,
-    envvar="ANTHROPIC_API_KEY",
     help="API key for the provider (can also use env vars)",
 )
 @click.option(
@@ -117,11 +127,18 @@ def main(
         GOOGLE_API_KEY       - API key for Google Gemini
         MISTRAL_API_KEY      - API key for Mistral
     """
+    # Get API key from environment if not provided via command line
+    if not api_key:
+        env_var = PROVIDER_ENV_VARS.get(provider)
+        if env_var:
+            api_key = os.environ.get(env_var)
+
     # Validate API key
     if not api_key:
+        env_var = PROVIDER_ENV_VARS.get(provider, f"{provider.upper()}_API_KEY")
         click.echo(
             f"Error: No API key provided for {provider}. "
-            f"Set {provider.upper()}_API_KEY environment variable or use --api-key",
+            f"Set {env_var} environment variable or use --api-key",
             err=True,
         )
         sys.exit(1)
