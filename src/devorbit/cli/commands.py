@@ -1,5 +1,6 @@
 """Command handler for slash commands in Devorbit CLI."""
 
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +11,7 @@ if TYPE_CHECKING:
 from devorbit import get_current_todos
 
 from .session import CLISession
+from .session_manager import SessionManager
 
 
 class CommandHandler:
@@ -42,6 +44,7 @@ class CommandHandler:
             "permissions": self.cmd_permissions,
             "config": self.cmd_config,
             "todos": self.cmd_todos,
+            "sessions": self.cmd_sessions,
         }
 
     def handle_command(self, command_line: str) -> bool:
@@ -96,6 +99,7 @@ Available Commands:
     /permissions       - Manage tool permissions
     /config            - Show current configuration
     /todos             - Show current todo list
+    /sessions          - List and manage sessions
 
 System Information:
     - Provider: {provider}
@@ -439,6 +443,63 @@ Modes:
         self.session.print(
             f"Pending: {pending} | In Progress: {in_progress} | Completed: {completed}"
         )
+
+        return True
+
+    def cmd_sessions(self, args: list[str]) -> bool:
+        """List and manage sessions.
+
+        Args:
+            args: Command arguments
+
+        Returns:
+            True to continue REPL
+        """
+        session_mgr = SessionManager()
+
+        if not args:
+            # List recent sessions
+            sessions = session_mgr.list_sessions(limit=10)
+
+            if not sessions:
+                self.session.print_info("No saved sessions found")
+                return True
+
+            self.session.print("\n📂 Recent Sessions:\n")
+
+            for i, sess in enumerate(sessions, 1):
+                session_id = sess["session_id"]
+                provider = sess["provider"]
+                model = sess.get("model", "default")
+                timestamp = sess["timestamp"]
+                msg_count = sess["message_count"]
+
+                # Format timestamp
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    time_str = timestamp[:16]
+
+                self.session.print(
+                    f"  {i}. {session_id} - {provider}/{model} - {time_str} ({msg_count} messages)"
+                )
+
+            self.session.print("\nUse: devorbit -c  (continue last session)")
+            self.session.print("     devorbit -r <id>  (resume specific session)")
+
+        else:
+            action = args[0].lower()
+
+            if action == "delete" and len(args) > 1:
+                session_id = args[1]
+                if session_mgr.delete_session(session_id):
+                    self.session.print_success(f"Deleted session: {session_id}")
+                else:
+                    self.session.print_error(f"Session not found: {session_id}")
+            else:
+                self.session.print_error(f"Unknown action: {action}")
+                self.session.print("Usage: /sessions [delete <id>]")
 
         return True
 

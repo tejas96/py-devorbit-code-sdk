@@ -19,6 +19,7 @@ from devorbit import __version__
 
 from .repl import DevorbitREPL
 from .session import CLISession
+from .session_manager import SessionManager
 
 
 # Map providers to their environment variable names
@@ -85,7 +86,21 @@ PROVIDER_ENV_VARS = {
     default=False,
     help="Disable streaming responses",
 )
-def main(
+@click.option(
+    "-c",
+    "--continue-session",
+    is_flag=True,
+    default=False,
+    help="Continue the most recent session",
+)
+@click.option(
+    "-r",
+    "--resume",
+    type=str,
+    default=None,
+    help="Resume a specific session by ID",
+)
+def main(  # noqa: PLR0912, PLR0915
     provider: str,
     model: str | None,
     api_key: str | None,
@@ -94,6 +109,8 @@ def main(
     debug: bool,
     no_confirm: bool,
     no_stream: bool,
+    continue_session: bool,
+    resume: str | None,
 ) -> None:
     """Devorbit - Multi-provider LLM CLI with Claude Code-like experience.
 
@@ -143,18 +160,60 @@ def main(
         )
         sys.exit(1)
 
-    # Create CLI session - provider is already validated by click.Choice
-    session = CLISession(
-        provider=provider,
-        model=model,
-        api_key=api_key,
-        working_dir=working_dir,
-        no_color=no_color,
-        debug=debug,
-    )
+    # Initialize session manager
+    session_mgr = SessionManager()
+    session_id = None
+    loaded_session = None
+
+    # Handle session continuation/resumption
+    if continue_session:
+        session_id = session_mgr.get_latest_session_id()
+        if session_id:
+            loaded_session = session_mgr.load_session(session_id)
+            if loaded_session:
+                click.echo(f"📂 Continuing session: {session_id}")
+            else:
+                click.echo("⚠️  No previous session found, starting new session")
+                session_id = None
+        else:
+            click.echo("⚠️  No previous session found, starting new session")
+
+    elif resume:
+        loaded_session = session_mgr.load_session(resume)
+        if loaded_session:
+            session_id = resume
+            click.echo(f"📂 Resumed session: {session_id}")
+        else:
+            click.echo(f"❌ Session not found: {resume}", err=True)
+            sys.exit(1)
+
+    # Create or restore CLI session
+    if loaded_session:
+        # Restore from loaded session
+        session = CLISession(
+            provider=loaded_session["provider"],
+            model=loaded_session.get("model"),
+            api_key=api_key,  # Use current API key
+            working_dir=Path(loaded_session["working_dir"]),
+            no_color=no_color,
+            debug=debug,
+        )
+        # Restore message history
+        session.messages = loaded_session.get("messages", [])
+    else:
+        # Create new session
+        session_id = session_mgr.generate_session_id()
+        session = CLISession(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            working_dir=working_dir,
+            no_color=no_color,
+            debug=debug,
+        )
 
     # Display welcome banner
-    if not no_color:
+    if not no_color and not loaded_session:
         session.display_welcome()
 
     # Start REPL with Claude Code-style UX
@@ -167,12 +226,30 @@ def main(
         repl.run()
     except KeyboardInterrupt:
         click.echo("\n\nGoodbye! 👋")
-        sys.exit(0)
     except Exception as e:
         if debug:
             raise
         click.echo(f"\nError: {e}", err=True)
         sys.exit(1)
+    finally:
+        # Save session on exit
+        if session_id:
+            try:
+                session_mgr.save_session(
+                    session_id=session_id,
+                    provider=session.provider,
+                    model=session.model,
+                    messages=session.messages,
+                    working_dir=session.working_dir,
+                    metadata={
+                        "total_tokens": getattr(repl, "total_tokens_used", 0),
+                    },
+                )
+                if not no_color:
+                    click.echo(f"💾 Session saved: {session_id}")
+            except Exception as e:
+                if debug:
+                    click.echo(f"⚠️  Failed to save session: {e}", err=True)
 
 
 if __name__ == "__main__":
