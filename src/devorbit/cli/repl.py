@@ -244,10 +244,7 @@ class DevorbitREPL:
 
         # Handle stream
         with response_stream as stream:
-            text_content, tool_uses = self.streaming_handler.handle_stream(stream)
-
-            # Get final message from stream
-            final_message = stream.get_final_message()
+            text_content, tool_uses, usage_data = self.streaming_handler.handle_stream(stream)
 
             # Execute confirmed tools
             if tool_uses:
@@ -258,13 +255,12 @@ class DevorbitREPL:
                 self.session.add_message("assistant", text_content)
 
             # Display token usage
-            if hasattr(final_message, "usage") and final_message.usage:
-                usage = final_message.usage
+            if usage_data:
                 self.formatter.print_token_usage(
-                    input_tokens=usage.input_tokens,
-                    output_tokens=usage.output_tokens,
-                    cache_creation_tokens=getattr(usage, "cache_creation_input_tokens", 0),
-                    cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0),
+                    input_tokens=usage_data.get("input_tokens", 0),
+                    output_tokens=usage_data.get("output_tokens", 0),
+                    cache_creation_tokens=usage_data.get("cache_creation_input_tokens", 0),
+                    cache_read_tokens=usage_data.get("cache_read_input_tokens", 0),
                 )
 
     def _process_without_streaming(self, model: str) -> None:
