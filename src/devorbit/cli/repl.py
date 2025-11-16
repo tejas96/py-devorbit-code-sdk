@@ -1,5 +1,7 @@
 """REPL (Read-Eval-Print Loop) with Claude Code-style UX."""
 
+import re
+import subprocess
 import traceback
 from collections.abc import Callable
 from pathlib import Path
@@ -203,11 +205,18 @@ class DevorbitREPL:
         if user_input.startswith("/"):
             return self.command_handler.handle_command(user_input)
 
+        # Handle ! shell commands (direct execution)
+        if user_input.startswith("!"):
+            return self._handle_shell_command(user_input[1:].strip())
+
+        # Process @ file references
+        processed_input = self._process_file_references(user_input)
+
         # Display user message in Claude Code style
-        self.formatter.print_user_message(user_input)
+        self.formatter.print_user_message(processed_input)
 
         # Add to message history
-        self.session.add_message("user", user_input)
+        self.session.add_message("user", processed_input)
 
         try:
             # Get model
@@ -520,6 +529,90 @@ class DevorbitREPL:
         # Convert snake_case to PascalCase
         words = tool_name.split("_")
         return "".join(word.capitalize() for word in words)
+
+    def _process_file_references(self, user_input: str) -> str:
+        """Process @ file references in user input.
+
+        Args:
+            user_input: Raw user input with potential @file references
+
+        Returns:
+            Processed input with file contents included
+        """
+        # Find all @filename patterns
+        pattern = r"@([^\s]+)"
+        matches = re.findall(pattern, user_input)
+
+        if not matches:
+            return user_input
+
+        # Process each file reference
+        processed = user_input
+        for filename in matches:
+            file_path = Path(filename)
+
+            # Try relative to working directory
+            if not file_path.is_absolute():
+                file_path = self.session.working_dir / file_path
+
+            # Check if file exists
+            if file_path.exists() and file_path.is_file():
+                try:
+                    content = file_path.read_text(encoding="utf-8")
+                    # Replace @filename with actual content reference
+                    replacement = f"\n\n[Content of {file_path.name}]:\n```\n{content}\n```\n"
+                    processed = processed.replace(f"@{filename}", replacement)
+                    self.formatter.print_info(f"Included file: {file_path}")
+                except Exception as e:
+                    self.formatter.print_error(f"Failed to read {filename}: {e!s}")
+            else:
+                self.formatter.print_error(f"File not found: {filename}")
+
+        return processed
+
+    def _handle_shell_command(self, command: str) -> bool:
+        """Handle ! shell command (direct execution).
+
+        Args:
+            command: Shell command to execute
+
+        Returns:
+            True to continue REPL
+        """
+        if not command:
+            self.formatter.print_error("Empty command")
+            return True
+
+        self.formatter.print_info(f"Executing: {command}")
+
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                cwd=str(self.session.working_dir),
+                timeout=30,
+                check=False,
+            )
+
+            if result.stdout:
+                self.formatter.print(result.stdout)
+
+            if result.stderr:
+                self.formatter.print_error(result.stderr)
+
+            if result.returncode != 0:
+                self.formatter.print_error(f"Command exited with code {result.returncode}")
+            else:
+                self.formatter.print_success("Command completed successfully")
+
+        except subprocess.TimeoutExpired:
+            self.formatter.print_error("Command timed out (30s limit)")
+        except Exception as e:
+            self.formatter.print_error(f"Failed to execute command: {e!s}")
+
+        return True
 
     def _get_default_model(self) -> str:
         """Get default model for current provider.
