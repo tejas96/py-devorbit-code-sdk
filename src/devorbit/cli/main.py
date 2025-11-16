@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 
 try:
@@ -14,10 +15,68 @@ except ImportError:
     )
     sys.exit(1)
 
+if TYPE_CHECKING:
+    from questionary import Choice
+
+    import questionary as questionary_module
+
+    HAS_QUESTIONARY = True
+else:
+    try:
+        import questionary as questionary_module
+        from questionary import Choice
+
+        HAS_QUESTIONARY = True
+    except ImportError:
+        questionary_module = None  # type: ignore[assignment]
+        Choice = None  # type: ignore[assignment,misc]
+        HAS_QUESTIONARY = False
+
 from devorbit import __version__
 
 from .repl import DevorbitREPL
 from .session import CLISession
+
+
+def select_provider_interactive() -> str | None:
+    """Show interactive provider selection menu.
+
+    Returns:
+        Selected provider name or None if cancelled
+    """
+    if not TYPE_CHECKING and (not HAS_QUESTIONARY or questionary_module is None or Choice is None):
+        return None
+
+    providers = [
+        Choice(
+            title="🤖 Anthropic - Claude models (claude-3-5-sonnet, etc.)",
+            value="anthropic",
+        ),
+        Choice(title="🟢 OpenAI - GPT models (gpt-4, gpt-3.5-turbo, etc.)", value="openai"),
+        Choice(title="🔷 Google Gemini - Gemini models (gemini-pro, etc.)", value="gemini"),
+        Choice(title="🌟 Mistral - Mistral models (mistral-large, etc.)", value="mistral"),
+        Choice(title="🦙 CodeLlama - Code-specific models", value="codellama"),
+    ]
+
+    try:
+        result = questionary_module.select(
+            "Select LLM Provider:",
+            choices=providers,
+            style=questionary_module.Style(
+                [
+                    ("qmark", "fg:cyan bold"),
+                    ("question", "bold"),
+                    ("pointer", "fg:cyan bold"),
+                    ("highlighted", "fg:cyan bold"),
+                    ("selected", "fg:green"),
+                ]
+            ),
+        ).ask()
+        # Cast to str since questionary.select can return Any
+        return str(result) if result else None
+    except (KeyboardInterrupt, EOFError):
+        click.echo("\nCancelled provider selection")
+        return None
 
 
 @click.command()
@@ -26,8 +85,8 @@ from .session import CLISession
     "--provider",
     "-p",
     type=click.Choice(["anthropic", "openai", "gemini", "mistral", "codellama"]),
-    default="anthropic",
-    help="LLM provider to use (default: anthropic)",
+    default=None,
+    help="LLM provider to use (if not specified, interactive selection will be shown)",
 )
 @click.option(
     "--model",
@@ -64,7 +123,7 @@ from .session import CLISession
     help="Enable debug mode with verbose logging",
 )
 def main(
-    provider: str,
+    provider: str | None,
     model: str | None,
     api_key: str | None,
     working_dir: Path | None,
@@ -86,7 +145,7 @@ def main(
 
     \b
     Examples:
-        # Start with Anthropic (default)
+        # Start with interactive provider selection
         $ devorbit
 
         # Use OpenAI GPT-4
@@ -102,6 +161,14 @@ def main(
         GOOGLE_API_KEY       - API key for Google Gemini
         MISTRAL_API_KEY      - API key for Mistral
     """
+    # Interactive provider selection if not specified
+    if provider is None:
+        selected = select_provider_interactive()
+        if selected is None:
+            click.echo("Error: No provider selected", err=True)
+            sys.exit(1)
+        provider = selected
+
     # Validate API key
     if not api_key:
         click.echo(

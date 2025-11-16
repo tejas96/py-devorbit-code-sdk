@@ -9,6 +9,12 @@ if TYPE_CHECKING:
     from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.styles import Style
+    from questionary import Choice
+
+    import questionary as questionary_module
+
+    HAS_QUESTIONARY = True
+    HAS_PROMPT_TOOLKIT = True
 else:
     try:
         from prompt_toolkit import PromptSession
@@ -23,6 +29,16 @@ else:
         FileHistory = None  # type: ignore[assignment,misc]
         Style = None  # type: ignore[assignment,misc]
         HAS_PROMPT_TOOLKIT = False
+
+    try:
+        import questionary as questionary_module
+        from questionary import Choice
+
+        HAS_QUESTIONARY = True
+    except ImportError:
+        questionary_module = None  # type: ignore[assignment]
+        Choice = None  # type: ignore[assignment,misc]
+        HAS_QUESTIONARY = False
 
 from .commands import CommandHandler
 from .session import CLISession
@@ -98,6 +114,54 @@ class DevorbitREPL:
             self.session.print("\nUse /exit or Ctrl+D to quit")
             return ""
 
+    def show_command_menu(self) -> str | None:
+        """Show interactive command menu using questionary.
+
+        Returns:
+            Selected command or None if cancelled
+        """
+        if not TYPE_CHECKING and (
+            not HAS_QUESTIONARY or questionary_module is None or Choice is None
+        ):
+            self.session.print_info("Interactive menu requires questionary. Install with:")
+            self.session.print("  pip install devorbit-multi-llm-sdk[cli]")
+            return None
+
+        commands = [
+            Choice(title="📖 /help - Show help message", value="/help"),
+            Choice(title="📊 /status - Show session status", value="/status"),
+            Choice(title="📜 /history - Show conversation history", value="/history"),
+            Choice(title="🧹 /clear - Clear conversation history", value="/clear"),
+            Choice(title="🤖 /model - Show or change model", value="/model"),
+            Choice(title="🔧 /provider - Show current provider", value="/provider"),
+            Choice(title="📁 /pwd - Print working directory", value="/pwd"),
+            Choice(title="📂 /cd - Change working directory", value="/cd"),
+            Choice(title="📝 /planning - Toggle planning mode", value="/planning"),
+            Choice(title="🚪 /exit - Exit REPL", value="/exit"),
+            Choice(title="❌ Cancel", value="cancel"),
+        ]
+
+        try:
+            result = questionary_module.select(
+                "Select a command:",
+                choices=commands,
+                style=questionary_module.Style(
+                    [
+                        ("qmark", "fg:cyan bold"),
+                        ("question", "bold"),
+                        ("pointer", "fg:cyan bold"),
+                        ("highlighted", "fg:cyan bold"),
+                        ("selected", "fg:green"),
+                    ]
+                ),
+            ).ask()
+
+            if result == "cancel" or result is None:
+                return None
+            return str(result)
+        except (KeyboardInterrupt, EOFError):
+            return None
+
     def process_input(self, user_input: str) -> bool:
         """Process user input and execute commands.
 
@@ -108,6 +172,13 @@ class DevorbitREPL:
             True to continue REPL, False to exit
         """
         if not user_input:
+            return True
+
+        # Check if user typed just "/" - show interactive menu
+        if user_input == "/":
+            selected_cmd = self.show_command_menu()
+            if selected_cmd:
+                return self.command_handler.handle_command(selected_cmd)
             return True
 
         # Check if it's a slash command
