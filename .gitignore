@@ -72,3 +72,6 @@ dmypy.json
 # Security reports
 bandit-report.json
 safety-report.json
+
+# Devorbit CLI runtime files
+.claude/
