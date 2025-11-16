@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from devorbit import get_current_todos
+
 from .session import CLISession
 
 
@@ -27,6 +29,7 @@ class CommandHandler:
             "exit": self.cmd_exit,
             "quit": self.cmd_exit,
             "clear": self.cmd_clear,
+            "compact": self.cmd_compact,
             "history": self.cmd_history,
             "status": self.cmd_status,
             "model": self.cmd_model,
@@ -34,6 +37,9 @@ class CommandHandler:
             "cd": self.cmd_cd,
             "pwd": self.cmd_pwd,
             "planning": self.cmd_planning,
+            "permissions": self.cmd_permissions,
+            "config": self.cmd_config,
+            "todos": self.cmd_todos,
         }
 
     def handle_command(self, command_line: str) -> bool:
@@ -77,6 +83,7 @@ Available Commands:
     /help              - Show this help message
     /exit, /quit       - Exit the REPL
     /clear             - Clear conversation history
+    /compact           - Compact conversation to reduce tokens
     /history           - Show conversation history
     /status            - Show current session status
     /model [name]      - Show or change the current model
@@ -84,6 +91,9 @@ Available Commands:
     /cd <path>         - Change working directory
     /pwd               - Print working directory
     /planning          - Toggle planning mode
+    /permissions       - Manage tool permissions
+    /config            - Show current configuration
+    /todos             - Show current todo list
 
 System Information:
     - Provider: {provider}
@@ -264,6 +274,165 @@ Session Status:
             self.session.print_info(
                 "The agent will present plans for approval before executing changes"
             )
+        return True
+
+    def cmd_compact(self, args: list[str]) -> bool:
+        """Compact conversation to reduce tokens.
+
+        Args:
+            args: Command arguments
+
+        Returns:
+            True to continue REPL
+        """
+        original_count = len(self.session.messages)
+        if original_count <= 2:
+            self.session.print_info("Conversation is already compact")
+            return True
+
+        # Keep only last 10 messages
+        self.session.messages = self.session.messages[-10:]
+        removed = original_count - len(self.session.messages)
+
+        self.session.print_success(f"Compacted conversation: removed {removed} messages")
+        self.session.print_info(f"Kept {len(self.session.messages)} recent messages")
+        return True
+
+    def cmd_permissions(self, args: list[str]) -> bool:
+        """Manage tool permissions.
+
+        Args:
+            args: Command arguments
+
+        Returns:
+            True to continue REPL
+        """
+        if not args:
+            # Show current permissions
+            permissions_text = """
+Tool Permissions:
+
+Current Settings:
+    Allow All Tools: {allow_all}
+    Always Allow (session): {session_allow}
+
+Available Tools:
+    • read_file, write_file, edit_file
+    • bash, bash_output
+    • glob_files, grep_code
+    • web_fetch, web_search
+    • todo_write, todo_read
+    • task (agent delegation)
+
+Usage:
+    /permissions allow-all      - Allow all tools without confirmation
+    /permissions ask            - Ask before each tool execution
+    /permissions session-allow  - Always allow during this session
+
+Note: Individual tool allowlists will be added in future updates
+            """.format(
+                allow_all=not hasattr(self.session, "confirm_tools")
+                or not self.session.confirm_tools,
+                session_allow=hasattr(self.session, "session_allow_all")
+                and self.session.session_allow_all,
+            )
+            self.session.print(permissions_text)
+            return True
+
+        action = args[0].lower()
+        if action == "allow-all":
+            if hasattr(self.session, "confirm_tools"):
+                self.session.confirm_tools = False
+            self.session.print_success("All tools will be executed without confirmation")
+        elif action == "ask":
+            if hasattr(self.session, "confirm_tools"):
+                self.session.confirm_tools = True
+            self.session.print_success("Tool execution will require confirmation")
+        elif action == "session-allow":
+            self.session.session_allow_all = True  # type: ignore[attr-defined]
+            self.session.print_success("Tools will auto-approve for this session")
+        else:
+            self.session.print_error(f"Unknown action: {action}")
+            self.session.print("Usage: /permissions [allow-all|ask|session-allow]")
+
+        return True
+
+    def cmd_config(self, args: list[str]) -> bool:
+        """Show current configuration.
+
+        Args:
+            args: Command arguments
+
+        Returns:
+            True to continue REPL
+        """
+        config_text = f"""
+Current Configuration:
+
+Connection:
+    Provider: {self.session.provider}
+    Model: {self.session.model or "(default)"}
+    API Key: {"Set" if self.session.client else "Not set"}
+
+Session:
+    Working Directory: {self.session.working_dir}
+    Messages: {len(self.session.messages)}
+    Planning Mode: {"Enabled" if self.session.planning_mode else "Disabled"}
+    Debug Mode: {"Enabled" if self.session.debug else "Disabled"}
+    No Color: {"Enabled" if self.session.no_color else "Disabled"}
+
+Modes:
+    Streaming: Enabled
+    Tool Confirmation: {("Disabled" if not hasattr(self.session, "confirm_tools") else ("Enabled" if self.session.confirm_tools else "Disabled"))}
+        """
+        self.session.print(config_text)
+        return True
+
+    def cmd_todos(self, args: list[str]) -> bool:
+        """Show current todo list.
+
+        Args:
+            args: Command arguments
+
+        Returns:
+            True to continue REPL
+        """
+        todos = get_current_todos()
+
+        if not todos:
+            self.session.print_info("No active todos")
+            return True
+
+        # Calculate statistics
+        total = len(todos)
+        pending = sum(1 for t in todos if t["status"] == "pending")
+        in_progress = sum(1 for t in todos if t["status"] == "in_progress")
+        completed = sum(1 for t in todos if t["status"] == "completed")
+
+        self.session.print("\n📋 Current Todo List:\n")
+
+        for todo in todos:
+            status = todo.get("status", "pending")
+            content = todo.get("content", "")
+
+            if status == "completed":
+                symbol = "✓"
+                style = "[completed]"
+            elif status == "in_progress":
+                symbol = "⏺"
+                style = "[in progress]"
+            else:
+                symbol = "☐"
+                style = "[pending]"
+
+            self.session.print(f"  {symbol} {style} {content}")
+
+        progress = (completed / total * 100) if total > 0 else 0
+        self.session.print(f"\nProgress: {completed}/{total} tasks completed ({progress:.0f}%)")
+        self.session.print(
+            f"Pending: {pending} | In Progress: {in_progress} | Completed: {completed}"
+        )
+
         return True
 
 

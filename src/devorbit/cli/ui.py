@@ -448,6 +448,50 @@ class CLIFormatter:
             else:
                 self.console.print(f"  {stripped_line}", style="dim")
 
+    def print_todo_list(self, todos: list[dict[str, str]]) -> None:
+        """Display todo list in Claude Code style.
+
+        Args:
+            todos: List of todo items with content, status, and activeForm
+        """
+        if not todos:
+            return
+
+        if not HAS_RICH or self.console is None:
+            print("\n📋 Tasks:")
+            for todo in todos:
+                status = todo.get("status", "pending")
+                content = todo.get("content", "")
+                if status == "completed":
+                    print(f"  ✓ {content}")
+                elif status == "in_progress":
+                    print(f"  ⏺ {content}")
+                else:
+                    print(f"  ☐ {content}")
+            return
+
+        # Display with rich formatting
+        self.console.print()
+        self.console.print("📋 Tasks:", style="bold cyan")
+
+        for todo in todos:
+            status = todo.get("status", "pending")
+            content = todo.get("content", "")
+            active_form = todo.get("activeForm", content)
+
+            text = Text()
+            if status == "completed":
+                text.append("  ✓ ", style="green bold")
+                text.append(content, style="dim strikethrough")
+            elif status == "in_progress":
+                text.append("  ⏺ ", style="cyan bold")
+                text.append(active_form, style="cyan")
+            else:
+                text.append("  ☐ ", style="dim")
+                text.append(content, style="white")
+
+            self.console.print(text)
+
     def _format_tool_name(self, tool_name: str) -> str:
         """Convert snake_case tool name to PascalCase for display.
 

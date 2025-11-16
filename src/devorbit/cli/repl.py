@@ -10,6 +10,7 @@ from devorbit import (
     bash,
     bash_output,
     edit_file,
+    get_current_todos,
     glob_files,
     grep_code,
     kill_shell,
@@ -347,6 +348,16 @@ class DevorbitREPL:
                     display_result,
                     custom_message=result_message,
                 )
+
+                # If todo_write was executed, automatically display the todo list
+                if (
+                    tool_use["name"] == "todo_write"
+                    and isinstance(result, dict)
+                    and result.get("success")
+                ):
+                    current_todos = get_current_todos()
+                    if current_todos:
+                        self.formatter.print_todo_list(current_todos)
 
                 # Add to results
                 tool_results.append(
