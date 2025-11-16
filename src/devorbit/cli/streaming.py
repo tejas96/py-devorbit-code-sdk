@@ -34,6 +34,7 @@ class StreamingHandler:
         self.thinking_displayed = False
         self.usage_data: dict[str, int] | None = None
         self.text_started = False
+        self.first_tool_auto_executed = False  # Track if first tool was auto-executed
 
     def handle_stream(self, stream: Any) -> tuple[str, list[dict[str, Any]], dict[str, int] | None]:
         """Handle streaming response from LLM.
@@ -49,6 +50,7 @@ class StreamingHandler:
         self.thinking_displayed = False
         self.usage_data = None
         self.text_started = False
+        self.first_tool_auto_executed = False  # Reset for new turn
 
         try:
             for event in stream:
@@ -157,9 +159,21 @@ class StreamingHandler:
                         self.session_allow_all_callback and self.session_allow_all_callback()
                     )
 
-                    # Ask for confirmation if enabled and not session-allowed
-                    if self.confirm_tools and not session_allows_all:
-                        # Use boxed confirmation dialog (Claude Code style)
+                    # Claude Code style: Auto-execute first tool without asking
+                    is_first_tool = len(self.tool_uses) == 1 and not self.first_tool_auto_executed
+
+                    if is_first_tool:
+                        # First tool: Auto-confirm (execute without asking)
+                        self.tool_uses[-1]["confirmed"] = True
+                        self.first_tool_auto_executed = True
+
+                        # Display tool use immediately (no confirmation dialog)
+                        self.formatter.print_tool_use(
+                            tool_name, tool_input, description=description
+                        )
+
+                    elif self.confirm_tools and not session_allows_all:
+                        # Subsequent tools: Ask for confirmation (Claude Code style)
                         choice = self.formatter.confirm_tool_boxed(
                             tool_name,
                             tool_input,
@@ -170,11 +184,17 @@ class StreamingHandler:
                         # If choice is 2, enable session allow all
                         if choice == 2:
                             self.tool_uses[-1]["enable_session_allow_all"] = True
+
+                        # Display tool use after confirmation (with description)
+                        if self.tool_uses[-1]["confirmed"]:
+                            self.formatter.print_tool_use(
+                                tool_name, tool_input, description=description
+                            )
                     else:
+                        # Session allows all or confirmations disabled
                         self.tool_uses[-1]["confirmed"] = True
 
-                    # Display tool use after confirmation (with description)
-                    if self.tool_uses[-1]["confirmed"]:
+                        # Display tool use
                         self.formatter.print_tool_use(
                             tool_name, tool_input, description=description
                         )
