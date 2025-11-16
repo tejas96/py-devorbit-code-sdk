@@ -148,7 +148,9 @@ class StreamingHandler:
                     tool_input = self.tool_uses[-1]["input"]
 
                     # Extract description if available (from tool input)
-                    description = tool_input.get("description") if isinstance(tool_input, dict) else None
+                    description = (
+                        tool_input.get("description") if isinstance(tool_input, dict) else None
+                    )
 
                     # Check if session allows all tools
                     session_allows_all = (
@@ -173,7 +175,9 @@ class StreamingHandler:
 
                     # Display tool use after confirmation (with description)
                     if self.tool_uses[-1]["confirmed"]:
-                        self.formatter.print_tool_use(tool_name, tool_input, description=description)
+                        self.formatter.print_tool_use(
+                            tool_name, tool_input, description=description
+                        )
 
                 except json.JSONDecodeError:
                     self.formatter.print_error(

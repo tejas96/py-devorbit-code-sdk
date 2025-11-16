@@ -410,9 +410,7 @@ class CLIFormatter:
         result = Confirm.ask(f"❓ {question}", default=default)
         return bool(result)
 
-    def _extract_context_from_tool(
-        self, tool_name: str, tool_input: dict[str, Any]
-    ) -> str | None:
+    def _extract_context_from_tool(self, tool_name: str, tool_input: dict[str, Any]) -> str | None:
         """Extract context (file/directory) from tool parameters.
 
         Args:
