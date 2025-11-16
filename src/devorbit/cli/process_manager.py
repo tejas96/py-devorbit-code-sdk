@@ -4,6 +4,7 @@ This module provides process management similar to Claude Code CLI,
 allowing running and monitoring of dev servers, build watchers, etc.
 """
 
+import os
 import subprocess
 import threading
 import time
@@ -11,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
 
 try:
     from rich.console import Console
@@ -20,9 +22,9 @@ try:
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
-    Console = None
-    Live = None
-    Table = None
+    Console = None  # type: ignore[assignment, misc]
+    Live = None  # type: ignore[assignment, misc]
+    Table = None  # type: ignore[assignment, misc]
 
 
 @dataclass
@@ -64,7 +66,7 @@ class ProcessManager:
             self.console = Console()
 
         self.processes: dict[str, ProcessInfo] = {}
-        self.process_handles: dict[str, subprocess.Popen] = {}
+        self.process_handles: dict[str, subprocess.Popen[str]] = {}
         self.monitor_threads: dict[str, threading.Thread] = {}
         self.shutdown_event = threading.Event()
 
@@ -118,7 +120,9 @@ class ProcessManager:
         # Start process
         try:
             # Merge environment variables
-            process_env = {**Path.cwd().as_posix(), **process_info.env}
+            process_env: dict[str, str] | None = None
+            if process_info.env:
+                process_env = {**os.environ, **process_info.env}
 
             # Start subprocess
             process = subprocess.Popen(
@@ -127,7 +131,7 @@ class ProcessManager:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=str(cwd) if cwd else None,
-                env=process_env if process_info.env else None,
+                env=process_env,
                 text=True,
                 bufsize=1,  # Line buffered
             )

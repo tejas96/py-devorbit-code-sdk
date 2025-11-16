@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+
 try:
     from rich.console import Console
     from rich.panel import Panel
@@ -18,10 +19,10 @@ try:
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
-    Console = None
-    Panel = None
-    Syntax = None
-    Text = None
+    Console = None  # type: ignore[assignment, misc]
+    Panel = None  # type: ignore[assignment, misc]
+    Syntax = None  # type: ignore[assignment, misc]
+    Text = None  # type: ignore[assignment, misc]
 
 
 @dataclass

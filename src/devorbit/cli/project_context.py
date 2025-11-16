@@ -62,6 +62,7 @@ class ReactProject(ProjectInfo):
     project_type: str = "react"
     language: str = "javascript"
     frameworks: list[str] = Field(default_factory=lambda: ["react"])
+    package_name: str | None = None
     react_version: str | None = None
 
 
@@ -71,6 +72,7 @@ class NextJsProject(ProjectInfo):
     project_type: str = "nextjs"
     language: str = "javascript"
     frameworks: list[str] = Field(default_factory=lambda: ["react", "nextjs"])
+    package_name: str | None = None
     next_version: str | None = None
 
 

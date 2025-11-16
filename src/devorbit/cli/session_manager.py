@@ -83,7 +83,7 @@ class SessionManager:
             return None
 
         with session_file.open(encoding="utf-8") as f:
-            return cast(dict[str, Any], json.load(f))
+            return cast("dict[str, Any]", json.load(f))
 
     def get_latest_session_id(self) -> str | None:
         """Get the ID of the most recent session.

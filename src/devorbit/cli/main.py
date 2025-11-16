@@ -34,75 +34,75 @@ PROVIDER_ENV_VARS = {
 }
 
 
-@click.command()  # type: ignore[misc]
-@click.version_option(version=__version__, prog_name="devorbit")  # type: ignore[misc]
-@click.option(  # type: ignore[misc]
+@click.command()
+@click.version_option(version=__version__, prog_name="devorbit")
+@click.option(
     "--provider",
     "-p",
     type=click.Choice(["anthropic", "openai", "gemini", "mistral", "codellama"]),
     default="anthropic",
     help="LLM provider to use (default: anthropic)",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "--model",
     "-m",
     type=str,
     default=None,
     help="Specific model to use (e.g., claude-3-5-sonnet-20241022)",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "--api-key",
     "-k",
     type=str,
     default=None,
     help="API key for the provider (can also use env vars)",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "--working-dir",
     "-w",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
     default=None,
     help="Working directory for file operations (default: current directory)",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "--no-color",
     is_flag=True,
     default=False,
     help="Disable colored output",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "--debug",
     is_flag=True,
     default=False,
     help="Enable debug mode with verbose logging",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "--no-confirm",
     is_flag=True,
     default=False,
     help="Disable tool execution confirmation prompts",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "--no-stream",
     is_flag=True,
     default=False,
     help="Disable streaming responses",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "-c",
     "--continue-session",
     is_flag=True,
     default=False,
     help="Continue the most recent session",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "-r",
     "--resume",
     type=str,
     default=None,
     help="Resume a specific session by ID",
 )
-@click.option(  # type: ignore[misc]
+@click.option(
     "--output-format",
     "-o",
     type=click.Choice(["text", "json", "markdown"]),

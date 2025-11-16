@@ -265,7 +265,8 @@ class RecoveryManager:
 
         try:
             with self.session_file.open(encoding="utf-8") as f:
-                return json.load(f)
+                result: dict[str, Any] = json.load(f)
+                return result
         except Exception:
             return None
 

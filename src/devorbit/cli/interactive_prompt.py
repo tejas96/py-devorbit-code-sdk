@@ -38,7 +38,7 @@ class InteractivePrompt:
             # Use InquirerPy for beautiful arrow-based selection
             inquirer_choices = [Choice(value=value, name=display) for display, value in choices]
 
-            return inquirer.select(
+            result: str = inquirer.select(
                 message=message,
                 choices=inquirer_choices,
                 default=default,
@@ -49,6 +49,7 @@ class InteractivePrompt:
                     "selected": "green",
                 },
             ).execute()
+            return result
 
         # Fallback to simple text input
         print(f"\n{message}")
@@ -88,7 +89,7 @@ class InteractivePrompt:
             True for yes, False for no
         """
         if HAS_INQUIRER and inquirer:
-            return inquirer.confirm(
+            result: bool = inquirer.confirm(
                 message=message,
                 default=default,
                 style={
@@ -96,6 +97,7 @@ class InteractivePrompt:
                     "answer": "green",
                 },
             ).execute()
+            return result
 
         # Fallback
         default_text = "Y/n" if default else "y/N"

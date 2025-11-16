@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
+
 try:
     from rich.console import Console
     from rich.table import Table
@@ -16,8 +17,8 @@ try:
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
-    Console = None
-    Table = None
+    Console = None  # type: ignore[assignment, misc]
+    Table = None  # type: ignore[assignment, misc]
 
 
 @dataclass
@@ -35,7 +36,7 @@ class Symbol:
 class SymbolIndex:
     """Index of code symbols for fast searching."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize symbol index."""
         self.symbols: list[Symbol] = []
         self.index_by_name: dict[str, list[Symbol]] = {}
@@ -146,14 +147,14 @@ class SymbolParser:
     """Parse code files to extract symbols."""
 
     # Python patterns
-    PYTHON_PATTERNS: ClassVar[dict[str, re.Pattern]] = {
+    PYTHON_PATTERNS: ClassVar[dict[str, re.Pattern[str]]] = {
         "class": re.compile(r"^class\s+(\w+)", re.MULTILINE),
         "function": re.compile(r"^def\s+(\w+)", re.MULTILINE),
         "method": re.compile(r"^\s+def\s+(\w+)", re.MULTILINE),
     }
 
     # JavaScript/TypeScript patterns
-    JS_PATTERNS: ClassVar[dict[str, re.Pattern]] = {
+    JS_PATTERNS: ClassVar[dict[str, re.Pattern[str]]] = {
         "class": re.compile(r"class\s+(\w+)", re.MULTILINE),
         "function": re.compile(r"function\s+(\w+)", re.MULTILINE),
         "const": re.compile(r"const\s+(\w+)\s*=", re.MULTILINE),
@@ -162,21 +163,21 @@ class SymbolParser:
     }
 
     # Go patterns
-    GO_PATTERNS: ClassVar[dict[str, re.Pattern]] = {
+    GO_PATTERNS: ClassVar[dict[str, re.Pattern[str]]] = {
         "function": re.compile(r"func\s+(\w+)", re.MULTILINE),
         "type": re.compile(r"type\s+(\w+)\s+struct", re.MULTILINE),
         "method": re.compile(r"func\s+\(\w+\s+\*?\w+\)\s+(\w+)", re.MULTILINE),
     }
 
     # Rust patterns
-    RUST_PATTERNS: ClassVar[dict[str, re.Pattern]] = {
+    RUST_PATTERNS: ClassVar[dict[str, re.Pattern[str]]] = {
         "function": re.compile(r"fn\s+(\w+)", re.MULTILINE),
         "struct": re.compile(r"struct\s+(\w+)", re.MULTILINE),
         "enum": re.compile(r"enum\s+(\w+)", re.MULTILINE),
         "trait": re.compile(r"trait\s+(\w+)", re.MULTILINE),
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize symbol parser."""
         self.language_patterns = {
             "python": self.PYTHON_PATTERNS,

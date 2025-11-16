@@ -12,6 +12,7 @@ from typing import Any
 from .diff_engine import DiffManager, FileDiff
 from .interactive_prompt import InteractivePrompt
 
+
 try:
     from rich.console import Console
     from rich.panel import Panel
@@ -21,11 +22,11 @@ try:
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
-    Console = None
-    Panel = None
-    Confirm = None
-    Prompt = None
-    Text = None
+    Console = None  # type: ignore[assignment, misc]
+    Panel = None  # type: ignore[assignment, misc]
+    Confirm = None  # type: ignore[assignment, misc]
+    Prompt = None  # type: ignore[assignment, misc]
+    Text = None  # type: ignore[assignment, misc]
 
 
 class DiffWorkflow:
@@ -67,7 +68,7 @@ class DiffWorkflow:
         Returns:
             Dictionary with results: applied, rejected, errors
         """
-        results = {
+        results: dict[str, Any] = {
             "applied": [],
             "rejected": [],
             "errors": [],
