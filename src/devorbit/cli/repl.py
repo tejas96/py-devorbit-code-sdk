@@ -396,7 +396,7 @@ class DevorbitREPL:
             result: Tool result
 
         Returns:
-            Meaningful content to display
+            Meaningful content to display (empty string if no content to show)
         """
         # If result is a string, return it
         if isinstance(result, str):
@@ -404,26 +404,32 @@ class DevorbitREPL:
 
         # If result is a dict, extract relevant content based on tool
         if isinstance(result, dict):
-            # File tools: show content
-            if "content" in result:
+            # Write/Edit operations: don't show content, message is enough
+            if tool_name in ("write_file", "edit_file", "multi_edit_file"):
+                return ""
+
+            # Read file: show content
+            if tool_name == "read_file" and "content" in result:
                 return str(result["content"])
 
             # Bash tools: show stdout
             if "stdout" in result:
-                return str(result["stdout"])
+                stdout = str(result["stdout"])
+                # Only show if there's actual output
+                return stdout if stdout.strip() else ""
 
-            # List/glob tools: show matches
+            # List/glob/grep tools: show matches
             if "matches" in result:
                 matches = result["matches"]
                 if isinstance(matches, list):
-                    return "\n".join(str(m) for m in matches)
+                    return "\n".join(str(m) for m in matches) if matches else ""
                 return str(matches)
 
-            # Generic: show formatted dict
-            return "\n".join(f"{k}: {v}" for k, v in result.items())
+            # For other tools, don't show raw dict
+            return ""
 
-        # Fallback: convert to string
-        return str(result)
+        # Fallback: don't show raw objects
+        return ""
 
     def _generate_result_message(self, tool_name: str, result: Any) -> str:  # noqa: PLR0911
         """Generate Claude Code-style result message.

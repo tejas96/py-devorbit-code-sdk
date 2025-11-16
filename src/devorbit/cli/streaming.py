@@ -62,10 +62,8 @@ class StreamingHandler:
         event_type = event.get("type") if isinstance(event, dict) else getattr(event, "type", None)
 
         if event_type == "message_start":
-            # Show thinking indicator at start (⏺ symbol)
-            if not self.thinking_displayed:
-                self.formatter.print_thinking()
-                self.thinking_displayed = True
+            # Message starting - no action here, wait for content blocks
+            pass
 
         elif event_type == "content_block_start":
             block = (
@@ -78,7 +76,7 @@ class StreamingHandler:
                     block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
                 )
                 if block_type == "text":
-                    # Start of text block - print ⏺ symbol
+                    # Start of text block - print ⏺ symbol (only once)
                     if not self.text_started:
                         self.formatter.print_assistant_prefix()
                         self.text_started = True
