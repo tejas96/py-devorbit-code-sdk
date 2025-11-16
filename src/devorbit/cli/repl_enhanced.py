@@ -385,7 +385,7 @@ class EnhancedREPL:
         defaults = {
             "anthropic": "claude-sonnet-4-5-20250929",
             "openai": "gpt-4-turbo-preview",
-            "gemini": "gemini-pro",
+            "gemini": "gemini-2.5-flash",
             "mistral": "mistral-medium",
             "codellama": "codellama-34b",
         }

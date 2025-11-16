@@ -155,7 +155,7 @@ class TestDevorbitREPL:
         """Test default model for Gemini provider."""
         repl.session.provider = "gemini"
         model = repl._get_default_model()
-        assert model == "gemini-pro"
+        assert model == "gemini-2.5-flash"
 
     def test_get_default_model_unknown(self, repl):
         """Test default model for unknown provider."""
