@@ -13,15 +13,22 @@ if TYPE_CHECKING:
 class StreamingHandler:
     """Handle streaming responses with Claude Code-style display."""
 
-    def __init__(self, formatter: "CLIFormatter", confirm_tools: bool = True) -> None:
+    def __init__(
+        self,
+        formatter: "CLIFormatter",
+        confirm_tools: bool = True,
+        session_allow_all_callback: Any = None,
+    ) -> None:
         """Initialize streaming handler.
 
         Args:
             formatter: UI formatter instance
             confirm_tools: Whether to confirm before executing tools
+            session_allow_all_callback: Callback to check if session allows all tools
         """
         self.formatter = formatter
         self.confirm_tools = confirm_tools
+        self.session_allow_all_callback = session_allow_all_callback
         self.current_text = ""
         self.tool_uses: list[dict[str, Any]] = []
         self.thinking_displayed = False
@@ -141,8 +148,13 @@ class StreamingHandler:
                     tool_input = self.tool_uses[-1]["input"]
                     self.formatter.print_tool_use(tool_name, tool_input)
 
-                    # Ask for confirmation if enabled
-                    if self.confirm_tools:
+                    # Check if session allows all tools
+                    session_allows_all = (
+                        self.session_allow_all_callback and self.session_allow_all_callback()
+                    )
+
+                    # Ask for confirmation if enabled and not session-allowed
+                    if self.confirm_tools and not session_allows_all:
                         confirmed = self.formatter.confirm(
                             f"Execute {tool_name}?",
                             default=True,

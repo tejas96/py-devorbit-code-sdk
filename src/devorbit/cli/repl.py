@@ -73,17 +73,21 @@ class DevorbitREPL:
             stream: Enable streaming responses
         """
         self.session = session
-        self.command_handler = CommandHandler(session)
         self.confirm_tools = confirm_tools
         self.stream = stream
+        self.session_allow_all = False  # Session-level always allow
 
         # Initialize UI formatter
         self.formatter = CLIFormatter(no_color=session.no_color)
+
+        # Initialize command handler (pass self for runtime state access)
+        self.command_handler = CommandHandler(session, repl=self)
 
         # Initialize streaming handler
         self.streaming_handler = StreamingHandler(
             formatter=self.formatter,
             confirm_tools=confirm_tools,
+            session_allow_all_callback=lambda: self.session_allow_all,
         )
 
         # Setup tools (same as before but cleaner)

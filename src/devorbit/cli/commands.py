@@ -1,7 +1,7 @@
 """Command handler for slash commands in Devorbit CLI."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
@@ -15,13 +15,15 @@ from .session import CLISession
 class CommandHandler:
     """Handles slash commands in the REPL."""
 
-    def __init__(self, session: CLISession) -> None:
+    def __init__(self, session: CLISession, repl: Any = None) -> None:
         """Initialize command handler.
 
         Args:
             session: CLI session instance
+            repl: REPL instance (for accessing runtime state)
         """
         self.session = session
+        self.repl = repl
 
         # Register built-in commands
         self.commands: dict[str, Callable[[list[str]], bool]] = {
@@ -309,12 +311,21 @@ Session Status:
         """
         if not args:
             # Show current permissions
-            permissions_text = """
+            confirm_enabled = (
+                self.repl and hasattr(self.repl, "confirm_tools") and self.repl.confirm_tools
+            )
+            session_allow = (
+                self.repl
+                and hasattr(self.repl, "session_allow_all")
+                and self.repl.session_allow_all
+            )
+
+            permissions_text = f"""
 Tool Permissions:
 
 Current Settings:
-    Allow All Tools: {allow_all}
-    Always Allow (session): {session_allow}
+    Confirmation Required: {confirm_enabled}
+    Session Allow All: {session_allow}
 
 Available Tools:
     • read_file, write_file, edit_file
@@ -325,32 +336,28 @@ Available Tools:
     • task (agent delegation)
 
 Usage:
-    /permissions allow-all      - Allow all tools without confirmation
-    /permissions ask            - Ask before each tool execution
-    /permissions session-allow  - Always allow during this session
+    /permissions allow-all      - Disable all confirmations
+    /permissions ask            - Enable confirmations (default)
+    /permissions session-allow  - Auto-approve all tools this session
 
 Note: Individual tool allowlists will be added in future updates
-            """.format(
-                allow_all=not hasattr(self.session, "confirm_tools")
-                or not self.session.confirm_tools,
-                session_allow=hasattr(self.session, "session_allow_all")
-                and self.session.session_allow_all,
-            )
+            """
             self.session.print(permissions_text)
             return True
 
         action = args[0].lower()
         if action == "allow-all":
-            if hasattr(self.session, "confirm_tools"):
-                self.session.confirm_tools = False
+            if self.repl and hasattr(self.repl, "confirm_tools"):
+                self.repl.confirm_tools = False
             self.session.print_success("All tools will be executed without confirmation")
         elif action == "ask":
-            if hasattr(self.session, "confirm_tools"):
-                self.session.confirm_tools = True
+            if self.repl and hasattr(self.repl, "confirm_tools"):
+                self.repl.confirm_tools = True
             self.session.print_success("Tool execution will require confirmation")
         elif action == "session-allow":
-            self.session.session_allow_all = True  # type: ignore[attr-defined]
-            self.session.print_success("Tools will auto-approve for this session")
+            if self.repl and hasattr(self.repl, "session_allow_all"):
+                self.repl.session_allow_all = True
+            self.session.print_success("Tools will auto-approve for this session (no prompts)")
         else:
             self.session.print_error(f"Unknown action: {action}")
             self.session.print("Usage: /permissions [allow-all|ask|session-allow]")
