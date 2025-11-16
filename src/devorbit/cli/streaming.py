@@ -42,8 +42,8 @@ class StreamingHandler:
         try:
             for event in stream:
                 self._handle_event(event)
-        except Exception as e:
-            self.formatter.print_error("Stream processing failed", str(e))
+        except Exception:
+            self.formatter.print_error("Stream processing failed")
             raise
 
         return self.current_text, self.tool_uses
@@ -122,10 +122,9 @@ class StreamingHandler:
                     else:
                         self.tool_uses[-1]["confirmed"] = True
 
-                except json.JSONDecodeError as e:
+                except json.JSONDecodeError:
                     self.formatter.print_error(
-                        f"Failed to parse tool input for {self.tool_uses[-1]['name']}",
-                        str(e),
+                        f"Failed to parse tool input for {self.tool_uses[-1]['name']}"
                     )
                     self.tool_uses[-1]["confirmed"] = False
 

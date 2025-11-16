@@ -215,9 +215,11 @@ class EnhancedREPL:
                 self._process_without_streaming(model)
 
         except Exception as e:
-            self.formatter.print_error(f"Request failed: {e!s}")
             if self.session.debug:
+                self.formatter.print_error(f"Request failed: {e!s}")
                 traceback.print_exc()
+            else:
+                self.formatter.print_error("Request failed")
 
         return True
 
@@ -357,10 +359,11 @@ class EnhancedREPL:
 
             except Exception as e:
                 self.formatter.print_tool_result(tool_use["name"], False)
-                self.formatter.print_error("Tool execution failed", str(e))
-
                 if self.session.debug:
+                    self.formatter.print_error("Tool execution failed", str(e))
                     traceback.print_exc()
+                else:
+                    self.formatter.print_error("Tool execution failed")
 
         # If we have tool results, continue the conversation
         if tool_results:
