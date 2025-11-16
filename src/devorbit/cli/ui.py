@@ -20,13 +20,15 @@ import difflib
 class CLIFormatter:
     """Pixel-perfect Claude Code-style CLI formatter."""
 
-    def __init__(self, no_color: bool = False) -> None:
+    def __init__(self, no_color: bool = False, output_format: str = "text") -> None:
         """Initialize CLI formatter.
 
         Args:
             no_color: Disable colored output
+            output_format: Output format (text, json, markdown)
         """
         self.no_color = no_color
+        self.output_format = output_format
         self.console = Console(no_color=no_color) if HAS_RICH else None
 
     def print_user_message(self, message: str) -> None:
@@ -50,6 +52,16 @@ class CLIFormatter:
             message: Assistant's response
             streaming: Whether this is part of streaming response
         """
+        # Handle different output formats
+        if self.output_format in ("json", "markdown"):
+            # Plain text output for JSON and markdown modes
+            if streaming:
+                print(message, end="", flush=True)
+            else:
+                print(message)
+            return
+
+        # Rich text output (default)
         if not HAS_RICH or self.console is None:
             if streaming:
                 print(message, end="", flush=True)

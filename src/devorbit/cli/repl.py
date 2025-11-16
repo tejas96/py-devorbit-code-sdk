@@ -82,7 +82,9 @@ class DevorbitREPL:
         self.context_warning_shown = False  # Track if warning was shown
 
         # Initialize UI formatter
-        self.formatter = CLIFormatter(no_color=session.no_color)
+        self.formatter = CLIFormatter(
+            no_color=session.no_color, output_format=session.output_format
+        )
 
         # Initialize command handler (pass self for runtime state access)
         self.command_handler = CommandHandler(session, repl=self)
@@ -216,6 +218,9 @@ class DevorbitREPL:
 
         # Check context window and warn if needed
         self._check_context_window()
+
+        # Check for extended thinking keywords and enhance prompt
+        processed_input = self._process_thinking_keywords(processed_input)
 
         # If planning mode is enabled, request a plan first
         if self.session.planning_mode and not processed_input.lower().startswith("plan"):
@@ -627,7 +632,7 @@ class DevorbitREPL:
             )
 
             if result.stdout:
-                self.formatter.print(result.stdout)
+                self.formatter.print_info(result.stdout)
 
             if result.stderr:
                 self.formatter.print_error(result.stderr)
@@ -676,6 +681,44 @@ class DevorbitREPL:
         # Reset warning if context is reduced
         if estimated_tokens < threshold:
             self.context_warning_shown = False
+
+    def _process_thinking_keywords(self, user_input: str) -> str:
+        """Process extended thinking keywords and enhance prompt.
+
+        Args:
+            user_input: Raw user input
+
+        Returns:
+            Enhanced input with thinking instructions
+        """
+        # Detect thinking keywords (case-insensitive)
+        lower_input = user_input.lower()
+
+        thinking_levels = {
+            "ultrathink": ("maximum", "🧠🧠🧠 Ultra-deep thinking mode activated"),
+            "think harder": ("high", "🧠🧠 Deep thinking mode activated"),
+            "think hard": ("high", "🧠🧠 Deep thinking mode activated"),
+            "think": ("normal", "🧠 Extended thinking mode activated"),
+        }
+
+        # Check for thinking keywords
+        for keyword, (level, message) in thinking_levels.items():
+            if keyword in lower_input:
+                self.formatter.print_info(message)
+
+                # For Anthropic models, we can use extended thinking
+                if self.session.provider == "anthropic":
+                    return (
+                        f"{user_input}\n\n"
+                        f"[System: Use {level} thinking budget. "
+                        "Take time to deeply analyze the problem, consider multiple approaches, "
+                        "and provide a well-reasoned solution.]"
+                    )
+
+                # For other providers, just add general instruction
+                return f"{user_input}\n\n[Please think carefully and provide a detailed analysis.]"
+
+        return user_input
 
     def _get_default_model(self) -> str:
         """Get default model for current provider.

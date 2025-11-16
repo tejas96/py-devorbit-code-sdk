@@ -32,73 +32,80 @@ PROVIDER_ENV_VARS = {
 }
 
 
-@click.command()
-@click.version_option(version=__version__, prog_name="devorbit")
-@click.option(
+@click.command()  # type: ignore[misc]
+@click.version_option(version=__version__, prog_name="devorbit")  # type: ignore[misc]
+@click.option(  # type: ignore[misc]
     "--provider",
     "-p",
     type=click.Choice(["anthropic", "openai", "gemini", "mistral", "codellama"]),
     default="anthropic",
     help="LLM provider to use (default: anthropic)",
 )
-@click.option(
+@click.option(  # type: ignore[misc]
     "--model",
     "-m",
     type=str,
     default=None,
     help="Specific model to use (e.g., claude-3-5-sonnet-20241022)",
 )
-@click.option(
+@click.option(  # type: ignore[misc]
     "--api-key",
     "-k",
     type=str,
     default=None,
     help="API key for the provider (can also use env vars)",
 )
-@click.option(
+@click.option(  # type: ignore[misc]
     "--working-dir",
     "-w",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
     default=None,
     help="Working directory for file operations (default: current directory)",
 )
-@click.option(
+@click.option(  # type: ignore[misc]
     "--no-color",
     is_flag=True,
     default=False,
     help="Disable colored output",
 )
-@click.option(
+@click.option(  # type: ignore[misc]
     "--debug",
     is_flag=True,
     default=False,
     help="Enable debug mode with verbose logging",
 )
-@click.option(
+@click.option(  # type: ignore[misc]
     "--no-confirm",
     is_flag=True,
     default=False,
     help="Disable tool execution confirmation prompts",
 )
-@click.option(
+@click.option(  # type: ignore[misc]
     "--no-stream",
     is_flag=True,
     default=False,
     help="Disable streaming responses",
 )
-@click.option(
+@click.option(  # type: ignore[misc]
     "-c",
     "--continue-session",
     is_flag=True,
     default=False,
     help="Continue the most recent session",
 )
-@click.option(
+@click.option(  # type: ignore[misc]
     "-r",
     "--resume",
     type=str,
     default=None,
     help="Resume a specific session by ID",
+)
+@click.option(  # type: ignore[misc]
+    "--output-format",
+    "-o",
+    type=click.Choice(["text", "json", "markdown"]),
+    default="text",
+    help="Output format for responses (default: text)",
 )
 def main(  # noqa: PLR0912, PLR0915
     provider: str,
@@ -111,6 +118,7 @@ def main(  # noqa: PLR0912, PLR0915
     no_stream: bool,
     continue_session: bool,
     resume: str | None,
+    output_format: str,
 ) -> None:
     """Devorbit - Multi-provider LLM CLI with Claude Code-like experience.
 
@@ -136,6 +144,9 @@ def main(  # noqa: PLR0912, PLR0915
 
         # Disable tool confirmation prompts
         $ devorbit --no-confirm
+
+        # Output in plain markdown format
+        $ devorbit --output-format markdown
 
     \b
     Environment Variables:
@@ -197,6 +208,7 @@ def main(  # noqa: PLR0912, PLR0915
             working_dir=Path(loaded_session["working_dir"]),
             no_color=no_color,
             debug=debug,
+            output_format=output_format,
         )
         # Restore message history
         session.messages = loaded_session.get("messages", [])
@@ -210,6 +222,7 @@ def main(  # noqa: PLR0912, PLR0915
             working_dir=working_dir,
             no_color=no_color,
             debug=debug,
+            output_format=output_format,
         )
 
     # Display welcome banner

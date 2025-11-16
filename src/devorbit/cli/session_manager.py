@@ -4,7 +4,11 @@ import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+
+if TYPE_CHECKING:
+    from devorbit._types import Message
 
 
 class SessionManager:
@@ -27,7 +31,7 @@ class SessionManager:
         session_id: str,
         provider: str,
         model: str | None,
-        messages: list[dict[str, Any]],
+        messages: list["Message"],
         working_dir: Path,
         metadata: dict[str, Any] | None = None,
     ) -> Path:
@@ -79,7 +83,7 @@ class SessionManager:
             return None
 
         with session_file.open(encoding="utf-8") as f:
-            return json.load(f)
+            return cast(dict[str, Any], json.load(f))
 
     def get_latest_session_id(self) -> str | None:
         """Get the ID of the most recent session.

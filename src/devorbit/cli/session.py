@@ -34,6 +34,7 @@ class CLISession:
         working_dir: Path | None = None,
         no_color: bool = False,
         debug: bool = False,
+        output_format: str = "text",
     ) -> None:
         """Initialize a CLI session.
 
@@ -44,6 +45,7 @@ class CLISession:
             working_dir: Working directory for file operations (default: current directory)
             no_color: Disable colored output
             debug: Enable debug mode
+            output_format: Output format (text, json, markdown)
         """
         self.provider = provider
         self.api_key = api_key
@@ -51,6 +53,7 @@ class CLISession:
         self.working_dir = working_dir or Path.cwd()
         self.no_color = no_color
         self.debug = debug
+        self.output_format = output_format
 
         # Initialize console
         self.console: RichConsole | None = None
