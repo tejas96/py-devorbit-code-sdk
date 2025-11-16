@@ -500,28 +500,6 @@ class CLIFormatter:
         if description:
             content.append(f"  {description}\n", style="dim")
 
-        content.append("\nDo you want to proceed?\n", style="white")
-
-        # Options
-        content.append("❯ 1. Yes\n", style="cyan")  # noqa: RUF001
-
-        # Generate context-aware option 2 if possible
-        if context_options:
-            for i, option in enumerate(context_options, 2):
-                content.append(f"  {i}. {option}\n", style="dim")
-        else:
-            # Try to extract context from tool parameters
-            context = self._extract_context_from_tool(tool_name, tool_input)
-            if context:
-                content.append(
-                    f"  2. Yes, and always allow access to {context} from this project\n",
-                    style="dim",
-                )
-            else:
-                content.append("  2. Yes, allow all tools this session\n", style="dim")
-
-        content.append("  3. No, and tell Claude what to do differently (esc)\n", style="dim")
-
         # Create panel (title is lowercase tool name for border)
         panel = Panel(
             content,
@@ -542,7 +520,7 @@ class CLIFormatter:
         )
 
         choice = InteractivePrompt.select(
-            message="",  # Message already shown in panel
+            message="Do you want to proceed?",
             choices=[
                 ("Yes", "1"),
                 (option2_text, "2"),
