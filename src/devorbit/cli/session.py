@@ -1,4 +1,4 @@
-"""CLI session management."""
+"""CLI session management with enhanced UI system."""
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -17,6 +17,16 @@ except ImportError:
     HAS_RICH = False
 
 from devorbit import Devorbit
+
+from .ui import (
+    CodeBlockDisplay,
+    DiffDisplay,
+    NotificationManager,
+    ProgressIndicator,
+    StatusLine,
+    StreamingDisplay,
+    ToolCallDisplay,
+)
 
 
 if TYPE_CHECKING:
@@ -69,6 +79,20 @@ class CLISession:
         # Session state
         self.is_running = True
         self.planning_mode = False
+
+        # Initialize enhanced UI components
+        self.notifications = NotificationManager(self.console, no_color)
+        self.progress = ProgressIndicator(self.console, no_color)
+        self.status_line = StatusLine(self.console, no_color=no_color)
+        self.streaming = StreamingDisplay(self.console, no_color)
+        self.tool_display = ToolCallDisplay(self.console, no_color)
+        self.code_display = CodeBlockDisplay(self.console, no_color)
+        self.diff_display = DiffDisplay(self.console, no_color)
+
+        # Set initial status line values
+        if model:
+            self.status_line.set_model(model, provider)
+        self.status_line.set_project(working_dir or Path.cwd())
 
     def display_welcome(self) -> None:
         """Display welcome banner."""
@@ -137,10 +161,7 @@ class CLISession:
         Args:
             message: Error message to display
         """
-        if HAS_RICH and self.console is not None:
-            self.console.print(f"[bold red]Error:[/bold red] {message}")
-        else:
-            print(f"Error: {message}")
+        self.notifications.error(message)
 
     def print_success(self, message: str) -> None:
         """Print a success message.
@@ -148,10 +169,7 @@ class CLISession:
         Args:
             message: Success message to display
         """
-        if HAS_RICH and self.console is not None:
-            self.console.print(f"[bold green]✓[/bold green] {message}")
-        else:
-            print(f"✓ {message}")
+        self.notifications.success(message)
 
     def print_info(self, message: str) -> None:
         """Print an info message.
@@ -159,7 +177,12 @@ class CLISession:
         Args:
             message: Info message to display
         """
-        if HAS_RICH and self.console is not None:
-            self.console.print(f"[bold cyan]i[/bold cyan] {message}")
-        else:
-            print(f"i {message}")
+        self.notifications.info(message)
+
+    def print_warning(self, message: str) -> None:
+        """Print a warning message.
+
+        Args:
+            message: Warning message to display
+        """
+        self.notifications.warning(message)
