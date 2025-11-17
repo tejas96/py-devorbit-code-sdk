@@ -23,7 +23,14 @@ __all__ = [
     "CLISession",
     "CommandHandler",
     "DevorbitREPL",
+    "FilePreviewConfirmation",
+    "FileTreeBrowser",
+    "ProjectBootstrapper",
+    "StreamingFileWriter",
     "StreamingHandler",
+    "TodoProgressTracker",
+    "TodoUIPanel",
+    "ToolExecutionDisplay",
     "main",
 ]
 

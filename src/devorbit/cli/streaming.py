@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from devorbit._models import MessageResponse
 
+    from .todo_ui import TodoUIPanel
+    from .tool_display import ToolExecutionDisplay
     from .ui import CLIFormatter
 
 
@@ -18,6 +20,8 @@ class StreamingHandler:
         formatter: "CLIFormatter",
         confirm_tools: bool = True,
         session_allow_all_callback: Any = None,
+        todo_panel: "TodoUIPanel | None" = None,
+        tool_display: "ToolExecutionDisplay | None" = None,
     ) -> None:
         """Initialize streaming handler.
 
@@ -25,10 +29,14 @@ class StreamingHandler:
             formatter: UI formatter instance
             confirm_tools: Whether to confirm before executing tools
             session_allow_all_callback: Callback to check if session allows all tools
+            todo_panel: Optional TODO UI panel for progress display
+            tool_display: Optional tool execution display
         """
         self.formatter = formatter
         self.confirm_tools = confirm_tools
         self.session_allow_all_callback = session_allow_all_callback
+        self.todo_panel = todo_panel
+        self.tool_display = tool_display
         self.current_text = ""
         self.tool_uses: list[dict[str, Any]] = []
         self.thinking_displayed = False

@@ -47,6 +47,9 @@ class CommandHandler:
             "todos": self.cmd_todos,
             "sessions": self.cmd_sessions,
             "workspace": self.cmd_workspace,
+            "tree": self.cmd_tree,
+            "bootstrap": self.cmd_bootstrap,
+            "templates": self.cmd_templates,
         }
 
     def handle_command(self, command_line: str) -> bool:
@@ -103,6 +106,9 @@ Available Commands:
     /todos             - Show current todo list
     /sessions          - List and manage sessions
     /workspace         - Show workspace information
+    /tree [depth]      - Show file tree (default depth: 3)
+    /templates         - List available project templates
+    /bootstrap <template> <name> - Create project from template
 
 System Information:
     - Provider: {provider}
@@ -543,6 +549,99 @@ Modes:
             self.session.print(f"  Session allow-all: {info['session_allow_all']}")
 
         self.session.print("\n💡 Tip: The .claude directory stores project context and preferences")
+
+        return True
+
+    def cmd_tree(self, args: list[str]) -> bool:
+        """Display file tree of current directory.
+
+        Args:
+            args: Command arguments (optional depth)
+
+        Returns:
+            True to continue REPL
+        """
+        from .file_tree import FileTreeBrowser
+
+        # Parse depth argument
+        depth = 3
+        if args:
+            try:
+                depth = int(args[0])
+                if depth < 1 or depth > 10:
+                    self.session.print_error("Depth must be between 1 and 10")
+                    return True
+            except ValueError:
+                self.session.print_error("Invalid depth argument")
+                return True
+
+        # Create and display tree
+        tree_browser = FileTreeBrowser(
+            root_path=Path(self.session.working_dir), no_color=self.session.no_color
+        )
+        tree_browser.display_tree(max_depth=depth)
+
+        return True
+
+    def cmd_templates(self, args: list[str]) -> bool:
+        """List available project templates.
+
+        Args:
+            args: Command arguments
+
+        Returns:
+            True to continue REPL
+        """
+        from .project_bootstrap import ProjectBootstrapper
+
+        bootstrapper = ProjectBootstrapper()
+        bootstrapper.list_templates()
+
+        return True
+
+    def cmd_bootstrap(self, args: list[str]) -> bool:
+        """Bootstrap a new project from template.
+
+        Args:
+            args: Command arguments [template_id, project_name, description]
+
+        Returns:
+            True to continue REPL
+        """
+        from .project_bootstrap import ProjectBootstrapper
+
+        if len(args) < 2:
+            self.session.print_error("Usage: /bootstrap <template> <name> [description]")
+            self.session.print("Available templates: python, web, pwa, react")
+            return True
+
+        template_id = args[0]
+        project_name = args[1]
+        description = " ".join(args[2:]) if len(args) > 2 else ""
+
+        # Create project in subdirectory of current working dir
+        target_dir = Path(self.session.working_dir) / project_name
+
+        if target_dir.exists():
+            self.session.print_error(f"Directory already exists: {target_dir}")
+            return True
+
+        # Bootstrap project
+        bootstrapper = ProjectBootstrapper()
+        success = bootstrapper.bootstrap(
+            template_id=template_id,
+            project_name=project_name,
+            target_dir=target_dir,
+            description=description,
+        )
+
+        if success:
+            self.session.print_success(f"\n✓ Project created at {target_dir}")
+            self.session.print(f"\nNext steps:")
+            self.session.print(f"  cd {project_name}")
+            self.session.print(f"  # Start developing!")
+        else:
+            self.session.print_error("Failed to bootstrap project")
 
         return True
 
