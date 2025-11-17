@@ -152,10 +152,12 @@ class LLMHandler:
                             }
                         )
                         # Show result
+                        is_success = not result.startswith("Error")
                         self.session.tool_display.show_tool_result(
-                            tool_call.name,
-                            result,
-                            success=not result.startswith("Error"),
+                            tool_name=tool_call.name,
+                            success=is_success,
+                            output=result if is_success else None,
+                            error=result if not is_success else None,
                         )
                     except Exception as e:
                         error_msg = f"Tool execution failed: {e}"
@@ -249,8 +251,12 @@ class LLMHandler:
                             "content": result,
                         }
                     )
+                    is_success = not result.startswith("Error")
                     self.session.tool_display.show_tool_result(
-                        tool_call.name, result, success=not result.startswith("Error")
+                        tool_name=tool_call.name,
+                        success=is_success,
+                        output=result if is_success else None,
+                        error=result if not is_success else None,
                     )
                 except Exception as e:
                     error_msg = f"Tool execution failed: {e}"
