@@ -151,10 +151,6 @@ ignore = ["E501", "PLR0913", "PLR2004"]
 # Allow unused imports in TYPE_CHECKING
 "src/devorbit/cli/input/*.py" = ["F401"]
 "src/devorbit/cli/ui/*.py" = ["F401"]
-["PLR2004", "S101", "S106", "TC001"]
-"__init__.py" = ["F401"]
-"examples/*" = ["ERA001", "T201", "S101", "PTH", "B905", "SIM", "PLC0415", "B007", "F401", "RET504", "RUF013", "F841"]
-"src/devorbit/_tool_helpers.py" = ["UP047"]
 
 [tool.ruff.lint.isort]
 force-single-line = false

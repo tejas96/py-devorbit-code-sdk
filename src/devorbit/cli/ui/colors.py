@@ -17,30 +17,30 @@ class ColorScheme:
 
     # Primary Colors
     brand_orange: str = "#FF6B35"  # RGB: 255, 107, 53
-    brand_blue: str = "#004E89"    # RGB: 0, 78, 137
+    brand_blue: str = "#004E89"  # RGB: 0, 78, 137
     success_green: str = "#10B981"  # RGB: 16, 185, 129
-    warning_yellow: str = "#F59E0B" # RGB: 245, 158, 11
-    error_red: str = "#EF4444"     # RGB: 239, 68, 68
+    warning_yellow: str = "#F59E0B"  # RGB: 245, 158, 11
+    error_red: str = "#EF4444"  # RGB: 239, 68, 68
 
     # Background Colors
-    primary_bg: str = "#0D1117"    # RGB: 13, 17, 23
+    primary_bg: str = "#0D1117"  # RGB: 13, 17, 23
     secondary_bg: str = "#161B22"  # RGB: 22, 27, 34
-    tertiary_bg: str = "#1C2128"   # RGB: 28, 33, 40
-    border: str = "#30363D"        # RGB: 48, 54, 61
+    tertiary_bg: str = "#1C2128"  # RGB: 28, 33, 40
+    border: str = "#30363D"  # RGB: 48, 54, 61
 
     # Text Colors
     primary_text: str = "#E6EDF3"  # RGB: 230, 237, 243
-    secondary_text: str = "#8B949E" # RGB: 139, 148, 158
-    muted_text: str = "#6E7681"    # RGB: 110, 118, 129
-    link: str = "#58A6FF"          # RGB: 88, 166, 255
+    secondary_text: str = "#8B949E"  # RGB: 139, 148, 158
+    muted_text: str = "#6E7681"  # RGB: 110, 118, 129
+    link: str = "#58A6FF"  # RGB: 88, 166, 255
 
     # Syntax Highlighting
-    keyword: str = "#FF7B72"       # RGB: 255, 123, 114
-    string: str = "#A5D6FF"        # RGB: 165, 214, 255
-    number: str = "#79C0FF"        # RGB: 121, 192, 255
-    comment: str = "#8B949E"       # RGB: 139, 148, 158
-    function: str = "#D2A8FF"      # RGB: 210, 168, 255
-    variable: str = "#FFA657"      # RGB: 255, 166, 87
+    keyword: str = "#FF7B72"  # RGB: 255, 123, 114
+    string: str = "#A5D6FF"  # RGB: 165, 214, 255
+    number: str = "#79C0FF"  # RGB: 121, 192, 255
+    comment: str = "#8B949E"  # RGB: 139, 148, 158
+    function: str = "#D2A8FF"  # RGB: 210, 168, 255
+    variable: str = "#FFA657"  # RGB: 255, 166, 87
 
     def to_rich_style(self, color: str) -> str:
         """Convert hex color to Rich markup style.

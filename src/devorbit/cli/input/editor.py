@@ -77,7 +77,9 @@ class MultiLineEditor:
                 def _kill_to_beginning(event: Any) -> None:
                     """Delete from cursor to beginning of line."""
                     buffer = event.current_buffer
-                    buffer.delete_before_cursor(count=len(buffer.document.current_line_before_cursor))
+                    buffer.delete_before_cursor(
+                        count=len(buffer.document.current_line_before_cursor)
+                    )
 
                 # Ctrl+W to delete previous word
                 @self.kb.add("c-w")  # type: ignore[misc]
@@ -116,7 +118,7 @@ class MultiLineEditor:
                     default=default,
                     key_bindings=self.kb,
                 )
-                return text.strip()
+                return text.strip()  # type: ignore[no-any-return]
 
             # Fallback to basic input
             if use_multiline:
@@ -186,7 +188,10 @@ class InputValidator:
         """
         # Check length
         if len(text) > InputValidator.MAX_INPUT_LENGTH:
-            return False, f"Input too long ({len(text)} chars, max {InputValidator.MAX_INPUT_LENGTH})"
+            return (
+                False,
+                f"Input too long ({len(text)} chars, max {InputValidator.MAX_INPUT_LENGTH})",
+            )
 
         # Check for null bytes
         if "\x00" in text:

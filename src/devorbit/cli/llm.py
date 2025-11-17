@@ -29,7 +29,7 @@ class LLMHandler:
         """
         self.session = session
         self.max_tokens = 4096  # Default max tokens
-        self.temperature = None  # Use provider default
+        self.temperature: float | None = None  # Use provider default
         self.max_tool_rounds = 5  # Max tool execution rounds to prevent loops
 
     def send_message(
@@ -126,10 +126,11 @@ class LLMHandler:
                     break
 
                 # Add assistant message with tool calls to history
-                self.session.add_message("assistant", final_message.content)
+                self.session.add_message(
+                    "assistant", final_message.content  # type: ignore[arg-type]
+                )
 
-                # Get approval for all tools (batch approval)
-                self.session.print_info(f"\n🔧 Requesting approval for {len(tool_calls)} tool(s)...")
+                # Get approval for all tools
                 tool_approvals = self.session.tool_approval.approve_batch(
                     [(tool_call.name, tool_call.input or {}) for tool_call in tool_calls]
                 )
@@ -149,15 +150,9 @@ class LLMHandler:
                         )
                         continue
 
-                    # Check if tool is dangerous for UI display
-                    from .permissions import DangerousCommandDetector
-                    is_dangerous, _ = DangerousCommandDetector.check_tool_call(
-                        tool_call.name, tool_call.input or {}
-                    )
-
-                    # Start live animated display
+                    # Start Claude Code-style execution display
                     self.session.live_tool_execution.start_execution(
-                        tool_call.name, tool_call.input or {}, is_dangerous
+                        tool_call.name, tool_call.input or {}
                     )
 
                     # Execute approved tool
@@ -172,7 +167,7 @@ class LLMHandler:
                                 "content": result,
                             }
                         )
-                        # Show final result with animation
+                        # Show final result with Claude Code-style display
                         is_success = not result.startswith("Error")
                         self.session.live_tool_execution.finish_execution(
                             tool_name=tool_call.name,
@@ -180,7 +175,6 @@ class LLMHandler:
                             success=is_success,
                             output=result if is_success else None,
                             error=result if not is_success else None,
-                            is_dangerous=is_dangerous,
                         )
                     except Exception as e:
                         error_msg = f"Tool execution failed: {e}"
@@ -192,13 +186,12 @@ class LLMHandler:
                                 "is_error": True,
                             }
                         )
-                        # Show error result
+                        # Show error result with Claude Code-style display
                         self.session.live_tool_execution.finish_execution(
                             tool_name=tool_call.name,
                             tool_input=tool_call.input or {},
                             success=False,
                             error=error_msg,
-                            is_dangerous=is_dangerous,
                         )
 
                 # Add tool results as user message
@@ -260,10 +253,9 @@ class LLMHandler:
                 break
 
             # Add assistant message to history
-            self.session.add_message("assistant", response.content)
+            self.session.add_message("assistant", response.content)  # type: ignore[arg-type]
 
-            # Get approval for all tools (batch approval)
-            self.session.print_info(f"\n🔧 Requesting approval for {len(tool_calls)} tool(s)...")
+            # Get approval for all tools
             tool_approvals = self.session.tool_approval.approve_batch(
                 [(tool_call.name, tool_call.input or {}) for tool_call in tool_calls]
             )
@@ -283,15 +275,9 @@ class LLMHandler:
                     )
                     continue
 
-                # Check if tool is dangerous for UI display
-                from .permissions import DangerousCommandDetector
-                is_dangerous, _ = DangerousCommandDetector.check_tool_call(
-                    tool_call.name, tool_call.input or {}
-                )
-
-                # Start live animated display
+                # Start Claude Code-style execution display
                 self.session.live_tool_execution.start_execution(
-                    tool_call.name, tool_call.input or {}, is_dangerous
+                    tool_call.name, tool_call.input or {}
                 )
 
                 # Execute approved tool
@@ -306,7 +292,7 @@ class LLMHandler:
                             "content": result,
                         }
                     )
-                    # Show final result with animation
+                    # Show final result with Claude Code-style display
                     is_success = not result.startswith("Error")
                     self.session.live_tool_execution.finish_execution(
                         tool_name=tool_call.name,
@@ -314,7 +300,6 @@ class LLMHandler:
                         success=is_success,
                         output=result if is_success else None,
                         error=result if not is_success else None,
-                        is_dangerous=is_dangerous,
                     )
                 except Exception as e:
                     error_msg = f"Tool execution failed: {e}"
@@ -326,13 +311,12 @@ class LLMHandler:
                             "is_error": True,
                         }
                     )
-                    # Show error result
+                    # Show error result with Claude Code-style display
                     self.session.live_tool_execution.finish_execution(
                         tool_name=tool_call.name,
                         tool_input=tool_call.input or {},
                         success=False,
                         error=error_msg,
-                        is_dangerous=is_dangerous,
                     )
 
             # Add tool results to messages
@@ -349,7 +333,9 @@ class LLMHandler:
 
         return full_response_text
 
-    def set_model_params(self, max_tokens: int | None = None, temperature: float | None = None) -> None:
+    def set_model_params(
+        self, max_tokens: int | None = None, temperature: float | None = None
+    ) -> None:
         """Update model parameters.
 
         Args:

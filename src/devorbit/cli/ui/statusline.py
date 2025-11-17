@@ -25,7 +25,9 @@ class StatusLine:
     """
 
     # Default template (matches Claude Code spec)
-    DEFAULT_TEMPLATE = "[${model_short}] [${context}] [${git_branch} ${git_status}] [$${cost}] [${duration}]"
+    DEFAULT_TEMPLATE = (
+        "[${model_short}] [${context}] [${git_branch} ${git_status}] [$${cost}] [${duration}]"
+    )
 
     def __init__(
         self,
@@ -151,9 +153,7 @@ class StatusLine:
         """
         # Calculate derived values
         context_percent = (
-            int((self.context_tokens / self.context_max) * 100)
-            if self.context_max > 0
-            else 0
+            int((self.context_tokens / self.context_max) * 100) if self.context_max > 0 else 0
         )
         context_str = f"{self.context_tokens // 1000}k/{self.context_max // 1000}k"
 
@@ -161,9 +161,7 @@ class StatusLine:
         duration_str = self._format_duration(duration)
 
         git_info = (
-            f"{self.git_branch} {self.git_status}"
-            if self.git_branch
-            else f"- {self.git_status}"
+            f"{self.git_branch} {self.git_status}" if self.git_branch else f"- {self.git_status}"
         )
 
         mcp_servers_str = ", ".join(self.mcp_servers) if self.mcp_servers else "none"
@@ -205,9 +203,9 @@ class StatusLine:
             from .colors import Colors
 
             # Apply colors to different parts
-            colored_status = status_text.replace(
-                "[", f"[{Colors.rich_muted()}]["
-            ).replace("]", f"][/{Colors.rich_muted()}]]")
+            colored_status = status_text.replace("[", f"[{Colors.rich_muted()}][").replace(
+                "]", f"][/{Colors.rich_muted()}]]"
+            )
 
             self.console.print(colored_status)
         else:

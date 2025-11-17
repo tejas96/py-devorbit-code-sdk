@@ -7,8 +7,6 @@ matching the Claude Code CLI specification.
 from pathlib import Path
 
 
-
-
 class CommandCompleter:
     """Autocomplete for slash commands.
 
@@ -264,14 +262,18 @@ class AutocompleteEngine:
 
         # Slash command completion
         if text_before_cursor.startswith("/"):
-            cmd_text = text_before_cursor[1:].split()[0] if " " in text_before_cursor else text_before_cursor[1:]
+            cmd_text = (
+                text_before_cursor[1:].split()[0]
+                if " " in text_before_cursor
+                else text_before_cursor[1:]
+            )
             return self.command_completer.get_completions(cmd_text)
 
         # File path completion (@ mentions)
         if "@" in text_before_cursor:
             # Find the @ symbol closest to cursor
             at_pos = text_before_cursor.rfind("@")
-            file_text = text_before_cursor[at_pos + 1:]
+            file_text = text_before_cursor[at_pos + 1 :]
             return self.file_completer.get_completions(file_text)
 
         # Model completion (after /model command)

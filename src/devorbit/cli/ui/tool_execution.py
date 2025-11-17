@@ -194,7 +194,6 @@ class LiveToolExecution:
             padding=(1, 2),
         )
 
-
     def _display_final_result(
         self,
         tool_name: str,

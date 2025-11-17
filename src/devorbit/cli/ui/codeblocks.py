@@ -86,9 +86,7 @@ class CodeBlockDisplay:
         else:
             self._display_plain_code(code, language, title)
 
-    def _display_plain_code(
-        self, code: str, language: str, title: str | None = None
-    ) -> None:
+    def _display_plain_code(self, code: str, language: str, title: str | None = None) -> None:
         """Display code without syntax highlighting.
 
         Args:

@@ -119,7 +119,7 @@ class ProgressIndicator:
                 self.console.print(f"  {file_status} {file}{suffix}")
         else:
             print("Processing files...")
-            for i, file in enumerate(files):
+            for _i, file in enumerate(files):
                 file_status = status.get(file, "○")
                 print(f"  {file_status} {file}")
 

@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from devorbit._types import ContentBlock
+
 
 try:
     from rich.console import Console as RichConsole
@@ -11,9 +13,9 @@ try:
 
     HAS_RICH = True
 except ImportError:
-    RichConsole: Any = None  # type: ignore[misc]
-    RichPanel: Any = None  # type: ignore[misc]
-    RichText: Any = None  # type: ignore[misc]
+    RichConsole = None  # type: ignore[assignment,misc]
+    RichPanel = None  # type: ignore[assignment,misc]
+    RichText = None  # type: ignore[assignment,misc]
     HAS_RICH = False
 
 from devorbit import Devorbit
@@ -105,7 +107,9 @@ class CLISession:
         self.status_line = StatusLine(self.console, no_color=no_color)
         self.streaming = StreamingDisplay(self.console, no_color)
         self.tool_display = ToolCallDisplay(self.console, no_color)
-        self.live_tool_execution = LiveToolExecution(self.console, no_color)  # NEW: Animated tool execution
+        self.live_tool_execution = LiveToolExecution(
+            self.console, no_color
+        )  # NEW: Animated tool execution
         self.code_display = CodeBlockDisplay(self.console, no_color)
         self.diff_display = DiffDisplay(self.console, no_color)
 
@@ -149,7 +153,9 @@ class CLISession:
         self.console.print(panel)
         self.console.print()
 
-    def add_message(self, role: str, content: str) -> None:
+    def add_message(
+        self, role: str, content: str | list[ContentBlock] | list[dict[str, Any]]
+    ) -> None:
         """Add a message to conversation history.
 
         Args:
@@ -158,7 +164,7 @@ class CLISession:
         """
         message: Message = {
             "role": role,  # type: ignore[typeddict-item]
-            "content": content,
+            "content": content,  # type: ignore[typeddict-item]
         }
         self.messages.append(message)
 

@@ -7,7 +7,7 @@ before they run, with keyboard navigation and dangerous command detection.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
@@ -24,6 +24,8 @@ try:
 except ImportError:
     HAS_RICH = False
 
+if TYPE_CHECKING:
+    from .session import CLISession
 
 
 class DangerousCommandDetector:
@@ -121,7 +123,7 @@ class DangerousCommandDetector:
 class ToolApprovalPrompt:
     """Interactive prompt for approving tool executions with Rich UI."""
 
-    def __init__(self, session: Session):
+    def __init__(self, session: CLISession):
         """Initialize the approval prompt.
 
         Args:
@@ -130,7 +132,9 @@ class ToolApprovalPrompt:
         self.session = session
         self.console = session.console if session.console else Console()
 
-    def _create_tool_tree(self, tool_name: str, tool_input: dict[str, Any], is_dangerous: bool = False) -> Tree:
+    def _create_tool_tree(
+        self, tool_name: str, tool_input: dict[str, Any], is_dangerous: bool = False
+    ) -> Tree:
         """Create a Rich Tree display for tool details.
 
         Args:
@@ -243,30 +247,34 @@ class ToolApprovalPrompt:
         self.console.print(panel)
 
         if is_dangerous:
-            self.console.print("[bold yellow]⚠️  This is a potentially dangerous operation![/bold yellow]")
+            self.console.print(
+                "[bold yellow]⚠️  This is a potentially dangerous operation![/bold yellow]"
+            )
 
         # Create interactive prompt with key bindings
         self.console.print()
-        self.console.print("[dim]Press [bold]y[/bold] to approve, [bold]n[/bold] to deny, [bold]Ctrl+C[/bold] to cancel[/dim]")
+        self.console.print(
+            "[dim]Press [bold]y[/bold] to approve, [bold]n[/bold] to deny, [bold]Ctrl+C[/bold] to cancel[/dim]"
+        )
 
         # Simple yes/no prompt
         kb = KeyBindings()
         approved = [False]  # Use list for closure
 
-        @kb.add("y")
-        @kb.add("Y")
-        def _(event):
+        @kb.add("y")  # type: ignore[misc]
+        @kb.add("Y")  # type: ignore[misc]
+        def _(event: Any) -> None:
             approved[0] = True
             event.app.exit(result=True)
 
-        @kb.add("n")
-        @kb.add("N")
-        def _(event):
+        @kb.add("n")  # type: ignore[misc]
+        @kb.add("N")  # type: ignore[misc]
+        def _(event: Any) -> None:
             approved[0] = False
             event.app.exit(result=False)
 
-        @kb.add("c-c")
-        def _(event):
+        @kb.add("c-c")  # type: ignore[misc]
+        def _(event: Any) -> None:
             approved[0] = False
             event.app.exit(result=False)
 
@@ -302,7 +310,9 @@ class ToolApprovalPrompt:
             True if approved, False if denied
         """
         # Check for dangerous operations
-        is_dangerous, danger_reason = DangerousCommandDetector.check_tool_call(tool_name, tool_input)
+        is_dangerous, danger_reason = DangerousCommandDetector.check_tool_call(
+            tool_name, tool_input
+        )
 
         # Show approval prompt
         approved = self.show_approval_prompt(tool_name, tool_input, is_dangerous, danger_reason)
@@ -334,7 +344,11 @@ class ToolApprovalPrompt:
             return [approved]
 
         # Multiple tools - create a Rich table to show all tools
-        table = Table(title=f"📦 Batch Tool Request ({len(tool_calls)} tools)", show_header=True, header_style="bold cyan")
+        table = Table(
+            title=f"📦 Batch Tool Request ({len(tool_calls)} tools)",
+            show_header=True,
+            header_style="bold cyan",
+        )
         table.add_column("#", style="dim", width=4)
         table.add_column("Tool", style="cyan")
         table.add_column("Details", style="white")
@@ -345,13 +359,17 @@ class ToolApprovalPrompt:
         tool_statuses = []
 
         for idx, (tool_name, tool_input) in enumerate(tool_calls, 1):
-            is_dangerous, danger_reason = DangerousCommandDetector.check_tool_call(tool_name, tool_input)
+            is_dangerous, danger_reason = DangerousCommandDetector.check_tool_call(
+                tool_name, tool_input
+            )
             if is_dangerous:
                 has_dangerous = True
 
             # Format details based on tool type
             if tool_name == "bash":
-                details = tool_input.get("command", "")[:50] + ("..." if len(tool_input.get("command", "")) > 50 else "")
+                details = tool_input.get("command", "")[:50] + (
+                    "..." if len(tool_input.get("command", "")) > 50 else ""
+                )
             elif tool_name in ("write_file", "edit_file", "read_file"):
                 details = tool_input.get("file_path", "")[:50]
             elif tool_name in ("grep", "glob"):
@@ -391,26 +409,26 @@ class ToolApprovalPrompt:
         kb = KeyBindings()
         choice = [""]
 
-        @kb.add("a")
-        @kb.add("A")
-        def _(event):
+        @kb.add("a")  # type: ignore[misc]
+        @kb.add("A")  # type: ignore[misc]
+        def _(event: Any) -> None:
             choice[0] = "approve_all"
             event.app.exit(result="approve_all")
 
-        @kb.add("e")
-        @kb.add("E")
-        def _(event):
+        @kb.add("e")  # type: ignore[misc]
+        @kb.add("E")  # type: ignore[misc]
+        def _(event: Any) -> None:
             choice[0] = "approve_each"
             event.app.exit(result="approve_each")
 
-        @kb.add("d")
-        @kb.add("D")
-        def _(event):
+        @kb.add("d")  # type: ignore[misc]
+        @kb.add("D")  # type: ignore[misc]
+        def _(event: Any) -> None:
             choice[0] = "deny_all"
             event.app.exit(result="deny_all")
 
-        @kb.add("c-c")
-        def _(event):
+        @kb.add("c-c")  # type: ignore[misc]
+        def _(event: Any) -> None:
             choice[0] = "deny_all"
             event.app.exit(result="deny_all")
 
@@ -424,7 +442,9 @@ class ToolApprovalPrompt:
                 self.console.print("[bold green]✓ Approving all tools...[/bold green]")
                 # Approve everything (except dangerous in non-auto mode)
                 results = []
-                for (tool_name, tool_input), (is_dangerous, _) in zip(tool_calls, tool_statuses, strict=False):
+                for (tool_name, tool_input), (is_dangerous, _) in zip(
+                    tool_calls, tool_statuses, strict=False
+                ):
                     if is_dangerous and not self.session.auto_approve_tools:
                         # Still prompt for dangerous
                         approved = self.approve_tool(tool_name, tool_input)
@@ -437,7 +457,9 @@ class ToolApprovalPrompt:
             if choice[0] == "approve_each":
                 self.console.print("[bold cyan]→ Reviewing each tool individually...[/bold cyan]")
                 # Prompt for each tool
-                return [self.approve_tool(tool_name, tool_input) for tool_name, tool_input in tool_calls]
+                return [
+                    self.approve_tool(tool_name, tool_input) for tool_name, tool_input in tool_calls
+                ]
 
             # deny_all
             self.console.print("[bold red]✗ Denied all tools[/bold red]")

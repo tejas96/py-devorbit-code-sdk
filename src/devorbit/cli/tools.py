@@ -216,7 +216,8 @@ class ToolExecutor:
         try:
             result = subprocess.run(
                 command,
-                check=False, shell=True,
+                check=False,
+                shell=True,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -350,7 +351,8 @@ class ToolExecutor:
             # Use system grep for performance
             result = subprocess.run(
                 ["grep", "-rn", "-E", pattern, "--include", file_pattern, str(search_path)],
-                check=False, capture_output=True,
+                check=False,
+                capture_output=True,
                 text=True,
                 timeout=30,
             )
