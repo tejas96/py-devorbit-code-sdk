@@ -102,7 +102,7 @@ class DevorbitREPL:
             and self.prompt_style is not None
         ):
             cwd = self.session.working_dir.name
-            return HTML(f"<prompt>devorbit</prompt> <path>{cwd}</path><prompt>></prompt> ").value
+            return HTML(f"<prompt>devorbit</prompt> <path>{cwd}</path><prompt>></prompt> ")
         return "devorbit> "
 
     def read_input(self) -> str | None:
