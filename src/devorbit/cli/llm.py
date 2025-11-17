@@ -125,28 +125,36 @@ class LLMHandler:
                     # No more tools to execute, we're done
                     break
 
-                # Execute tools
-                self.session.print_info(f"\n🔧 Executing {len(tool_calls)} tool(s)...")
-
                 # Add assistant message with tool calls to history
                 self.session.add_message("assistant", final_message.content)
 
-                # Execute each tool and collect results
+                # Get approval for all tools (batch approval)
+                self.session.print_info(f"\n🔧 Requesting approval for {len(tool_calls)} tool(s)...")
+                tool_approvals = self.session.tool_approval.approve_batch(
+                    [(tool_call.name, tool_call.input or {}) for tool_call in tool_calls]
+                )
+
+                # Execute approved tools
                 tool_results = []
-                for tool_call in tool_calls:
-                    # Debug: Show what we're receiving
-                    self.session.print_info(
-                        f"DEBUG: tool_call.name={tool_call.name}, "
-                        f"tool_call.input={tool_call.input}, "
-                        f"type={type(tool_call.input)}"
-                    )
+                for tool_call, approved in zip(tool_calls, tool_approvals):
+                    if not approved:
+                        # Tool was denied, send denial result to Claude
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_call.id,
+                                "content": "Tool execution was denied by user.",
+                                "is_error": True,
+                            }
+                        )
+                        continue
 
                     # Display tool call
                     self.session.tool_display.show_tool_call(
                         tool_call.name, tool_call.input or {}
                     )
 
-                    # Execute tool
+                    # Execute approved tool
                     try:
                         result = self.session.tool_executor.execute_tool(
                             tool_call.name, tool_call.input or {}
@@ -236,24 +244,34 @@ class LLMHandler:
                 # No more tools, we're done
                 break
 
-            # Execute tools
-            self.session.print_info(f"\n🔧 Executing {len(tool_calls)} tool(s)...")
-
             # Add assistant message to history
             self.session.add_message("assistant", response.content)
 
-            # Execute each tool
-            tool_results = []
-            for tool_call in tool_calls:
-                # Debug: Show what we're receiving
-                self.session.print_info(
-                    f"DEBUG: tool_call.name={tool_call.name}, "
-                    f"tool_call.input={tool_call.input}, "
-                    f"type={type(tool_call.input)}"
-                )
+            # Get approval for all tools (batch approval)
+            self.session.print_info(f"\n🔧 Requesting approval for {len(tool_calls)} tool(s)...")
+            tool_approvals = self.session.tool_approval.approve_batch(
+                [(tool_call.name, tool_call.input or {}) for tool_call in tool_calls]
+            )
 
+            # Execute approved tools
+            tool_results = []
+            for tool_call, approved in zip(tool_calls, tool_approvals):
+                if not approved:
+                    # Tool was denied, send denial result to Claude
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_call.id,
+                            "content": "Tool execution was denied by user.",
+                            "is_error": True,
+                        }
+                    )
+                    continue
+
+                # Display tool call
                 self.session.tool_display.show_tool_call(tool_call.name, tool_call.input or {})
 
+                # Execute approved tool
                 try:
                     result = self.session.tool_executor.execute_tool(
                         tool_call.name, tool_call.input or {}

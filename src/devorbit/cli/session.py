@@ -18,6 +18,7 @@ except ImportError:
 
 from devorbit import Devorbit
 
+from .permissions import ToolApprovalPrompt
 from .tools import ToolExecutor
 from .ui import (
     CodeBlockDisplay,
@@ -45,6 +46,7 @@ class CLISession:
         working_dir: Path | None = None,
         no_color: bool = False,
         debug: bool = False,
+        auto_approve_tools: bool = False,
     ) -> None:
         """Initialize a CLI session.
 
@@ -55,6 +57,7 @@ class CLISession:
             working_dir: Working directory for file operations (default: current directory)
             no_color: Disable colored output
             debug: Enable debug mode
+            auto_approve_tools: Automatically approve non-dangerous tool executions
         """
         self.provider = provider
         self.api_key = api_key
@@ -75,6 +78,7 @@ class CLISession:
         self.working_dir = working_dir or Path.cwd()
         self.no_color = no_color
         self.debug = debug
+        self.auto_approve_tools = auto_approve_tools
 
         # Initialize console
         self.console: RichConsole | None = None
@@ -103,8 +107,9 @@ class CLISession:
         self.code_display = CodeBlockDisplay(self.console, no_color)
         self.diff_display = DiffDisplay(self.console, no_color)
 
-        # Initialize tool executor
+        # Initialize tool executor and approval system
         self.tool_executor = ToolExecutor(self)
+        self.tool_approval = ToolApprovalPrompt(self)
 
         # Set initial status line values
         self.status_line.set_model(self.model, provider)
