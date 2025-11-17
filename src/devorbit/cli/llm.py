@@ -134,6 +134,13 @@ class LLMHandler:
                 # Execute each tool and collect results
                 tool_results = []
                 for tool_call in tool_calls:
+                    # Debug: Show what we're receiving
+                    self.session.print_info(
+                        f"DEBUG: tool_call.name={tool_call.name}, "
+                        f"tool_call.input={tool_call.input}, "
+                        f"type={type(tool_call.input)}"
+                    )
+
                     # Display tool call
                     self.session.tool_display.show_tool_call(
                         tool_call.name, tool_call.input or {}
@@ -238,6 +245,13 @@ class LLMHandler:
             # Execute each tool
             tool_results = []
             for tool_call in tool_calls:
+                # Debug: Show what we're receiving
+                self.session.print_info(
+                    f"DEBUG: tool_call.name={tool_call.name}, "
+                    f"tool_call.input={tool_call.input}, "
+                    f"type={type(tool_call.input)}"
+                )
+
                 self.session.tool_display.show_tool_call(tool_call.name, tool_call.input or {})
 
                 try:
