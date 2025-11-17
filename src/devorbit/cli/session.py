@@ -57,7 +57,20 @@ class CLISession:
         """
         self.provider = provider
         self.api_key = api_key
-        self.model = model
+
+        # Set model with provider-specific defaults if not specified
+        if model is None:
+            default_models = {
+                "anthropic": "claude-sonnet-4-5",
+                "openai": "gpt-4o",
+                "gemini": "gemini-pro-2-5",
+                "mistral": "mistral-large-latest",
+                "codellama": "codellama-70b-instruct",
+            }
+            self.model = default_models.get(provider, "claude-sonnet-4-5")
+        else:
+            self.model = model
+
         self.working_dir = working_dir or Path.cwd()
         self.no_color = no_color
         self.debug = debug
@@ -90,8 +103,7 @@ class CLISession:
         self.diff_display = DiffDisplay(self.console, no_color)
 
         # Set initial status line values
-        if model:
-            self.status_line.set_model(model, provider)
+        self.status_line.set_model(self.model, provider)
         self.status_line.set_project(working_dir or Path.cwd())
 
     def display_welcome(self) -> None:
