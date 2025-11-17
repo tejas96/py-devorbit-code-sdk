@@ -30,6 +30,7 @@ else:
 
 from .commands import CommandHandler
 from .input import AutocompleteEngine, FileMentionParser, InputValidator
+from .llm import LLMHandler
 from .session import CLISession
 
 
@@ -52,6 +53,9 @@ class DevorbitREPL:
         )
         self.mention_parser = FileMentionParser(working_dir=session.working_dir)
         self.input_validator = InputValidator()
+
+        # Initialize LLM handler
+        self.llm_handler = LLMHandler(session)
 
         # Multi-line mode toggle
         self.multiline_mode = False
@@ -174,17 +178,18 @@ class DevorbitREPL:
 
         # Regular message - send to LLM
         try:
-            self.session.add_message("user", clean_input)
-            self.session.print_info("Processing your request...")
+            # Send message with streaming (provider-agnostic)
+            response = self.llm_handler.send_message(
+                clean_input,
+                stream=True,  # Enable streaming for real-time display
+            )
 
-            # TODO: Implement LLM message sending and tool execution
-            # For now, just echo back
-            response = f"[Echo] You said: {clean_input}"
-            if mentions:
-                response += f"\n[With {len(mentions)} file(s) attached]"
-            self.session.print(f"\n{response}\n")
+            # Add assistant response to history
+            if response:
+                self.session.add_message("assistant", response)
+            else:
+                self.session.print_warning("No response received from LLM")
 
-            self.session.add_message("assistant", response)
         except Exception as e:
             self.session.print_error(f"Failed to process message: {e}")
             if self.session.debug:
