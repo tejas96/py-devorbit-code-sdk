@@ -338,3 +338,110 @@ The integration is fully functional. If you have a valid API key, you can now:
 - Experience the full Claude Code CLI clone!
 
 **Status**: Phase 3 Complete ✅
+
+---
+
+## Phase 4 Update: Complete Tool Execution System
+
+**Commit**: 5a0acd6
+**Date**: 2025-11-17
+
+### Features Implemented
+
+#### Tool Executor Module (`src/devorbit/cli/tools.py`)
+- **ToolExecutor Class** (402 lines)
+  - 6 core tools implemented:
+    1. **bash** - Execute shell commands with timeout
+    2. **read_file** - Read file contents
+    3. **write_file** - Write/create files
+    4. **edit_file** - Edit files with exact string replacement
+    5. **grep** - Search for patterns in files
+    6. **glob** - Find files matching glob patterns
+  - Comprehensive error handling for all tools
+  - Working directory relative path resolution
+  - Timeout support for bash and grep
+
+#### Multi-Round Tool Execution in LLM Handler
+- Enhanced `src/devorbit/cli/llm.py` with tool execution loop
+- Max 5 rounds to prevent infinite loops
+- Tool call detection from streaming responses
+- Tool result formatting in Claude API format
+- Automatic continuation after tool execution
+- Debug logging for troubleshooting
+
+#### Critical Bug Fix: Tool Input Accumulation
+
+**Problem**: Tool inputs were always empty `{}`, preventing all tool execution
+
+**Root Cause**: `_streaming.py` created `ToolUseBlock(input={})` but never accumulated `input_json_delta` events
+
+**Solution**: Modified `src/devorbit/_streaming.py`:
+1. Added `_tool_input_buffers: dict[int, str]` to track JSON strings
+2. Added handler for `input_json_delta` events in both sync/async streams
+3. Added JSON parsing in `get_final_message()` to parse accumulated input
+4. Applied fix to both `MessageStream` and `AsyncMessageStream`
+
+**Verification**:
+```python
+# Before fix:
+tool_call.input = {}  # ❌ Empty
+
+# After fix:
+tool_call.input = {'command': 'ls -la', 'timeout': 60}  # ✅ Populated
+```
+
+### Testing
+
+**Test Script**: `test_tool_input_fix.py`
+- Simulates streaming events with tool use
+- Verifies `input_json_delta` accumulation
+- Confirms JSON parsing works correctly
+- ✅ All assertions passing
+
+**Test Output**:
+```
+Tool Input: {'command': 'ls -la', 'timeout': 60}
+✅ SUCCESS: Tool input accumulation is working correctly!
+```
+
+### Code Statistics
+
+**Phase 4 Additions:**
+- 1 new file: `tools.py` (402 lines)
+- 2 modified files: `llm.py` (+108 lines), `session.py` (+3 lines), `_streaming.py` (+42 lines)
+- 1 test file: `test_tool_input_fix.py` (114 lines)
+- Total: 669 new lines
+
+**Cumulative (All 4 Phases):**
+- Phase 1: 1,419 lines (Terminal UI)
+- Phase 2: 785 lines (Enhanced Input)
+- Phase 3: 193 lines (LLM Integration)
+- Phase 4: 669 lines (Tool Execution)
+- **Grand Total: 3,066 lines of production code**
+
+### What Works Now
+
+✅ **Bash Execution**: Run shell commands with timeout and error handling
+✅ **File Operations**: Read, write, and edit files
+✅ **Code Search**: Grep patterns and glob file matching
+✅ **Multi-Round Execution**: Claude can use multiple tools in sequence
+✅ **Error Recovery**: Failed tools don't crash the session
+✅ **Streaming Integration**: Tool calls detected during streaming
+
+### Known Limitations
+
+⚠️ **No Permission System**: Tools execute immediately without user approval
+- This is expected - permission system is Phase 5
+- Current behavior matches early Claude Code versions
+- Interactive approval will be added in next phase
+
+### Next Phase
+
+**Phase 5: Permission & Approval System** (Planned)
+- Interactive prompts before tool execution
+- Arrow key navigation (↑/↓ to select, Enter to approve, Esc to deny)
+- Batch approval for multiple tools
+- Auto-approve mode toggle
+- Dangerous command warnings
+
+**Status**: Phase 4 Complete ✅

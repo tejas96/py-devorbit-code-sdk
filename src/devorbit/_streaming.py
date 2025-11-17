@@ -8,6 +8,8 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 from typing import Any
 
+import json
+
 from ._models import (
     MessageResponse,
     ResponseContentBlock,
@@ -32,6 +34,7 @@ class MessageStream:
         self._iterator = stream_iterator
         self._message: MessageResponse | None = None
         self._current_content_blocks: list[ResponseContentBlock] = []
+        self._tool_input_buffers: dict[int, str] = {}  # Buffer for accumulating tool input JSON
         self._finished = False
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
@@ -80,6 +83,13 @@ class MessageStream:
                         block = self._current_content_blocks[index]
                         if isinstance(block, TextBlock):
                             block.text += text
+                elif delta.get("type") == "input_json_delta":
+                    # Accumulate tool input JSON
+                    partial_json = delta.get("partial_json", "")
+                    index = event.get("index", 0)
+                    if index not in self._tool_input_buffers:
+                        self._tool_input_buffers[index] = ""
+                    self._tool_input_buffers[index] += partial_json
 
     def get_final_message(self) -> MessageResponse:
         """Get the complete message after stream finishes.
@@ -96,6 +106,17 @@ class MessageStream:
 
         if self._message is None:
             raise RuntimeError("No message received in stream")
+
+        # Parse accumulated tool input JSON and update tool use blocks
+        for index, json_str in self._tool_input_buffers.items():
+            if index < len(self._current_content_blocks):
+                block = self._current_content_blocks[index]
+                if isinstance(block, ToolUseBlock) and json_str:
+                    try:
+                        block.input = json.loads(json_str)
+                    except json.JSONDecodeError:
+                        # If JSON is invalid, keep empty dict
+                        pass
 
         # Update message with accumulated content
         if self._current_content_blocks:
@@ -129,6 +150,7 @@ class AsyncMessageStream:
         self._iterator = stream_iterator
         self._message: MessageResponse | None = None
         self._current_content_blocks: list[ResponseContentBlock] = []
+        self._tool_input_buffers: dict[int, str] = {}  # Buffer for accumulating tool input JSON
         self._finished = False
 
     def __aiter__(self) -> AsyncIterator[dict[str, Any]]:
@@ -176,6 +198,13 @@ class AsyncMessageStream:
                         block = self._current_content_blocks[index]
                         if isinstance(block, TextBlock):
                             block.text += text
+                elif delta.get("type") == "input_json_delta":
+                    # Accumulate tool input JSON
+                    partial_json = delta.get("partial_json", "")
+                    index = event.get("index", 0)
+                    if index not in self._tool_input_buffers:
+                        self._tool_input_buffers[index] = ""
+                    self._tool_input_buffers[index] += partial_json
 
     async def get_final_message(self) -> MessageResponse:
         """Get the complete message after stream finishes.
@@ -192,6 +221,17 @@ class AsyncMessageStream:
 
         if self._message is None:
             raise RuntimeError("No message received in stream")
+
+        # Parse accumulated tool input JSON and update tool use blocks
+        for index, json_str in self._tool_input_buffers.items():
+            if index < len(self._current_content_blocks):
+                block = self._current_content_blocks[index]
+                if isinstance(block, ToolUseBlock) and json_str:
+                    try:
+                        block.input = json.loads(json_str)
+                    except json.JSONDecodeError:
+                        # If JSON is invalid, keep empty dict
+                        pass
 
         # Update message with accumulated content
         if self._current_content_blocks:
