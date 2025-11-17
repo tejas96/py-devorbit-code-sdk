@@ -101,7 +101,7 @@ class LLMHandler:
                 # Get final message
                 final_message = stream.get_final_message()
 
-            self.session.streaming.finish_streaming()
+            self.session.streaming.end_streaming()
 
             # Handle tool calls if present
             if final_message.content:
@@ -119,7 +119,8 @@ class LLMHandler:
             return full_text
 
         except Exception as e:
-            self.session.streaming.show_error(str(e))
+            self.session.streaming.end_streaming()
+            self.session.print_error(f"Streaming error: {e}")
             raise
 
     def _send_non_streaming(self, max_tokens: int, temperature: float | None) -> str:
