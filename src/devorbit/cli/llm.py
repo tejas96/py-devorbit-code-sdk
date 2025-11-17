@@ -149,9 +149,15 @@ class LLMHandler:
                         )
                         continue
 
-                    # Display tool call
-                    self.session.tool_display.show_tool_call(
+                    # Check if tool is dangerous for UI display
+                    from .permissions import DangerousCommandDetector
+                    is_dangerous, _ = DangerousCommandDetector.check_tool_call(
                         tool_call.name, tool_call.input or {}
+                    )
+
+                    # Start live animated display
+                    self.session.live_tool_execution.start_execution(
+                        tool_call.name, tool_call.input or {}, is_dangerous
                     )
 
                     # Execute approved tool
@@ -166,13 +172,15 @@ class LLMHandler:
                                 "content": result,
                             }
                         )
-                        # Show result
+                        # Show final result with animation
                         is_success = not result.startswith("Error")
-                        self.session.tool_display.show_tool_result(
+                        self.session.live_tool_execution.finish_execution(
                             tool_name=tool_call.name,
+                            tool_input=tool_call.input or {},
                             success=is_success,
                             output=result if is_success else None,
                             error=result if not is_success else None,
+                            is_dangerous=is_dangerous,
                         )
                     except Exception as e:
                         error_msg = f"Tool execution failed: {e}"
@@ -184,7 +192,14 @@ class LLMHandler:
                                 "is_error": True,
                             }
                         )
-                        self.session.print_error(error_msg)
+                        # Show error result
+                        self.session.live_tool_execution.finish_execution(
+                            tool_name=tool_call.name,
+                            tool_input=tool_call.input or {},
+                            success=False,
+                            error=error_msg,
+                            is_dangerous=is_dangerous,
+                        )
 
                 # Add tool results as user message
                 self.session.add_message("user", tool_results)
@@ -268,8 +283,16 @@ class LLMHandler:
                     )
                     continue
 
-                # Display tool call
-                self.session.tool_display.show_tool_call(tool_call.name, tool_call.input or {})
+                # Check if tool is dangerous for UI display
+                from .permissions import DangerousCommandDetector
+                is_dangerous, _ = DangerousCommandDetector.check_tool_call(
+                    tool_call.name, tool_call.input or {}
+                )
+
+                # Start live animated display
+                self.session.live_tool_execution.start_execution(
+                    tool_call.name, tool_call.input or {}, is_dangerous
+                )
 
                 # Execute approved tool
                 try:
@@ -283,12 +306,15 @@ class LLMHandler:
                             "content": result,
                         }
                     )
+                    # Show final result with animation
                     is_success = not result.startswith("Error")
-                    self.session.tool_display.show_tool_result(
+                    self.session.live_tool_execution.finish_execution(
                         tool_name=tool_call.name,
+                        tool_input=tool_call.input or {},
                         success=is_success,
                         output=result if is_success else None,
                         error=result if not is_success else None,
+                        is_dangerous=is_dangerous,
                     )
                 except Exception as e:
                     error_msg = f"Tool execution failed: {e}"
@@ -300,7 +326,14 @@ class LLMHandler:
                             "is_error": True,
                         }
                     )
-                    self.session.print_error(error_msg)
+                    # Show error result
+                    self.session.live_tool_execution.finish_execution(
+                        tool_name=tool_call.name,
+                        tool_input=tool_call.input or {},
+                        success=False,
+                        error=error_msg,
+                        is_dangerous=is_dangerous,
+                    )
 
             # Add tool results to messages
             self.session.add_message("user", tool_results)

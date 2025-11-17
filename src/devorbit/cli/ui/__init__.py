@@ -10,12 +10,14 @@ from .display import StreamingDisplay, ToolCallDisplay
 from .notifications import NotificationManager, NotificationType
 from .progress import ProgressIndicator
 from .statusline import StatusLine
+from .tool_execution import LiveToolExecution
 
 __all__ = [
     "CodeBlockDisplay",
     "ColorScheme",
     "Colors",
     "DiffDisplay",
+    "LiveToolExecution",
     "NotificationManager",
     "NotificationType",
     "ProgressIndicator",
