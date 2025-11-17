@@ -18,6 +18,7 @@ except ImportError:
 
 from devorbit import Devorbit
 
+from .tools import ToolExecutor
 from .ui import (
     CodeBlockDisplay,
     DiffDisplay,
@@ -101,6 +102,9 @@ class CLISession:
         self.tool_display = ToolCallDisplay(self.console, no_color)
         self.code_display = CodeBlockDisplay(self.console, no_color)
         self.diff_display = DiffDisplay(self.console, no_color)
+
+        # Initialize tool executor
+        self.tool_executor = ToolExecutor(self)
 
         # Set initial status line values
         self.status_line.set_model(self.model, provider)
