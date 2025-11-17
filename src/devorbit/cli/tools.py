@@ -199,6 +199,15 @@ class ToolExecutor:
         Returns:
             Command output
         """
+        # Debug: print what we received
+        if self.session.debug:
+            self.session.print_info(f"DEBUG: tool_input = {tool_input}")
+
+        # Handle missing command parameter
+        if "command" not in tool_input:
+            available_keys = list(tool_input.keys())
+            return f"Error: 'command' parameter not found. Available keys: {available_keys}. Please provide a 'command' parameter with the bash command to execute."
+
         command = tool_input["command"]
         timeout = tool_input.get("timeout", 60)
 
