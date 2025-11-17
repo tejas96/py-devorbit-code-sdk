@@ -5,11 +5,8 @@ matching the Claude Code CLI specification.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 
-if TYPE_CHECKING:
-    from prompt_toolkit.completion import Completer, Completion
 
 
 class CommandCompleter:

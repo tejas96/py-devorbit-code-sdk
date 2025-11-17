@@ -7,12 +7,11 @@ before they run, with keyboard navigation and dangerous command detection.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.keys import Keys
 
 try:
     from rich.console import Console
@@ -25,15 +24,13 @@ try:
 except ImportError:
     HAS_RICH = False
 
-if TYPE_CHECKING:
-    from .session import Session
 
 
 class DangerousCommandDetector:
     """Detects potentially dangerous commands and file operations."""
 
     # Dangerous shell commands
-    DANGEROUS_PATTERNS = [
+    DANGEROUS_PATTERNS: ClassVar[list[str]] = [
         r"\brm\s+-rf\s+/",  # rm -rf /
         r"\brm\s+-rf\s+\*",  # rm -rf *
         r"\bdd\s+if=",  # dd commands
@@ -49,7 +46,7 @@ class DangerousCommandDetector:
     ]
 
     # Dangerous file paths
-    DANGEROUS_PATHS = [
+    DANGEROUS_PATHS: ClassVar[list[str]] = [
         "/etc/passwd",
         "/etc/shadow",
         "/etc/sudoers",
@@ -62,8 +59,8 @@ class DangerousCommandDetector:
     ]
 
     # File operations that should trigger warnings
-    WRITE_OPERATIONS = {"write_file", "edit_file"}
-    DELETE_OPERATIONS = {"bash"}  # bash can contain rm commands
+    WRITE_OPERATIONS: ClassVar[set[str]] = {"write_file", "edit_file"}
+    DELETE_OPERATIONS: ClassVar[set[str]] = {"bash"}  # bash can contain rm commands
 
     @classmethod
     def is_dangerous_command(cls, command: str) -> tuple[bool, str | None]:
@@ -155,7 +152,7 @@ class ToolApprovalPrompt:
             command = tool_input.get("command", "")
             timeout = tool_input.get("timeout", 60)
 
-            cmd_node = tree.add(f"[yellow]Command[/yellow]")
+            cmd_node = tree.add("[yellow]Command[/yellow]")
             cmd_node.add(f"[white]{command}[/white]")
             tree.add(f"[dim]Timeout: {timeout}s[/dim]")
 
@@ -177,13 +174,7 @@ class ToolApprovalPrompt:
                 tree.add(f"[red]Replace:[/red] [dim]{old_display}[/dim]")
                 tree.add(f"[green]With:[/green] [white]{new_display}[/white]")
 
-        elif tool_name == "grep":
-            pattern = tool_input.get("pattern", "")
-            path = tool_input.get("path", ".")
-            tree.add(f"[yellow]Pattern:[/yellow] [white]{pattern}[/white]")
-            tree.add(f"[dim]Path: {path}[/dim]")
-
-        elif tool_name == "glob":
+        elif tool_name in {"grep", "glob"}:
             pattern = tool_input.get("pattern", "")
             path = tool_input.get("path", ".")
             tree.add(f"[yellow]Pattern:[/yellow] [white]{pattern}[/white]")
@@ -218,11 +209,10 @@ class ToolApprovalPrompt:
             True if approved, False if denied
         """
         # Check if auto-approve is enabled
-        if self.session.auto_approve_tools:
-            if not is_dangerous:
-                # Auto-approve non-dangerous commands
-                self.console.print(f"[dim]⚡ Auto-approved:[/dim] [cyan]{tool_name}[/cyan]")
-                return True
+        if self.session.auto_approve_tools and not is_dangerous:
+            # Auto-approve non-dangerous commands
+            self.console.print(f"[dim]⚡ Auto-approved:[/dim] [cyan]{tool_name}[/cyan]")
+            return True
             # Always prompt for dangerous commands even in auto-approve mode
 
         # Create the tool tree
@@ -282,7 +272,7 @@ class ToolApprovalPrompt:
 
         try:
             # Show prompt with key bindings
-            result = prompt(
+            prompt(
                 HTML("<style fg='cyan' bg=''>Your choice: </style>"),
                 key_bindings=kb,
             )
@@ -425,7 +415,7 @@ class ToolApprovalPrompt:
             event.app.exit(result="deny_all")
 
         try:
-            result = prompt(
+            prompt(
                 HTML("<style fg='cyan' bg=''>Your choice: </style>"),
                 key_bindings=kb,
             )
@@ -434,7 +424,7 @@ class ToolApprovalPrompt:
                 self.console.print("[bold green]✓ Approving all tools...[/bold green]")
                 # Approve everything (except dangerous in non-auto mode)
                 results = []
-                for (tool_name, tool_input), (is_dangerous, _) in zip(tool_calls, tool_statuses):
+                for (tool_name, tool_input), (is_dangerous, _) in zip(tool_calls, tool_statuses, strict=False):
                     if is_dangerous and not self.session.auto_approve_tools:
                         # Still prompt for dangerous
                         approved = self.approve_tool(tool_name, tool_input)
@@ -444,14 +434,14 @@ class ToolApprovalPrompt:
                         results.append(True)
                 return results
 
-            elif choice[0] == "approve_each":
+            if choice[0] == "approve_each":
                 self.console.print("[bold cyan]→ Reviewing each tool individually...[/bold cyan]")
                 # Prompt for each tool
                 return [self.approve_tool(tool_name, tool_input) for tool_name, tool_input in tool_calls]
 
-            else:  # deny_all
-                self.console.print("[bold red]✗ Denied all tools[/bold red]")
-                return [False] * len(tool_calls)
+            # deny_all
+            self.console.print("[bold red]✗ Denied all tools[/bold red]")
+            return [False] * len(tool_calls)
 
         except KeyboardInterrupt:
             self.console.print("[bold red]✗ Cancelled - Denied all tools[/bold red]")

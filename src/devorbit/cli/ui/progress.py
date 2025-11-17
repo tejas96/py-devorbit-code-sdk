@@ -11,8 +11,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rich.console import Console
-    from rich.live import Live
-    from rich.progress import Progress
 
 
 class ProgressIndicator:
@@ -206,4 +204,4 @@ class CompactionProgress:
                     print(f"  • {item}")
 
 
-__all__ = ["ProgressIndicator", "CompactionProgress"]
+__all__ = ["CompactionProgress", "ProgressIndicator"]

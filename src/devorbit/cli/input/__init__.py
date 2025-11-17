@@ -12,9 +12,9 @@ __all__ = [
     "AutocompleteEngine",
     "CommandCompleter",
     "FileCompleter",
+    "FileMentionParser",
     "InputValidator",
+    "MentionType",
     "ModelCompleter",
     "MultiLineEditor",
-    "FileMentionParser",
-    "MentionType",
 ]

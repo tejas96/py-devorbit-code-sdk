@@ -11,9 +11,9 @@ try:
 
     HAS_RICH = True
 except ImportError:
-    RichConsole = None  # type: ignore[assignment,misc]
-    RichPanel = None  # type: ignore[assignment,misc]
-    RichText = None  # type: ignore[assignment,misc]
+    RichConsole: Any = None  # type: ignore[misc]
+    RichPanel: Any = None  # type: ignore[misc]
+    RichText: Any = None  # type: ignore[misc]
     HAS_RICH = False
 
 from devorbit import Devorbit

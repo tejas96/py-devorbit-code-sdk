@@ -4,7 +4,7 @@ This module handles message sending, streaming responses, and tool execution
 in a provider-agnostic way.
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from devorbit._models import MessageResponse, TextBlock, ToolUseBlock
 
@@ -136,7 +136,7 @@ class LLMHandler:
 
                 # Execute approved tools
                 tool_results = []
-                for tool_call, approved in zip(tool_calls, tool_approvals):
+                for tool_call, approved in zip(tool_calls, tool_approvals, strict=False):
                     if not approved:
                         # Tool was denied, send denial result to Claude
                         tool_results.append(
@@ -270,7 +270,7 @@ class LLMHandler:
 
             # Execute approved tools
             tool_results = []
-            for tool_call, approved in zip(tool_calls, tool_approvals):
+            for tool_call, approved in zip(tool_calls, tool_approvals, strict=False):
                 if not approved:
                     # Tool was denied, send denial result to Claude
                     tool_results.append(

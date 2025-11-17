@@ -5,7 +5,7 @@ mirroring the Claude SDK's streaming functionality.
 """
 
 from collections.abc import AsyncIterator, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from typing import Any
 
 import json
@@ -112,11 +112,9 @@ class MessageStream:
             if index < len(self._current_content_blocks):
                 block = self._current_content_blocks[index]
                 if isinstance(block, ToolUseBlock) and json_str:
-                    try:
+                    # If JSON is invalid, keep empty dict
+                    with suppress(json.JSONDecodeError):
                         block.input = json.loads(json_str)
-                    except json.JSONDecodeError:
-                        # If JSON is invalid, keep empty dict
-                        pass
 
         # Update message with accumulated content
         if self._current_content_blocks:
@@ -227,11 +225,9 @@ class AsyncMessageStream:
             if index < len(self._current_content_blocks):
                 block = self._current_content_blocks[index]
                 if isinstance(block, ToolUseBlock) and json_str:
-                    try:
+                    # If JSON is invalid, keep empty dict
+                    with suppress(json.JSONDecodeError):
                         block.input = json.loads(json_str)
-                    except json.JSONDecodeError:
-                        # If JSON is invalid, keep empty dict
-                        pass
 
         # Update message with accumulated content
         if self._current_content_blocks:

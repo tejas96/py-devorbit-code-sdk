@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from prompt_toolkit import PromptSession
-    from prompt_toolkit.key_binding import KeyBindings
 
 
 class MultiLineEditor:
@@ -216,4 +215,4 @@ class InputValidator:
         return "\n".join(sanitized_lines)
 
 
-__all__ = ["MultiLineEditor", "InputValidator"]
+__all__ = ["InputValidator", "MultiLineEditor"]

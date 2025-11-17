@@ -25,7 +25,7 @@ class StatusLine:
     """
 
     # Default template (matches Claude Code spec)
-    DEFAULT_TEMPLATE = "[${model_short}] [${context}] [${git_branch} ${git_status}] [$${cost}] [${duration}]"  # noqa: E501
+    DEFAULT_TEMPLATE = "[${model_short}] [${context}] [${git_branch} ${git_status}] [$${cost}] [${duration}]"
 
     def __init__(
         self,

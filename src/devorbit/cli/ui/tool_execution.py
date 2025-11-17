@@ -39,7 +39,7 @@ class LiveToolExecution:
         self.console = console if console else Console()
         self.no_color = no_color
         self.start_time: float | None = None
-        self.live: "Live | None" = None
+        self.live: Live | None = None
         self.output_lines: list[str] = []
 
     def start_execution(
@@ -54,7 +54,7 @@ class LiveToolExecution:
         """
         if not HAS_RICH:
             print(f"\n[Tool: {tool_name}]")
-            print(f"Status: ⏳ Executing...")
+            print("Status: ⏳ Executing...")
             return
 
         self.start_time = time.time()
@@ -173,7 +173,7 @@ class LiveToolExecution:
         # Add status with spinner if executing
         if executing:
             spinner = Spinner("dots", text="Executing...", style="cyan")
-            status_node = tree.add(spinner)
+            tree.add(spinner)
         else:
             tree.add("[dim]Preparing...[/dim]")
 
@@ -187,14 +187,13 @@ class LiveToolExecution:
                         output_node.add(f"[dim]{line}[/dim]")
 
         # Wrap in panel
-        panel = Panel(
+        return Panel(
             tree,
             title=f"[bold]{icon}Tool Execution[/bold]",
             border_style=color,
             padding=(1, 2),
         )
 
-        return panel
 
     def _display_final_result(
         self,

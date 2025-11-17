@@ -216,7 +216,7 @@ class ToolExecutor:
         try:
             result = subprocess.run(
                 command,
-                shell=True,
+                check=False, shell=True,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -313,7 +313,7 @@ class ToolExecutor:
             content = path.read_text()
 
             if old_text not in content:
-                return f"Error: Text to replace not found in file"
+                return "Error: Text to replace not found in file"
 
             # Count occurrences
             count = content.count(old_text)
@@ -350,17 +350,16 @@ class ToolExecutor:
             # Use system grep for performance
             result = subprocess.run(
                 ["grep", "-rn", "-E", pattern, "--include", file_pattern, str(search_path)],
-                capture_output=True,
+                check=False, capture_output=True,
                 text=True,
                 timeout=30,
             )
 
             if result.returncode == 0:
                 return result.stdout if result.stdout else "No matches found"
-            elif result.returncode == 1:
+            if result.returncode == 1:
                 return "No matches found"
-            else:
-                return f"Search failed: {result.stderr}"
+            return f"Search failed: {result.stderr}"
 
         except Exception as e:
             return f"Error searching: {e}"

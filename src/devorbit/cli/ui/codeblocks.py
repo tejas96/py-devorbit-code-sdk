@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rich.console import Console
-    from rich.syntax import Syntax
 
 
 class CodeBlockDisplay:
@@ -209,7 +208,7 @@ class DiffDisplay:
             for line in diff:
                 if line.startswith("+++") or line.startswith("---"):
                     continue
-                elif line.startswith("@@"):
+                if line.startswith("@@"):
                     self.console.print(f"[dim]│ {line}[/dim]")
                 elif line.startswith("+"):
                     color = Colors.rich_success()
@@ -227,7 +226,7 @@ class DiffDisplay:
             for line in diff:
                 if line.startswith("+++") or line.startswith("---"):
                     continue
-                elif line.startswith("+"):
+                if line.startswith("+"):
                     print(f"│ + {line[1:]}")
                 elif line.startswith("-"):
                     print(f"│ - {line[1:]}")
