@@ -127,7 +127,8 @@ class LLMHandler:
 
                 # Add assistant message with tool calls to history
                 self.session.add_message(
-                    "assistant", final_message.content  # type: ignore[arg-type]
+                    "assistant",
+                    final_message.content,  # type: ignore[arg-type]
                 )
 
                 # Get approval for all tools
