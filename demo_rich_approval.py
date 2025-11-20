@@ -117,9 +117,15 @@ def demo_auto_approve():
 
 
 if __name__ == "__main__":
-    console.print("\n[bold magenta]╔════════════════════════════════════════════════════╗[/bold magenta]")
-    console.print("[bold magenta]║  Rich UI Approval System - Visual Demo            ║[/bold magenta]")
-    console.print("[bold magenta]╚════════════════════════════════════════════════════╝[/bold magenta]")
+    console.print(
+        "\n[bold magenta]╔════════════════════════════════════════════════════╗[/bold magenta]"
+    )
+    console.print(
+        "[bold magenta]║  Rich UI Approval System - Visual Demo            ║[/bold magenta]"
+    )
+    console.print(
+        "[bold magenta]╚════════════════════════════════════════════════════╝[/bold magenta]"
+    )
 
     demo_single_tool_approval()
     demo_file_edit()

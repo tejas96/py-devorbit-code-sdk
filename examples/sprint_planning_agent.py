@@ -114,9 +114,7 @@ def generate_sprint_summary(sprint_name: str, tasks_completed: int, tasks_total:
         "status": (
             "excellent"
             if completion_rate >= 90
-            else "good"
-            if completion_rate >= 70
-            else "needs_improvement"
+            else "good" if completion_rate >= 70 else "needs_improvement"
         ),
     }
 

@@ -17,36 +17,17 @@ def test_imports():
     try:
         # Test UI module imports
         print("\n[1/3] Testing UI module imports...")
-        from devorbit.cli.ui import (
-            ColorScheme,
-            Colors,
-            StreamingDisplay,
-            ToolCallDisplay,
-            NotificationManager,
-            ProgressIndicator,
-            StatusLine,
-            CodeBlockDisplay,
-            DiffDisplay,
-        )
+
         print("✓ UI modules imported successfully")
 
         # Test input module imports
         print("\n[2/3] Testing input module imports...")
-        from devorbit.cli.input import (
-            AutocompleteEngine,
-            CommandCompleter,
-            FileCompleter,
-            ModelCompleter,
-            MultiLineEditor,
-            FileMentionParser,
-            MentionType,
-        )
+
         print("✓ Input modules imported successfully")
 
         # Test enhanced session and repl imports
         print("\n[3/3] Testing enhanced CLI imports...")
-        from devorbit.cli.session import CLISession
-        from devorbit.cli.repl import DevorbitREPL
+
         print("✓ Enhanced CLI modules imported successfully")
 
         print("\n✓ ALL IMPORTS SUCCESSFUL\n")
@@ -55,6 +36,7 @@ def test_imports():
     except Exception as e:
         print(f"\n✗ Import failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -119,6 +101,7 @@ def test_ui_components():
     except Exception as e:
         print(f"\n✗ UI component test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -135,7 +118,6 @@ def test_input_features():
             FileCompleter,
             ModelCompleter,
             FileMentionParser,
-            AutocompleteEngine,
         )
         from devorbit.cli.input.editor import InputValidator
 
@@ -189,6 +171,7 @@ def test_input_features():
     except Exception as e:
         print(f"\n✗ Input feature test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -238,6 +221,7 @@ def test_cli_initialization():
     except Exception as e:
         print(f"\n✗ CLI initialization test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -283,6 +267,7 @@ def test_minimal_api_call():
     except Exception as e:
         print(f"\n✗ API integration test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

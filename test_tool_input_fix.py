@@ -83,8 +83,12 @@ def test_tool_input_accumulation():
     # Verify the input was properly accumulated and parsed
     assert block.input != {}, "❌ FAILED: Tool input is still empty!"
     assert "command" in block.input, "❌ FAILED: 'command' not in tool input!"
-    assert block.input["command"] == "ls -la", f"❌ FAILED: Expected 'ls -la', got '{block.input.get('command')}'"
-    assert block.input.get("timeout") == 60, f"❌ FAILED: Expected timeout=60, got {block.input.get('timeout')}"
+    assert (
+        block.input["command"] == "ls -la"
+    ), f"❌ FAILED: Expected 'ls -la', got '{block.input.get('command')}'"
+    assert (
+        block.input.get("timeout") == 60
+    ), f"❌ FAILED: Expected timeout=60, got {block.input.get('timeout')}"
 
     print("\n✅ SUCCESS: Tool input accumulation is working correctly!")
     print(f"  - Parsed JSON: {block.input}")
@@ -111,5 +115,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

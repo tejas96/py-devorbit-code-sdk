@@ -108,6 +108,11 @@ disable_error_code = ["attr-defined", "arg-type"]
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
+exclude = [
+    "test_*.py",  # Root test files
+    "demo_*.py",  # Root demo files
+    "examples/",  # Example scripts
+]
 
 [tool.ruff.lint]
 select = [
@@ -172,7 +177,9 @@ extend-exclude = '''
   | \.venv
   | build
   | dist
+  | examples
 )/
+|^/(test_|demo_).*\.py$
 '''
 
 [tool.isort]

@@ -44,25 +44,33 @@ def test_minimal_llm_call():
 
         print("\n[3/3] Verifying response...")
         if response.content and len(response.content) > 0:
-            text_content = response.content[0].text if hasattr(response.content[0], "text") else str(response.content[0])
+            text_content = (
+                response.content[0].text
+                if hasattr(response.content[0], "text")
+                else str(response.content[0])
+            )
             print(f"  Response: {text_content[:50]}...")
             print(f"  Model: {response.model}")
-            print(f"  Tokens used: input={response.usage.input_tokens}, output={response.usage.output_tokens}")
+            print(
+                f"  Tokens used: input={response.usage.input_tokens}, output={response.usage.output_tokens}"
+            )
             print("✓ Response valid")
 
             # Estimate cost (very rough)
             # Claude Sonnet 4.5: ~$3/M input, ~$15/M output
-            cost = (response.usage.input_tokens / 1_000_000 * 3) + (response.usage.output_tokens / 1_000_000 * 15)
+            cost = (response.usage.input_tokens / 1_000_000 * 3) + (
+                response.usage.output_tokens / 1_000_000 * 15
+            )
             print(f"  Estimated cost: ${cost:.6f}")
 
             return True
-        else:
-            print("✗ No content in response")
-            return False
+        print("✗ No content in response")
+        return False
 
     except Exception as e:
         print(f"\n✗ LLM call failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
