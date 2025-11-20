@@ -13,6 +13,7 @@ from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 
+
 try:
     from rich.console import Console
     from rich.panel import Panel

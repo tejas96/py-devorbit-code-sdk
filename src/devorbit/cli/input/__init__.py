@@ -8,6 +8,7 @@ from .autocomplete import AutocompleteEngine, CommandCompleter, FileCompleter, M
 from .editor import InputValidator, MultiLineEditor
 from .mentions import FileMentionParser, MentionType
 
+
 __all__ = [
     "AutocompleteEngine",
     "CommandCompleter",

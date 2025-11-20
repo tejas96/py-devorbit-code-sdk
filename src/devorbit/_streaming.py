@@ -4,11 +4,10 @@ This module provides utilities for handling Server-Sent Events (SSE) streaming,
 mirroring the Claude SDK's streaming functionality.
 """
 
+import json
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager, suppress
 from typing import Any
-
-import json
 
 from ._models import (
     MessageResponse,

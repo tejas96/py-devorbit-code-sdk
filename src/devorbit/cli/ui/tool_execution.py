@@ -10,6 +10,7 @@ Implements Claude Code-style animated tool execution with:
 import time
 from typing import TYPE_CHECKING, Any
 
+
 try:
     from rich.console import Console, Group
     from rich.live import Live
