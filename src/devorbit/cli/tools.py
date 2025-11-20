@@ -15,6 +15,31 @@ if TYPE_CHECKING:
     from .session import CLISession
 
 
+def _validate_path(base_dir: Path, user_path: str) -> Path:
+    """Validate and resolve a user-provided path to prevent path traversal.
+
+    Args:
+        base_dir: Base working directory
+        user_path: User-provided path string
+
+    Returns:
+        Resolved absolute path
+
+    Raises:
+        ValueError: If path attempts to escape working directory
+    """
+    # Resolve the full path
+    full_path = (base_dir / user_path).resolve()
+
+    # Check if it's within the working directory
+    try:
+        full_path.relative_to(base_dir.resolve())
+    except ValueError as e:
+        raise ValueError(f"Path traversal detected: {user_path}") from e
+
+    return full_path
+
+
 class ToolExecutor:
     """Executes tools requested by the LLM.
 
@@ -193,6 +218,11 @@ class ToolExecutor:
     def _execute_bash(self, tool_input: dict[str, Any]) -> str:
         """Execute bash command.
 
+        Security Note: This intentionally uses shell=True to support complex
+        shell operations (pipes, redirects, etc.) as this is a CLI tool
+        similar to Claude Code CLI. The permission system provides the
+        security layer by requiring user approval for dangerous commands.
+
         Args:
             tool_input: Tool parameters
 
@@ -214,10 +244,12 @@ class ToolExecutor:
         self.session.print_info(f"Executing: {command}")
 
         try:
-            result = subprocess.run(
+            # Security: shell=True is intentional for CLI functionality
+            # User approval system provides the security boundary
+            result = subprocess.run(  # nosec B602
                 command,
                 check=False,
-                shell=True,
+                shell=True,  # nosec B602
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -247,7 +279,12 @@ class ToolExecutor:
             File content
         """
         path_str = tool_input["path"]
-        path = Path(self.session.working_dir) / path_str
+
+        try:
+            # Validate path to prevent traversal attacks
+            path = _validate_path(self.session.working_dir, path_str)
+        except ValueError as e:
+            return f"Error: {e}"
 
         self.session.print_info(f"Reading: {path}")
 
@@ -275,7 +312,12 @@ class ToolExecutor:
         """
         path_str = tool_input["path"]
         content = tool_input["content"]
-        path = Path(self.session.working_dir) / path_str
+
+        try:
+            # Validate path to prevent traversal attacks
+            path = _validate_path(self.session.working_dir, path_str)
+        except ValueError as e:
+            return f"Error: {e}"
 
         self.session.print_info(f"Writing: {path}")
 
@@ -303,7 +345,12 @@ class ToolExecutor:
         path_str = tool_input["path"]
         old_text = tool_input["old_text"]
         new_text = tool_input["new_text"]
-        path = Path(self.session.working_dir) / path_str
+
+        try:
+            # Validate path to prevent traversal attacks
+            path = _validate_path(self.session.working_dir, path_str)
+        except ValueError as e:
+            return f"Error: {e}"
 
         self.session.print_info(f"Editing: {path}")
 
@@ -340,15 +387,19 @@ class ToolExecutor:
             Search results
         """
         pattern = tool_input["pattern"]
-        path = tool_input.get("path", ".")
+        path_str = tool_input.get("path", ".")
         file_pattern = tool_input.get("file_pattern", "*")
 
-        search_path = Path(self.session.working_dir) / path
+        try:
+            # Validate path to prevent traversal attacks
+            search_path = _validate_path(self.session.working_dir, path_str)
+        except ValueError as e:
+            return f"Error: {e}"
 
         self.session.print_info(f"Searching for '{pattern}' in {search_path}")
 
         try:
-            # Use system grep for performance
+            # Use system grep for performance with safe argument list
             result = subprocess.run(
                 ["grep", "-rn", "-E", pattern, "--include", file_pattern, str(search_path)],
                 check=False,
@@ -378,7 +429,11 @@ class ToolExecutor:
         pattern = tool_input["pattern"]
         path_str = tool_input.get("path", ".")
 
-        search_path = Path(self.session.working_dir) / path_str
+        try:
+            # Validate path to prevent traversal attacks
+            search_path = _validate_path(self.session.working_dir, path_str)
+        except ValueError as e:
+            return f"Error: {e}"
 
         self.session.print_info(f"Finding files matching: {pattern}")
 
@@ -391,10 +446,14 @@ class ToolExecutor:
             # Return relative paths
             result = []
             for match in sorted(matches):
-                rel_path = match.relative_to(self.session.working_dir)
-                result.append(str(rel_path))
+                try:
+                    rel_path = match.relative_to(self.session.working_dir)
+                    result.append(str(rel_path))
+                except ValueError:
+                    # Skip files outside working directory
+                    continue
 
-            return "\n".join(result)
+            return "\n".join(result) if result else "No files found matching pattern"
 
         except Exception as e:
             return f"Error finding files: {e}"
