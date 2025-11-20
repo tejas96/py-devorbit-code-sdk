@@ -63,6 +63,12 @@ from .session import CLISession
     default=False,
     help="Enable debug mode with verbose logging",
 )
+@click.option(
+    "--auto-approve",
+    is_flag=True,
+    default=False,
+    help="Automatically approve non-dangerous tool executions without prompting",
+)
 def main(
     provider: str,
     model: str | None,
@@ -70,6 +76,7 @@ def main(
     working_dir: Path | None,
     no_color: bool,
     debug: bool,
+    auto_approve: bool,
 ) -> None:
     """Devorbit - Multi-provider LLM CLI with Claude Code-like experience.
 
@@ -119,6 +126,7 @@ def main(
         working_dir=working_dir,
         no_color=no_color,
         debug=debug,
+        auto_approve_tools=auto_approve,
     )
 
     # Display welcome banner

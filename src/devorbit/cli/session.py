@@ -1,7 +1,9 @@
-"""CLI session management."""
+"""CLI session management with enhanced UI system."""
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from devorbit._types import ContentBlock
 
 
 try:
@@ -17,6 +19,19 @@ except ImportError:
     HAS_RICH = False
 
 from devorbit import Devorbit
+
+from .permissions import ToolApprovalPrompt
+from .tools import ToolExecutor
+from .ui import (
+    CodeBlockDisplay,
+    DiffDisplay,
+    LiveToolExecution,
+    NotificationManager,
+    ProgressIndicator,
+    StatusLine,
+    StreamingDisplay,
+    ToolCallDisplay,
+)
 
 
 if TYPE_CHECKING:
@@ -34,6 +49,7 @@ class CLISession:
         working_dir: Path | None = None,
         no_color: bool = False,
         debug: bool = False,
+        auto_approve_tools: bool = False,
     ) -> None:
         """Initialize a CLI session.
 
@@ -44,13 +60,28 @@ class CLISession:
             working_dir: Working directory for file operations (default: current directory)
             no_color: Disable colored output
             debug: Enable debug mode
+            auto_approve_tools: Automatically approve non-dangerous tool executions
         """
         self.provider = provider
         self.api_key = api_key
-        self.model = model
+
+        # Set model with provider-specific defaults if not specified
+        if model is None:
+            default_models = {
+                "anthropic": "claude-sonnet-4-5",
+                "openai": "gpt-4o",
+                "gemini": "gemini-pro-2-5",
+                "mistral": "mistral-large-latest",
+                "codellama": "codellama-70b-instruct",
+            }
+            self.model = default_models.get(provider, "claude-sonnet-4-5")
+        else:
+            self.model = model
+
         self.working_dir = working_dir or Path.cwd()
         self.no_color = no_color
         self.debug = debug
+        self.auto_approve_tools = auto_approve_tools
 
         # Initialize console
         self.console: RichConsole | None = None
@@ -69,6 +100,26 @@ class CLISession:
         # Session state
         self.is_running = True
         self.planning_mode = False
+
+        # Initialize enhanced UI components
+        self.notifications = NotificationManager(self.console, no_color)
+        self.progress = ProgressIndicator(self.console, no_color)
+        self.status_line = StatusLine(self.console, no_color=no_color)
+        self.streaming = StreamingDisplay(self.console, no_color)
+        self.tool_display = ToolCallDisplay(self.console, no_color)
+        self.live_tool_execution = LiveToolExecution(
+            self.console, no_color
+        )  # NEW: Animated tool execution
+        self.code_display = CodeBlockDisplay(self.console, no_color)
+        self.diff_display = DiffDisplay(self.console, no_color)
+
+        # Initialize tool executor and approval system
+        self.tool_executor = ToolExecutor(self)
+        self.tool_approval = ToolApprovalPrompt(self)
+
+        # Set initial status line values
+        self.status_line.set_model(self.model, provider)
+        self.status_line.set_project(working_dir or Path.cwd())
 
     def display_welcome(self) -> None:
         """Display welcome banner."""
@@ -102,7 +153,9 @@ class CLISession:
         self.console.print(panel)
         self.console.print()
 
-    def add_message(self, role: str, content: str) -> None:
+    def add_message(
+        self, role: str, content: str | list[ContentBlock] | list[dict[str, Any]]
+    ) -> None:
         """Add a message to conversation history.
 
         Args:
@@ -111,7 +164,7 @@ class CLISession:
         """
         message: Message = {
             "role": role,  # type: ignore[typeddict-item]
-            "content": content,
+            "content": content,  # type: ignore[typeddict-item]
         }
         self.messages.append(message)
 
@@ -137,10 +190,7 @@ class CLISession:
         Args:
             message: Error message to display
         """
-        if HAS_RICH and self.console is not None:
-            self.console.print(f"[bold red]Error:[/bold red] {message}")
-        else:
-            print(f"Error: {message}")
+        self.notifications.error(message)
 
     def print_success(self, message: str) -> None:
         """Print a success message.
@@ -148,10 +198,7 @@ class CLISession:
         Args:
             message: Success message to display
         """
-        if HAS_RICH and self.console is not None:
-            self.console.print(f"[bold green]✓[/bold green] {message}")
-        else:
-            print(f"✓ {message}")
+        self.notifications.success(message)
 
     def print_info(self, message: str) -> None:
         """Print an info message.
@@ -159,7 +206,12 @@ class CLISession:
         Args:
             message: Info message to display
         """
-        if HAS_RICH and self.console is not None:
-            self.console.print(f"[bold cyan]i[/bold cyan] {message}")
-        else:
-            print(f"i {message}")
+        self.notifications.info(message)
+
+    def print_warning(self, message: str) -> None:
+        """Print a warning message.
+
+        Args:
+            message: Warning message to display
+        """
+        self.notifications.warning(message)

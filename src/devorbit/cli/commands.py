@@ -84,6 +84,14 @@ Available Commands:
     /cd <path>         - Change working directory
     /pwd               - Print working directory
     /planning          - Toggle planning mode
+    /multiline         - Toggle multi-line input mode
+
+Input Features:
+    - Use @file.py to attach files to your message
+    - Use @**/*.py to attach files matching glob patterns
+    - Tab for autocomplete (commands, files, models)
+    - Ctrl+Enter to submit (multi-line mode)
+    - Ctrl+R to search command history
 
 System Information:
     - Provider: {provider}

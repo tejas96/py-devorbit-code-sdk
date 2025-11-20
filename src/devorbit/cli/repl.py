@@ -1,4 +1,4 @@
-"""REPL (Read-Eval-Print Loop) implementation for Devorbit CLI."""
+"""REPL (Read-Eval-Print Loop) implementation for Devorbit CLI with enhanced input."""
 
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -6,12 +6,14 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from prompt_toolkit import PromptSession
+    from prompt_toolkit.completion import Completer
     from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.styles import Style
 else:
     try:
         from prompt_toolkit import PromptSession
+        from prompt_toolkit.completion import Completer, WordCompleter
         from prompt_toolkit.formatted_text import HTML
         from prompt_toolkit.history import FileHistory
         from prompt_toolkit.styles import Style
@@ -19,12 +21,16 @@ else:
         HAS_PROMPT_TOOLKIT = True
     except ImportError:
         PromptSession = None  # type: ignore[assignment,misc]
+        Completer = None  # type: ignore[assignment,misc]
+        WordCompleter = None  # type: ignore[assignment,misc]
         HTML = None  # type: ignore[assignment,misc]
         FileHistory = None  # type: ignore[assignment,misc]
         Style = None  # type: ignore[assignment,misc]
         HAS_PROMPT_TOOLKIT = False
 
 from .commands import CommandHandler
+from .input import AutocompleteEngine, FileMentionParser, InputValidator
+from .llm import LLMHandler
 from .session import CLISession
 
 
@@ -40,14 +46,39 @@ class DevorbitREPL:
         self.session = session
         self.command_handler = CommandHandler(session)
 
+        # Initialize enhanced input components
+        self.autocomplete = AutocompleteEngine(
+            provider=session.provider,
+            working_dir=session.working_dir,
+        )
+        self.mention_parser = FileMentionParser(working_dir=session.working_dir)
+        self.input_validator = InputValidator()
+
+        # Initialize LLM handler
+        self.llm_handler = LLMHandler(session)
+
+        # Multi-line mode toggle
+        self.multiline_mode = False
+
         # Setup prompt session with history
         history_file = Path.home() / ".devorbit_history"
         self.prompt_session: PromptSession[str] | None = None
         self.prompt_style: Style | None = None
+        self.completer: Completer | None = None
 
         if not TYPE_CHECKING:
+            # Setup autocompleter for prompt_toolkit
+            if HAS_PROMPT_TOOLKIT and WordCompleter is not None:
+                # Create a simple word completer with command names
+                command_words = list(self.autocomplete.command_completer.BUILT_IN_COMMANDS.keys())
+                self.completer = WordCompleter(command_words, sentence=True)
+
             if HAS_PROMPT_TOOLKIT and PromptSession is not None and FileHistory is not None:
-                self.prompt_session = PromptSession(history=FileHistory(str(history_file)))
+                self.prompt_session = PromptSession(
+                    history=FileHistory(str(history_file)),
+                    completer=self.completer,
+                    complete_while_typing=True,
+                )
 
             # Prompt style
             if HAS_PROMPT_TOOLKIT and Style is not None:
@@ -71,7 +102,7 @@ class DevorbitREPL:
             and self.prompt_style is not None
         ):
             cwd = self.session.working_dir.name
-            return HTML(f"<prompt>devorbit</prompt> <path>{cwd}</path><prompt>></prompt> ").value
+            return HTML(f"<prompt>devorbit</prompt> <path>{cwd}</path><prompt>></prompt> ")
         return "devorbit> "
 
     def read_input(self) -> str | None:
@@ -110,21 +141,55 @@ class DevorbitREPL:
         if not user_input:
             return True
 
+        # Validate input
+        is_valid, error = self.input_validator.validate_input(user_input)
+        if not is_valid:
+            self.session.print_error(f"Invalid input: {error}")
+            return True
+
+        # Sanitize input
+        user_input = self.input_validator.sanitize_input(user_input)
+
         # Check if it's a slash command
         if user_input.startswith("/"):
+            # Handle special commands that affect REPL state
+            if user_input.strip() == "/multiline":
+                self.multiline_mode = not self.multiline_mode
+                status = "enabled" if self.multiline_mode else "disabled"
+                self.session.print_success(f"Multi-line mode {status}")
+                if self.multiline_mode:
+                    self.session.print_info("Press Ctrl+Enter to submit, Shift+Enter for new line")
+                return True
+
             return self.command_handler.handle_command(user_input)
+
+        # Parse @file mentions
+        mentions = self.mention_parser.parse(user_input)
+        if mentions:
+            # Display attached files summary
+            summary = self.mention_parser.format_mention_summary(mentions)
+            if summary:
+                self.session.print_info(summary)
+
+            # Remove mentions from the actual prompt
+            clean_input = self.mention_parser.remove_mentions(user_input)
+        else:
+            clean_input = user_input
 
         # Regular message - send to LLM
         try:
-            self.session.add_message("user", user_input)
-            self.session.print_info("Processing your request...")
+            # Send message with streaming (provider-agnostic)
+            response = self.llm_handler.send_message(
+                clean_input,
+                stream=True,  # Enable streaming for real-time display
+            )
 
-            # TODO: Implement LLM message sending and tool execution
-            # For now, just echo back
-            response = f"[Echo] You said: {user_input}"
-            self.session.print(f"\n{response}\n")
+            # Add assistant response to history
+            if response:
+                self.session.add_message("assistant", response)
+            else:
+                self.session.print_warning("No response received from LLM")
 
-            self.session.add_message("assistant", response)
         except Exception as e:
             self.session.print_error(f"Failed to process message: {e}")
             if self.session.debug:

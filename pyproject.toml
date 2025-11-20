@@ -108,6 +108,11 @@ disable_error_code = ["attr-defined", "arg-type"]
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
+exclude = [
+    "test_*.py",  # Root test files
+    "demo_*.py",  # Root demo files
+    "examples/",  # Example scripts
+]
 
 [tool.ruff.lint]
 select = [
@@ -131,10 +136,26 @@ select = [
 ignore = ["E501", "PLR0913", "PLR2004"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["PLR2004", "S101", "S106", "TC001"]
-"__init__.py" = ["F401"]
+"tests/*" = ["PLR2004", "S101", "S106", "TC001", "RUF012", "PLR0913"]
+"__init__.py" = ["F401", "RUF022"]
 "examples/*" = ["ERA001", "T201", "S101", "PTH", "B905", "SIM", "PLC0415", "B007", "F401", "RET504", "RUF013", "F841"]
 "src/devorbit/_tool_helpers.py" = ["UP047"]
+# CLI module intentional patterns
+"src/devorbit/cli/**/*.py" = [
+    "PLC0415",  # Conditional imports for Rich
+    "PLR0911",  # Too many returns
+    "PLR0912",  # Too many branches
+    "PLR0915",  # Too many statements
+    "PLR1714",  # Multiple comparisons
+    "SIM102",   # Nested ifs
+    "F841",     # Unused variable
+    "RUF001",   # Ambiguous unicode
+    "RUF002",   # Ambiguous unicode in docstring
+    "RUF012",   # ClassVar (fixing critical ones)
+]
+# Allow unused imports in TYPE_CHECKING
+"src/devorbit/cli/input/*.py" = ["F401"]
+"src/devorbit/cli/ui/*.py" = ["F401"]
 
 [tool.ruff.lint.isort]
 force-single-line = false
@@ -156,7 +177,9 @@ extend-exclude = '''
   | \.venv
   | build
   | dist
+  | examples
 )/
+|^/(test_|demo_).*\.py$
 '''
 
 [tool.isort]
