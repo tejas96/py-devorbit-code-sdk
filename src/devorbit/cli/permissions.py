@@ -9,10 +9,6 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from prompt_toolkit import prompt
-from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.key_binding import KeyBindings
-
 
 try:
     from rich.console import Console
@@ -252,52 +248,37 @@ class ToolApprovalPrompt:
                 "[bold yellow]⚠️  This is a potentially dangerous operation![/bold yellow]"
             )
 
-        # Create interactive prompt with key bindings
+        # Use arrow-based menu for selection
         self.console.print()
-        self.console.print(
-            "[dim]Press [bold]y[/bold] to approve, [bold]n[/bold] to deny, [bold]Ctrl+C[/bold] to cancel[/dim]"
+
+        from .ui.menu import ArrowMenu
+
+        menu = ArrowMenu(
+            options=["Yes", "No", "Cancel"],
+            console=self.console,
+            no_color=self.session.no_color,
+            default_index=0,  # Default to "Yes"
         )
 
-        # Simple yes/no prompt
-        kb = KeyBindings()
-        approved = [False]  # Use list for closure
-
-        @kb.add("y")  # type: ignore[misc]
-        @kb.add("Y")  # type: ignore[misc]
-        def _(event: Any) -> None:
-            approved[0] = True
-            event.app.exit(result=True)
-
-        @kb.add("n")  # type: ignore[misc]
-        @kb.add("N")  # type: ignore[misc]
-        def _(event: Any) -> None:
-            approved[0] = False
-            event.app.exit(result=False)
-
-        @kb.add("c-c")  # type: ignore[misc]
-        def _(event: Any) -> None:
-            approved[0] = False
-            event.app.exit(result=False)
-
         try:
-            # Show prompt with key bindings
-            prompt(
-                HTML("<style fg='cyan' bg=''>Your choice: </style>"),
-                key_bindings=kb,
-            )
+            selected = menu.show()
 
-            if approved[0]:
-                self.console.print("[bold green]✓ Approved[/bold green]")
-            else:
-                self.console.print("[bold red]✗ Denied[/bold red]")
-
-            return approved[0]
+            # Map selection to approval
+            if selected == 0:  # Yes
+                self.console.print("\n[bold green]✓ Approved[/bold green]")
+                return True
+            elif selected == 1:  # No
+                self.console.print("\n[bold red]✗ Denied[/bold red]")
+                return False
+            else:  # Cancel (or any other index)
+                self.console.print("\n[bold red]✗ Cancelled[/bold red]")
+                return False
 
         except KeyboardInterrupt:
-            self.console.print("[bold red]✗ Cancelled[/bold red]")
+            self.console.print("\n[bold red]✗ Cancelled[/bold red]")
             return False
-        except Exception:
-            self.console.print("[bold red]✗ Error - Denied by default[/bold red]")
+        except Exception as e:
+            self.console.print(f"\n[bold red]✗ Error - Denied by default: {e}[/bold red]")
             return False
 
     def approve_tool(self, tool_name: str, tool_input: dict[str, Any]) -> bool:
@@ -397,49 +378,27 @@ class ToolApprovalPrompt:
         if has_dangerous:
             self.console.print("[bold yellow]⚠️  Batch contains dangerous operations![/bold yellow]")
 
-        # Show batch options
-        self.console.print()
-        self.console.print("[dim]Choose an option:[/dim]")
-        self.console.print("  [bold]a[/bold] - Approve all (dangerous tools will still prompt)")
-        self.console.print("  [bold]e[/bold] - Approve each individually")
-        self.console.print("  [bold]d[/bold] - Deny all")
-        self.console.print("  [bold]Ctrl+C[/bold] - Cancel")
+        # Use arrow-based menu for batch selection
         self.console.print()
 
-        # Create key bindings
-        kb = KeyBindings()
-        choice = [""]
+        from .ui.menu import ArrowMenu
 
-        @kb.add("a")  # type: ignore[misc]
-        @kb.add("A")  # type: ignore[misc]
-        def _(event: Any) -> None:
-            choice[0] = "approve_all"
-            event.app.exit(result="approve_all")
-
-        @kb.add("e")  # type: ignore[misc]
-        @kb.add("E")  # type: ignore[misc]
-        def _(event: Any) -> None:
-            choice[0] = "approve_each"
-            event.app.exit(result="approve_each")
-
-        @kb.add("d")  # type: ignore[misc]
-        @kb.add("D")  # type: ignore[misc]
-        def _(event: Any) -> None:
-            choice[0] = "deny_all"
-            event.app.exit(result="deny_all")
-
-        @kb.add("c-c")  # type: ignore[misc]
-        def _(event: Any) -> None:
-            choice[0] = "deny_all"
-            event.app.exit(result="deny_all")
+        menu = ArrowMenu(
+            options=[
+                "Approve all (dangerous tools will still prompt)",
+                "Approve each individually",
+                "Deny all",
+                "Cancel",
+            ],
+            console=self.console,
+            no_color=self.session.no_color,
+            default_index=0,
+        )
 
         try:
-            prompt(
-                HTML("<style fg='cyan' bg=''>Your choice: </style>"),
-                key_bindings=kb,
-            )
+            selected = menu.show()
 
-            if choice[0] == "approve_all":
+            if selected == 0:  # Approve all
                 self.console.print("[bold green]✓ Approving all tools...[/bold green]")
                 # Approve everything (except dangerous in non-auto mode)
                 results = []
@@ -455,16 +414,16 @@ class ToolApprovalPrompt:
                         results.append(True)
                 return results
 
-            if choice[0] == "approve_each":
-                self.console.print("[bold cyan]→ Reviewing each tool individually...[/bold cyan]")
+            elif selected == 1:  # Approve each
+                self.console.print("\n[bold cyan]→ Reviewing each tool individually...[/bold cyan]")
                 # Prompt for each tool
                 return [
                     self.approve_tool(tool_name, tool_input) for tool_name, tool_input in tool_calls
                 ]
 
-            # deny_all
-            self.console.print("[bold red]✗ Denied all tools[/bold red]")
-            return [False] * len(tool_calls)
+            else:  # Deny all or Cancel (indices 2 or 3)
+                self.console.print("\n[bold red]✗ Denied all tools[/bold red]")
+                return [False] * len(tool_calls)
 
         except KeyboardInterrupt:
             self.console.print("[bold red]✗ Cancelled - Denied all tools[/bold red]")
