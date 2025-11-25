@@ -70,7 +70,7 @@ class CLISession:
             default_models = {
                 "anthropic": "claude-sonnet-4-5",
                 "openai": "gpt-4o",
-                "gemini": "gemini-pro-2-5",
+                "gemini": "gemini-2.5-flash",
                 "mistral": "mistral-large-latest",
                 "codellama": "codellama-70b-instruct",
             }

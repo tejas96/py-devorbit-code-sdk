@@ -1,7 +1,9 @@
 """REPL (Read-Eval-Print Loop) implementation for Devorbit CLI with enhanced input."""
 
+import random
 from pathlib import Path
 from typing import TYPE_CHECKING
+import shutil
 
 
 if TYPE_CHECKING:
@@ -9,6 +11,7 @@ if TYPE_CHECKING:
     from prompt_toolkit.completion import Completer
     from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.styles import Style
 else:
     try:
@@ -16,6 +19,7 @@ else:
         from prompt_toolkit.completion import Completer, WordCompleter
         from prompt_toolkit.formatted_text import HTML
         from prompt_toolkit.history import FileHistory
+        from prompt_toolkit.key_binding import KeyBindings
         from prompt_toolkit.styles import Style
 
         HAS_PROMPT_TOOLKIT = True
@@ -25,6 +29,7 @@ else:
         WordCompleter = None  # type: ignore[assignment,misc]
         HTML = None  # type: ignore[assignment,misc]
         FileHistory = None  # type: ignore[assignment,misc]
+        KeyBindings = None  # type: ignore[assignment,misc]
         Style = None  # type: ignore[assignment,misc]
         HAS_PROMPT_TOOLKIT = False
 
@@ -36,6 +41,22 @@ from .session import CLISession
 
 class DevorbitREPL:
     """Interactive REPL for Devorbit CLI."""
+    
+    # Random tips to display in the input placeholder
+    TIPS = [
+        "Type your message or @path/to/file",
+        "Tip: Use @filename to reference files in your project",
+        "Tip: Try /help to see all available commands",
+        "Tip: Press Ctrl+D to exit anytime",
+        "Tip: Use /clear to clear conversation history",
+        "Tip: Type /model to switch between different AI models",
+        "Tip: Use @ to mention multiple files at once",
+        "Tip: Try /history to see your conversation history",
+        "Tip: Use /multiline for multi-line input mode",
+        "Tip: Reference files with @src/main.py for context",
+        "Tip: Press Ctrl+@ for quick file mention",
+        "Tip: Use /exit or Ctrl+D to quit gracefully",
+    ]
 
     def __init__(self, session: CLISession) -> None:
         """Initialize the REPL.
@@ -59,6 +80,12 @@ class DevorbitREPL:
 
         # Multi-line mode toggle
         self.multiline_mode = False
+        
+        # Track attached files for display
+        self.attached_files: list[str] = []
+        
+        # Current tip index
+        self.current_tip = random.choice(self.TIPS)
 
         # Setup prompt session with history
         history_file = Path.home() / ".devorbit_history"
@@ -73,55 +100,132 @@ class DevorbitREPL:
                 command_words = list(self.autocomplete.command_completer.BUILT_IN_COMMANDS.keys())
                 self.completer = WordCompleter(command_words, sentence=True)
 
+            # Setup key bindings
+            kb = None
+            if HAS_PROMPT_TOOLKIT and KeyBindings is not None:
+                kb = KeyBindings()
+                
+                # Add @ shortcut for file mentions (Ctrl+@)
+                @kb.add("c-@")
+                def _(event):
+                    """Insert @ for file mention."""
+                    event.current_buffer.insert_text("@")
+
             if HAS_PROMPT_TOOLKIT and PromptSession is not None and FileHistory is not None:
                 self.prompt_session = PromptSession(
                     history=FileHistory(str(history_file)),
                     completer=self.completer,
                     complete_while_typing=True,
+                    key_bindings=kb,
+                    placeholder=HTML(f'<placeholder>{self.current_tip}</placeholder>'),
                 )
 
-            # Prompt style
+            # Enhanced prompt style with box
             if HAS_PROMPT_TOOLKIT and Style is not None:
                 self.prompt_style = Style.from_dict(
                     {
-                        "prompt": "bold cyan",
-                        "path": "yellow",
+                        # Input prompt
+                        "prompt": "#888888",  # Gray arrow
+                        "": "#ffffff",  # White text for input
+                        "placeholder": "#666666",  # Dark gray placeholder
+                        # Bottom toolbar/status bar
+                        "bottom-toolbar": "bg:#1a1a1a #888888",
+                        "bottom-toolbar.path": "#4a9eff",  # Blue for path
+                        "bottom-toolbar.status": "#ff6b6b",  # Red for warnings
+                        "bottom-toolbar.mode": "#888888",  # Gray for mode
+                        # Input box border
+                        "input-border": "#666666",  # Gray border
                     }
                 )
 
-    def get_prompt_message(self) -> str:
+    def _get_bottom_toolbar(self) -> "HTML | str":
+        """Create the bottom status bar.
+
+        Returns:
+            Formatted toolbar HTML or plain string
+        """
+        if not HAS_PROMPT_TOOLKIT or HTML is None:
+            # Fallback plain text
+            sandbox_status = "no sandbox"
+            mode = "auto" if self.session.auto_approve_tools else "manual"
+            return f"{self.session.working_dir} | {sandbox_status} | {mode}"
+
+        # Get directory name
+        path_display = self.session.working_dir.name
+        
+        # Sandbox status (always no sandbox for now)
+        sandbox_status = "no sandbox"
+        
+        # Mode
+        mode = "auto" if self.session.auto_approve_tools else "manual"
+        
+        # File count
+        file_info = ""
+        if self.attached_files:
+            file_info = f" | Using: {len(self.attached_files)} file(s)"
+
+        toolbar_html = (
+            f'<path>{path_display}</path> '
+            f'<status>{sandbox_status}</status> (see /docs)     '
+            f'<mode>{mode}</mode>'
+            f'{file_info}'
+        )
+
+        return HTML(toolbar_html)
+
+    def get_prompt_message(self) -> "HTML | str":
         """Get the prompt message with current context.
 
         Returns:
             Formatted prompt string
         """
-        if (
-            not TYPE_CHECKING
-            and HAS_PROMPT_TOOLKIT
-            and HTML is not None
-            and self.prompt_style is not None
-        ):
-            cwd = self.session.working_dir.name
-            return HTML(f"<prompt>devorbit</prompt> <path>{cwd}</path><prompt>></prompt> ")
-        return "devorbit> "
+        if not HAS_PROMPT_TOOLKIT or HTML is None:
+            return "> "
+
+        # Simple prompt arrow
+        return HTML('<prompt>></prompt> ')
 
     def read_input(self) -> str | None:
-        """Read user input from the prompt.
+        """Read user input from the prompt with box border.
 
         Returns:
             User input string or None if EOF/exit
         """
         try:
             if not TYPE_CHECKING and HAS_PROMPT_TOOLKIT and self.prompt_session is not None:
+                # Rotate to a new random tip for next prompt
+                self.current_tip = random.choice(self.TIPS)
+                
+                # Update placeholder with new tip
+                if HTML is not None:
+                    self.prompt_session.placeholder = HTML(f'<placeholder>{self.current_tip}</placeholder>')
+                
+                # --- FIX STARTS HERE ---
+                # Get dynamic terminal width
+                cols, _ = shutil.get_terminal_size(fallback=(80, 24))
+                # Subtract 2 to account for the corner characters (╭ and ╮)
+                width = max(0, cols - 2)
+
+                # Print top border of input box with dynamic width
+                print(f"\033[90m╭{'─' * width}╮\033[0m")
+                
                 prompt_msg = self.get_prompt_message()
                 user_input = self.prompt_session.prompt(
                     prompt_msg,
                     style=self.prompt_style,
+                    bottom_toolbar=self._get_bottom_toolbar,
+                    multiline=False,
+                    prompt_continuation=lambda width, line_number, is_soft_wrap: '',
                 )
+                
+                # Print bottom border of input box with dynamic width
+                print(f"\033[90m╰{'─' * width}╯\033[0m")
+                # --- FIX ENDS HERE ---
+                
                 return user_input.strip()
 
             # Fallback to basic input
-            user_input = input(self.get_prompt_message())
+            user_input = input("> ")
             return user_input.strip()
         except EOFError:
             return None
@@ -166,15 +270,20 @@ class DevorbitREPL:
         # Parse @file mentions
         mentions = self.mention_parser.parse(user_input)
         if mentions:
+            # Track attached files
+            self.attached_files = [m.get('path', m.get('file', '')) for m in mentions]
+            
             # Display attached files summary
-            summary = self.mention_parser.format_mention_summary(mentions)
-            if summary:
-                self.session.print_info(summary)
+            print(f"\n\033[90mUsing: {len(self.attached_files)} file(s)\033[0m")
+            for filepath in self.attached_files:
+                print(f"\033[90m  • {filepath}\033[0m")
+            print()
 
             # Remove mentions from the actual prompt
             clean_input = self.mention_parser.remove_mentions(user_input)
         else:
             clean_input = user_input
+            self.attached_files = []
 
         # Regular message - send to LLM
         try:
@@ -194,6 +303,9 @@ class DevorbitREPL:
             self.session.print_error(f"Failed to process message: {e}")
             if self.session.debug:
                 raise
+        finally:
+            # Clear attached files after processing
+            self.attached_files = []
 
         return True
 
@@ -213,5 +325,4 @@ class DevorbitREPL:
                 break
 
 
-__all__ = ["DevorbitREPL"]
 __all__ = ["DevorbitREPL"]
