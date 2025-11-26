@@ -38,6 +38,13 @@ if TYPE_CHECKING:
     from devorbit._types import Message
 
 
+# ANSI escape codes for terminal colors
+ORANGE = "\033[38;5;208m"
+RESET = "\033[0m"
+GRAY = "\033[90m"
+WHITE = "\033[97m"
+
+
 class CLISession:
     """Manages a Devorbit CLI session."""
 
@@ -70,7 +77,7 @@ class CLISession:
             default_models = {
                 "anthropic": "claude-sonnet-4-5",
                 "openai": "gpt-4o",
-                "gemini": "gemini-pro-2-5",
+                "gemini": "gemini-2.5-flash",
                 "mistral": "mistral-large-latest",
                 "codellama": "codellama-70b-instruct",
             }
@@ -122,36 +129,35 @@ class CLISession:
         self.status_line.set_project(working_dir or Path.cwd())
 
     def display_welcome(self) -> None:
-        """Display welcome banner."""
-        if not HAS_RICH or self.console is None or RichPanel is None or RichText is None:
-            print("Welcome to Devorbit CLI!")
-            print(f"Provider: {self.provider}")
-            print(f"Working directory: {self.working_dir}")
-            return
+        """Display Claude Code style welcome banner."""
+        # Get model display name
+        model_display = self.model if self.model else "default"
+        provider_display = self.provider.capitalize()
 
-        welcome_text = RichText()
-        welcome_text.append("Devorbit CLI\n", style="bold cyan")
-        welcome_text.append("Provider: ", style="dim")
-        welcome_text.append(f"{self.provider}\n", style="green")
-        if self.model:
-            welcome_text.append("Model: ", style="dim")
-            welcome_text.append(f"{self.model}\n", style="green")
-        welcome_text.append("Working directory: ", style="dim")
-        welcome_text.append(f"{self.working_dir}\n", style="yellow")
-        welcome_text.append("\nType ", style="dim")
-        welcome_text.append("/help", style="bold")
-        welcome_text.append(" for available commands or ", style="dim")
-        welcome_text.append("/exit", style="bold")
-        welcome_text.append(" to quit", style="dim")
+        welcome_text = f"""{ORANGE}╭─ Devorbit v2.0.14 ──────────────────────────────────────────────────────────╮
+│                                                                             │
+│  {WHITE}Welcome back!{ORANGE}                                                              │
+│                                                                             │
+│         {WHITE}██████╗ ███████╗██╗   ██╗ ██████╗ ██████╗ ██████╗ ██╗████████╗{ORANGE}      │
+│         {WHITE}██╔══██╗██╔════╝██║   ██║██╔═══██╗██╔══██╗██╔══██╗██║╚══██╔══╝{ORANGE}      │
+│         {WHITE}██║  ██║█████╗  ██║   ██║██║   ██║██████╔╝██████╔╝██║   ██║{ORANGE}         │
+│         {WHITE}██║  ██║██╔══╝  ╚██╗ ██╔╝██║   ██║██╔══██╗██╔══██╗██║   ██║{ORANGE}         │
+│         {WHITE}██████╔╝███████╗ ╚████╔╝ ╚██████╔╝██║  ██║██████╔╝██║   ██║{ORANGE}         │
+│         {WHITE}╚═════╝ ╚══════╝  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝╚═════╝ ╚═╝   ╚═╝{ORANGE}         │
+│                                                                             │
+│  {GRAY}{provider_display} ·  {model_display}{ORANGE}
+│  {GRAY}{self.working_dir}{ORANGE}
+│                                                                             │
+╰─────────────────────────────────────────────────────────────────────────────╯{RESET}
 
-        panel = RichPanel(
-            welcome_text,
-            title="🤖 Welcome",
-            border_style="cyan",
-            padding=(1, 2),
-        )
-        self.console.print(panel)
-        self.console.print()
+{ORANGE}Tips for getting started{RESET}
+{WHITE}Run /init to create a DEVORBIT.md file with instructions for Devorbit{RESET}
+
+{ORANGE}Recent activity{RESET}
+{GRAY}No recent activity{RESET}
+"""
+
+        print(welcome_text)
 
     def add_message(
         self, role: str, content: str | list[ContentBlock] | list[dict[str, Any]]
