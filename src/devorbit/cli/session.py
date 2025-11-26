@@ -38,6 +38,13 @@ if TYPE_CHECKING:
     from devorbit._types import Message
 
 
+# ANSI escape codes for terminal colors
+ORANGE = "\033[38;5;208m"
+RESET = "\033[0m"
+GRAY = "\033[90m"
+WHITE = "\033[97m"
+
+
 class CLISession:
     """Manages a Devorbit CLI session."""
 
@@ -123,16 +130,10 @@ class CLISession:
 
     def display_welcome(self) -> None:
         """Display Claude Code style welcome banner."""
-        # Orange color for borders and headers
-        ORANGE = "\033[38;5;208m"
-        RESET = "\033[0m"
-        GRAY = "\033[90m"
-        WHITE = "\033[97m"
-        
         # Get model display name
         model_display = self.model if self.model else "default"
         provider_display = self.provider.capitalize()
-        
+
         welcome_text = f"""{ORANGE}╭─ Devorbit v2.0.14 ──────────────────────────────────────────────────────────╮
 │                                                                             │
 │  {WHITE}Welcome back!{ORANGE}                                                              │
@@ -144,7 +145,7 @@ class CLISession:
 │         {WHITE}██████╔╝███████╗ ╚████╔╝ ╚██████╔╝██║  ██║██████╔╝██║   ██║{ORANGE}         │
 │         {WHITE}╚═════╝ ╚══════╝  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝╚═════╝ ╚═╝   ╚═╝{ORANGE}         │
 │                                                                             │
-│  {GRAY}{provider_display} ·  {model_display}{ORANGE}                                                   
+│  {GRAY}{provider_display} ·  {model_display}{ORANGE}
 │  {GRAY}{self.working_dir}{ORANGE}
 │                                                                             │
 ╰─────────────────────────────────────────────────────────────────────────────╯{RESET}
@@ -155,7 +156,7 @@ class CLISession:
 {ORANGE}Recent activity{RESET}
 {GRAY}No recent activity{RESET}
 """
-        
+
         print(welcome_text)
 
     def add_message(
