@@ -26,7 +26,7 @@ from .session import CLISession
     "--provider",
     "-p",
     type=click.Choice(["anthropic", "openai", "gemini", "mistral", "codellama"]),
-    default="gemini",
+    default="anthropic",
     help="LLM provider to use (default: anthropic)",
 )
 @click.option(
@@ -41,7 +41,7 @@ from .session import CLISession
     "-k",
     type=str,
     default=None,
-    envvar="GOOGLE_API_KEY",
+    envvar="ANTHROPIC_API_KEY",
     help="API key for the provider (can also use env vars)",
 )
 @click.option(
