@@ -6,6 +6,9 @@ in a provider-agnostic way.
 
 from typing import TYPE_CHECKING
 
+from prompt_toolkit import prompt
+from prompt_toolkit.formatted_text import HTML
+
 from devorbit._models import MessageResponse, TextBlock, ToolUseBlock
 
 
@@ -21,6 +24,10 @@ class LLMHandler:
     agnostic way.
     """
 
+    # Default configuration (Claude Code-like behavior)
+    DEFAULT_MAX_TOOL_ROUNDS = 25  # Higher limit like Claude Code
+    PROMPT_CONTINUE_AT = 10  # Prompt user to continue after this many rounds
+
     def __init__(self, session: "CLISession") -> None:
         """Initialize LLM handler.
 
@@ -30,7 +37,46 @@ class LLMHandler:
         self.session = session
         self.max_tokens = 4096  # Default max tokens
         self.temperature: float | None = None  # Use provider default
-        self.max_tool_rounds = 5  # Max tool execution rounds to prevent loops
+        self.max_tool_rounds = self.DEFAULT_MAX_TOOL_ROUNDS
+        self.prompt_continue_at = self.PROMPT_CONTINUE_AT
+        self._tool_execution_count = 0  # Track total tool executions in session
+
+    def _should_prompt_continue(self, tool_round: int) -> bool:
+        """Check if we should prompt user to continue.
+
+        Args:
+            tool_round: Current tool round number
+
+        Returns:
+            True if we should prompt user to continue
+        """
+        return tool_round > 0 and tool_round % self.prompt_continue_at == 0
+
+    def _prompt_user_continue(self, tool_round: int) -> bool:
+        """Prompt user to continue execution (Claude Code-style).
+
+        Args:
+            tool_round: Current tool round number
+
+        Returns:
+            True if user wants to continue, False otherwise
+        """
+        self.session.print("")
+        self.session.print_warning(f"⚡ Executed {tool_round} tool rounds so far.")
+        self.session.print_info("The assistant is still working. Continue?")
+        self.session.print("")
+
+        try:
+            response = (
+                prompt(
+                    HTML("<style fg='cyan'>Continue? (y/n): </style>"),
+                )
+                .strip()
+                .lower()
+            )
+            return response in ("y", "yes", "")
+        except (KeyboardInterrupt, EOFError):
+            return False
 
     def send_message(
         self,
@@ -83,10 +129,21 @@ class LLMHandler:
         """
         full_response_text = ""
         tool_round = 0
+        user_stopped = False
 
-        # Tool execution loop
-        while tool_round < self.max_tool_rounds:
+        # Tool execution loop (Claude Code-style with continue prompt)
+        while tool_round < self.max_tool_rounds and not user_stopped:
             tool_round += 1
+
+            # Check if we should prompt user to continue (after every N rounds)
+            if self._should_prompt_continue(tool_round):
+                if not self._prompt_user_continue(tool_round):
+                    user_stopped = True
+                    self.session.print_info(
+                        f"Stopped after {tool_round} tool rounds. "
+                        "You can continue the conversation."
+                    )
+                    break
 
             self.session.streaming.start_streaming()
 
@@ -139,6 +196,8 @@ class LLMHandler:
                 # Execute approved tools
                 tool_results = []
                 for tool_call, approved in zip(tool_calls, tool_approvals, strict=False):
+                    self._tool_execution_count += 1
+
                     if not approved:
                         # Tool was denied, send denial result to Claude
                         tool_results.append(
@@ -205,8 +264,12 @@ class LLMHandler:
                 self.session.print_error(f"Streaming error: {e}")
                 raise
 
-        if tool_round >= self.max_tool_rounds:
-            self.session.print_warning("\n⚠ Reached maximum tool execution rounds")
+        # Handle reaching max rounds (Claude Code-style)
+        if tool_round >= self.max_tool_rounds and not user_stopped:
+            self.session.print_warning(
+                f"\n⚠ Reached maximum tool execution limit ({self.max_tool_rounds} rounds)"
+            )
+            self.session.print_info("The assistant was still working. You can ask it to continue.")
 
         return full_response_text
 
@@ -222,10 +285,21 @@ class LLMHandler:
         """
         full_response_text = ""
         tool_round = 0
+        user_stopped = False
 
-        # Tool execution loop
-        while tool_round < self.max_tool_rounds:
+        # Tool execution loop (Claude Code-style with continue prompt)
+        while tool_round < self.max_tool_rounds and not user_stopped:
             tool_round += 1
+
+            # Check if we should prompt user to continue (after every N rounds)
+            if self._should_prompt_continue(tool_round):
+                if not self._prompt_user_continue(tool_round):
+                    user_stopped = True
+                    self.session.print_info(
+                        f"Stopped after {tool_round} tool rounds. "
+                        "You can continue the conversation."
+                    )
+                    break
 
             self.session.print_info("Processing your request...")
 
@@ -264,6 +338,8 @@ class LLMHandler:
             # Execute approved tools
             tool_results = []
             for tool_call, approved in zip(tool_calls, tool_approvals, strict=False):
+                self._tool_execution_count += 1
+
                 if not approved:
                     # Tool was denied, send denial result to Claude
                     tool_results.append(
@@ -329,8 +405,12 @@ class LLMHandler:
                     response.usage.input_tokens + response.usage.output_tokens, 200000
                 )
 
-        if tool_round >= self.max_tool_rounds:
-            self.session.print_warning("\n⚠ Reached maximum tool execution rounds")
+        # Handle reaching max rounds (Claude Code-style)
+        if tool_round >= self.max_tool_rounds and not user_stopped:
+            self.session.print_warning(
+                f"\n⚠ Reached maximum tool execution limit ({self.max_tool_rounds} rounds)"
+            )
+            self.session.print_info("The assistant was still working. You can ask it to continue.")
 
         return full_response_text
 
