@@ -6,32 +6,33 @@
   "python.analysis.inlayHints.functionReturnTypes": true,
   "python.analysis.inlayHints.variableTypes": true,
 
-  // Formatting
+  // ============================================================
+  // FORMATTING - All tools read from pyproject.toml
+  // ============================================================
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter",
     "editor.formatOnSave": true,
+    // IMPORTANT: Disable auto organize imports - let isort handle it via pyproject.toml
     "editor.codeActionsOnSave": {
-      "source.organizeImports": "explicit"
+      "source.organizeImports": "never"
     }
   },
 
-  // Black formatter settings
+  // Black formatter - use pyproject.toml settings
   "black-formatter.args": [
-    "--line-length=100"
+    "--config=${workspaceFolder}/pyproject.toml"
   ],
 
-  // isort settings
+  // isort - MUST use pyproject.toml to match CI
   "isort.args": [
-    "--profile=black",
-    "--line-length=100"
+    "--settings-path=${workspaceFolder}/pyproject.toml"
   ],
+  "isort.check": true,
 
-  // Ruff linter settings
+  // Ruff linter - reads from pyproject.toml automatically
   "ruff.lint.enable": true,
   "ruff.lint.run": "onSave",
-  "ruff.format.args": [
-    "--line-length=100"
-  ],
+  "ruff.configuration": "${workspaceFolder}/pyproject.toml",
 
   // Mypy settings
   "mypy.enabled": true,
@@ -39,6 +40,7 @@
   "mypy.targets": [
     "src/devorbit"
   ],
+  "mypy.configFile": "${workspaceFolder}/pyproject.toml",
 
   // Editor settings for Python
   "editor.rulers": [100],
@@ -84,7 +86,7 @@
     "-v"
   ],
 
-  // Auto-save
+  // Auto-save - on focus change (not on type)
   "files.autoSave": "onFocusChange",
 
   // Editor improvements

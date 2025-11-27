@@ -262,19 +262,19 @@ class ToolApprovalPrompt:
         kb = KeyBindings()
         approved = [False]  # Use list for closure
 
-        @kb.add("y")  # type: ignore[misc]
-        @kb.add("Y")  # type: ignore[misc]
+        @kb.add("y")
+        @kb.add("Y")
         def _(event: Any) -> None:
             approved[0] = True
             event.app.exit(result=True)
 
-        @kb.add("n")  # type: ignore[misc]
-        @kb.add("N")  # type: ignore[misc]
+        @kb.add("n")
+        @kb.add("N")
         def _(event: Any) -> None:
             approved[0] = False
             event.app.exit(result=False)
 
-        @kb.add("c-c")  # type: ignore[misc]
+        @kb.add("c-c")
         def _(event: Any) -> None:
             approved[0] = False
             event.app.exit(result=False)
@@ -410,25 +410,25 @@ class ToolApprovalPrompt:
         kb = KeyBindings()
         choice = [""]
 
-        @kb.add("a")  # type: ignore[misc]
-        @kb.add("A")  # type: ignore[misc]
+        @kb.add("a")
+        @kb.add("A")
         def _(event: Any) -> None:
             choice[0] = "approve_all"
             event.app.exit(result="approve_all")
 
-        @kb.add("e")  # type: ignore[misc]
-        @kb.add("E")  # type: ignore[misc]
+        @kb.add("e")
+        @kb.add("E")
         def _(event: Any) -> None:
             choice[0] = "approve_each"
             event.app.exit(result="approve_each")
 
-        @kb.add("d")  # type: ignore[misc]
-        @kb.add("D")  # type: ignore[misc]
+        @kb.add("d")
+        @kb.add("D")
         def _(event: Any) -> None:
             choice[0] = "deny_all"
             event.app.exit(result="deny_all")
 
-        @kb.add("c-c")  # type: ignore[misc]
+        @kb.add("c-c")
         def _(event: Any) -> None:
             choice[0] = "deny_all"
             event.app.exit(result="deny_all")

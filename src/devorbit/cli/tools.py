@@ -206,12 +206,15 @@ class ToolExecutor:
         - Syntax highlighting support
 
         Args:
-            tool_input: Tool parameters (path, offset, limit)
+            tool_input: Tool parameters (file_path/path, offset, limit)
 
         Returns:
             File content with line numbers
         """
-        path_str = tool_input["path"]
+        # Accept both 'file_path' (SDK format) and 'path' (CLI format)
+        path_str = tool_input.get("file_path") or tool_input.get("path")
+        if not path_str:
+            return "Error: Missing 'file_path' or 'path' parameter"
 
         # Validate path
         path_validation = validate_path(
@@ -246,13 +249,16 @@ class ToolExecutor:
         - Safety checks
 
         Args:
-            tool_input: Tool parameters (path, content)
+            tool_input: Tool parameters (file_path/path, content)
 
         Returns:
             Success message with file details
         """
-        path_str = tool_input["path"]
-        content = tool_input["content"]
+        # Accept both 'file_path' (SDK format) and 'path' (CLI format)
+        path_str = tool_input.get("file_path") or tool_input.get("path")
+        if not path_str:
+            return "Error: Missing 'file_path' or 'path' parameter"
+        content = tool_input.get("content", "")
 
         # Validate path
         path_validation = validate_path(
@@ -287,14 +293,18 @@ class ToolExecutor:
         - Atomic operations
 
         Args:
-            tool_input: Tool parameters (path, old_text, new_text)
+            tool_input: Tool parameters (file_path/path, old_string/old_text, new_string/new_text)
 
         Returns:
             Success message with edit details and diff
         """
-        path_str = tool_input["path"]
-        old_text = tool_input["old_text"]
-        new_text = tool_input["new_text"]
+        # Accept both 'file_path' (SDK format) and 'path' (CLI format)
+        path_str = tool_input.get("file_path") or tool_input.get("path")
+        if not path_str:
+            return "Error: Missing 'file_path' or 'path' parameter"
+        # Accept both SDK and CLI parameter names
+        old_text = tool_input.get("old_string") or tool_input.get("old_text", "")
+        new_text = tool_input.get("new_string") or tool_input.get("new_text", "")
 
         # Validate path
         path_validation = validate_path(
@@ -460,8 +470,29 @@ class ToolExecutor:
             diff = result["diff"]
             return f"{message}\n\nDiff:\n{diff}"
 
+        # For grep_code: format search results (check before glob since both have "matches")
+        if "total_matches" in result:
+            matches = result.get("matches", [])
+            total = result.get("total_matches", 0)
+            if total == 0:
+                return "No matches found"
+            # Format grep results
+            output_lines = [f"Found {total} match(es):"]
+            for match in matches:
+                if isinstance(match, dict):
+                    file_path = match.get("file", "")
+                    content = match.get("content", "")
+                    try:
+                        rel_path = Path(file_path).relative_to(self.session.working_dir)
+                        output_lines.append(f"{rel_path}: {content}")
+                    except (ValueError, TypeError):
+                        output_lines.append(f"{file_path}: {content}")
+                else:
+                    output_lines.append(str(match))
+            return "\n".join(output_lines)
+
         # For glob_files: format matches
-        if "matches" in result:
+        if "matches" in result and "count" in result:
             matches = result["matches"]
             count = result["count"]
             if count == 0:
@@ -472,18 +503,10 @@ class ToolExecutor:
                 try:
                     rel_path = Path(match).relative_to(self.session.working_dir)
                     rel_matches.append(str(rel_path))
-                except ValueError:
+                except (ValueError, TypeError):
                     # If path is outside working_dir, show absolute
-                    rel_matches.append(match)
+                    rel_matches.append(str(match))
             return f"Found {count} file(s):\n" + "\n".join(rel_matches)
-
-        # For grep_code: format search results
-        if "results" in result:
-            results = result["results"]
-            if not results:
-                return "No matches found"
-            # SDK returns formatted results, return as string
-            return str(results) if results is not None else "No matches found"
 
         # Fallback: convert dict to string
         return str(result)
