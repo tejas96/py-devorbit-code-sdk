@@ -1,7 +1,8 @@
 """LLM interaction handler for Devorbit CLI with streaming support.
 
 This module handles message sending, streaming responses, and tool execution
-in a provider-agnostic way.
+in a provider-agnostic way. Includes automatic retry with exponential backoff
+for transient API errors.
 """
 
 from typing import TYPE_CHECKING
@@ -10,6 +11,7 @@ from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 
 from devorbit._models import MessageResponse, TextBlock, ToolUseBlock
+from devorbit._recovery import ErrorCategory, ErrorClassifier, RetryHandler
 
 
 if TYPE_CHECKING:
@@ -40,6 +42,30 @@ class LLMHandler:
         self.max_tool_rounds = self.DEFAULT_MAX_TOOL_ROUNDS
         self.prompt_continue_at = self.PROMPT_CONTINUE_AT
         self._tool_execution_count = 0  # Track total tool executions in session
+
+        # Initialize retry handler for API calls (Phase 5: Error Recovery)
+        self._retry_handler = RetryHandler(
+            max_retries=3,
+            initial_delay=1.0,
+            backoff_factor=2.0,
+            on_retry=self._on_api_retry,
+        )
+
+    def _on_api_retry(self, attempt: int, error: Exception, delay: float) -> None:
+        """Callback when API call is being retried.
+
+        Args:
+            attempt: Current retry attempt number
+            error: The error that triggered the retry
+            delay: Delay before next attempt in seconds
+        """
+        category = ErrorClassifier.classify(error)
+        if category == ErrorCategory.TRANSIENT:
+            self.session.print_warning(f"⚡ API error (attempt {attempt}/3): {error}")
+            self.session.print_info(f"Retrying in {delay:.1f}s...")
+        else:
+            # Non-transient error, will not retry but log for visibility
+            self.session.print_warning(f"⚠ API error: {error}")
 
     def _should_prompt_continue(self, tool_round: int) -> bool:
         """Check if we should prompt user to continue.

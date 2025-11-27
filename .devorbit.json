@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "post_file_write": [
+      {
+        "name": "notify_write",
+        "command": "echo \"✅ File written: $file_path\"",
+        "enabled": true
+      }
+    ],
+    "pre_tool_call": [
+      {
+        "name": "log_tool",
+        "command": "echo \"🔧 Tool called: $tool_name\"",
+        "enabled": true
+      }
+    ]
+  }
+}
