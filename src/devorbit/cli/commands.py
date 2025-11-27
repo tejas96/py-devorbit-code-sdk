@@ -12,12 +12,7 @@ from typing import TYPE_CHECKING
 
 # Import builtin commands to register them
 from . import builtin_commands as _builtin_commands  # noqa: F401
-from .core.commands import (
-    CommandContext,
-    CommandInvoker,
-    CommandResult,
-    get_command_registry,
-)
+from .core.commands import CommandContext, CommandInvoker, CommandResult, get_command_registry
 
 
 if TYPE_CHECKING:

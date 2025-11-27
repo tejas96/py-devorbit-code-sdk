@@ -12,12 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .core.commands import (
-    CommandCategory,
-    CommandContext,
-    CommandResult,
-    command,
-)
+from .core.commands import CommandCategory, CommandContext, CommandResult, command
 
 
 # =============================================================================
