@@ -40,12 +40,7 @@ from .context import (
     get_context_manager,
 )
 from .decorators import cli_tool, register_tool
-from .persistence import (
-    BackupManager,
-    FileCheckpoint,
-    SessionPersistence,
-    SessionState,
-)
+from .persistence import BackupManager, FileCheckpoint, SessionPersistence, SessionState
 from .registry import Registry, ToolRegistry
 from .validation import InputValidator, sanitize_path, validate_input
 

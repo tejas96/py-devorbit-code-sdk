@@ -19,13 +19,13 @@ Usage:
 
 from __future__ import annotations
 
-import threading
-import time
-import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path  # noqa: TC003 - Used at runtime in dataclass
+import threading
+import time
 from typing import TYPE_CHECKING, Any
+import uuid
 
 
 if TYPE_CHECKING:

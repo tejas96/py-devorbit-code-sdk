@@ -18,12 +18,12 @@ Usage:
 
 from __future__ import annotations
 
-import contextlib
-import threading
-import time
 from concurrent.futures import Future, ThreadPoolExecutor
+import contextlib
 from contextlib import contextmanager
 from dataclasses import dataclass
+import threading
+import time
 from typing import TYPE_CHECKING, Any, TypeVar
 
 
