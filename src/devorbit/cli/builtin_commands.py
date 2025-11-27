@@ -55,7 +55,7 @@ Available Commands:
     category_names = {
         CommandCategory.SYSTEM: "System",
         CommandCategory.NAVIGATION: "Navigation",
-        CommandCategory.SESSION: "Session",
+        CommandCategory.SESSION: "Session & Permissions",
         CommandCategory.MODEL: "Model",
         CommandCategory.MODE: "Mode",
         CommandCategory.HISTORY: "History",
@@ -487,6 +487,154 @@ def cmd_init(ctx: CommandContext) -> CommandResult:
         return CommandResult.ok()
     except PermissionError:
         return CommandResult.error(f"Permission denied: {devorbit_file}")
+
+
+# =============================================================================
+# Permission Commands
+# =============================================================================
+
+
+@command(
+    name="permissions",
+    description="Show or manage permission rules",
+    aliases=["perms", "perm"],
+    category=CommandCategory.SESSION,
+    usage="[list|add|remove|clear|audit]",
+    examples=[
+        "/permissions",
+        "/permissions list",
+        "/permissions add *.py allow write_file",
+        "/permissions remove *.py",
+        "/permissions audit",
+    ],
+)
+def cmd_permissions(ctx: CommandContext) -> CommandResult:
+    """Manage permission rules for tool execution.
+
+    Subcommands:
+        list - Show all active permission rules
+        add <pattern> <level> [tool] - Add a permission rule
+        remove <pattern> [tool] - Remove a permission rule
+        clear - Clear all permission rules
+        audit [count] - Show permission audit log
+    """
+    from .core.permissions import PermissionLevel, get_permission_manager
+
+    manager = get_permission_manager()
+
+    if not ctx.args:
+        ctx.args = ["list"]
+
+    subcommand = ctx.args[0].lower()
+
+    if subcommand == "list":
+        rules = manager.list_rules()
+        if not rules:
+            ctx.print_info("No permission rules configured")
+            ctx.print_info("Use /permissions add <pattern> <level> [tool] to add rules")
+            return CommandResult.ok()
+
+        ctx.print("\nActive Permission Rules:\n")
+        for i, rule in enumerate(rules, 1):
+            tool_str = f" (tool: {rule.tool})" if rule.tool else ""
+            category_str = f" [category: {rule.category.value}]" if rule.category else ""
+            ctx.print(f"  {i}. {rule.pattern} → {rule.level.name}{tool_str}{category_str}")
+            if rule.reason:
+                ctx.print(f"      Reason: {rule.reason}")
+
+        return CommandResult.ok()
+
+    if subcommand == "add":
+        if len(ctx.args) < 3:
+            return CommandResult.error(
+                "Usage: /permissions add <pattern> <level> [tool]\n"
+                "Levels: ALLOW, DENY, ASK, ASK_ONCE"
+            )
+
+        pattern = ctx.args[1]
+        level_name = ctx.args[2].upper()
+        tool = ctx.args[3] if len(ctx.args) > 3 else None
+
+        try:
+            level = PermissionLevel[level_name]
+        except KeyError:
+            return CommandResult.error(
+                f"Invalid level: {level_name}\n" "Valid levels: ALLOW, DENY, ASK, ASK_ONCE"
+            )
+
+        manager.add_rule(pattern=pattern, level=level, tool=tool)
+        ctx.print_success(f"Added rule: {pattern} → {level.name}")
+        return CommandResult.ok()
+
+    if subcommand == "remove":
+        if len(ctx.args) < 2:
+            return CommandResult.error("Usage: /permissions remove <pattern> [tool]")
+
+        pattern = ctx.args[1]
+        tool = ctx.args[2] if len(ctx.args) > 2 else None
+
+        if manager.remove_rule(pattern, tool):
+            ctx.print_success(f"Removed rule: {pattern}")
+        else:
+            ctx.print_warning(f"No matching rule found: {pattern}")
+
+        return CommandResult.ok()
+
+    if subcommand == "clear":
+        manager.store.clear_rules()
+        manager.clear_session()
+        ctx.print_success("Cleared all permission rules and session decisions")
+        return CommandResult.ok()
+
+    if subcommand == "audit":
+        limit = 20
+        if len(ctx.args) > 1:
+            try:
+                limit = int(ctx.args[1])
+            except ValueError:
+                return CommandResult.error("Invalid count argument")
+
+        entries = manager.get_audit_log(limit)
+        if not entries:
+            ctx.print_info("No permission audit entries")
+            return CommandResult.ok()
+
+        ctx.print(f"\nPermission Audit Log (last {len(entries)} entries):\n")
+        for entry in entries:
+            from datetime import datetime
+
+            dt = datetime.fromtimestamp(entry.timestamp).strftime("%H:%M:%S")
+            decision_icon = "✓" if entry.decision == PermissionLevel.ALLOW else "✗"
+            ctx.print(f"  [{dt}] {decision_icon} {entry.tool_name} ({entry.decision.name})")
+            if entry.rule_matched:
+                ctx.print(f"           Rule: {entry.rule_matched}")
+
+        return CommandResult.ok()
+
+    return CommandResult.error(f"Unknown subcommand: {subcommand}")
+
+
+@command(
+    name="autoapprove",
+    description="Toggle auto-approve for safe operations",
+    aliases=["auto"],
+    category=CommandCategory.MODE,
+)
+def cmd_autoapprove(ctx: CommandContext) -> CommandResult:
+    """Toggle auto-approve mode for safe operations.
+
+    When enabled, read and search operations are automatically approved.
+    Dangerous operations always require explicit approval.
+    """
+    ctx.session.auto_approve_tools = not ctx.session.auto_approve_tools
+    status = "enabled" if ctx.session.auto_approve_tools else "disabled"
+    ctx.print_success(f"Auto-approve mode {status}")
+
+    if ctx.session.auto_approve_tools:
+        ctx.print_info("Safe operations (read, search) will be auto-approved")
+        ctx.print_info("Dangerous operations still require explicit approval")
+
+    return CommandResult.ok()
 
 
 # Function to ensure all commands are registered
