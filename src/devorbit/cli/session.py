@@ -23,6 +23,7 @@ from devorbit import Devorbit
 from devorbit.core.hooks import get_registry, load_hooks_from_config
 
 from .permissions import ToolApprovalPrompt
+from .system_prompt import build_system_prompt
 from .tools import ToolExecutor
 from .ui import (
     CodeBlockDisplay,
@@ -110,9 +111,6 @@ class CLISession:
         self.is_running = True
         self.planning_mode = False
 
-        # System prompt for the LLM
-        self.system_prompt = self._build_system_prompt()
-
         # Initialize enhanced UI components
         self.notifications = NotificationManager(self.console, no_color)
         self.progress = ProgressIndicator(self.console, no_color)
@@ -129,6 +127,9 @@ class CLISession:
         self.tool_executor = ToolExecutor(self)
         self.tool_approval = ToolApprovalPrompt(self)
 
+        # System prompt for the LLM (after tool executor for dynamic tool list)
+        self.system_prompt = self._build_system_prompt()
+
         # Set initial status line values
         self.status_line.set_model(self.model, provider)
         self.status_line.set_project(working_dir or Path.cwd())
@@ -140,37 +141,20 @@ class CLISession:
         """Build the system prompt for the LLM.
 
         Returns:
-            System prompt string
+            Complete system prompt string with context
         """
-        return f"""You are Devorbit, an AI-powered coding assistant running in a terminal.
+        # Get list of available tools from tool executor
+        tools_available = None
+        if hasattr(self, "tool_executor"):
+            tool_defs = self.tool_executor.get_tool_definitions()
+            tools_available = [t.get("name", "") for t in tool_defs if t.get("name")]
 
-CAPABILITIES:
-- You have access to tools for reading, writing, and editing files
-- You can execute bash commands to interact with the system
-- You can search files using grep and glob patterns
-- You can view system information by running bash commands
-
-CURRENT CONTEXT:
-- Working directory: {self.working_dir}
-- Provider: {self.provider}
-- Model: {self.model}
-
-BEHAVIOR GUIDELINES:
-1. Be helpful, concise, and accurate
-2. When the user asks a simple greeting, respond conversationally without running tools
-3. When asked about system information (disk, memory, CPU), use the bash tool to run appropriate commands like `df -h`, `top -l 1`, `free -h`, etc.
-4. Only use tools when they are necessary to fulfill the user's request
-5. Always explain what you're doing before executing potentially impactful commands
-6. For file operations, confirm the target path before writing or modifying
-
-TOOL USAGE:
-- Use `bash` to run shell commands for system queries
-- Use `read_file` to view file contents
-- Use `write_file` to create or overwrite files
-- Use `edit_file` to modify specific parts of files
-- Use `grep` and `glob` for searching
-
-Remember: You're a coding assistant, so be helpful with programming tasks, code review, debugging, and system administration queries."""
+        return build_system_prompt(
+            working_dir=self.working_dir,
+            provider=self.provider,
+            model=self.model,
+            tools_available=tools_available,
+        )
 
     def _load_hooks_config(self) -> None:
         """Load hooks from .devorbit.json config file."""
