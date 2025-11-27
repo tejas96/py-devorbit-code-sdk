@@ -23,12 +23,12 @@ Usage:
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
 from pathlib import Path  # noqa: TC003 - Used at runtime in dataclass
-import time
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 
