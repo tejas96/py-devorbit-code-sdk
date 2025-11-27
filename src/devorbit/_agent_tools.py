@@ -5,20 +5,71 @@ This module provides Task tool and agent coordination capabilities:
 - Agent message passing and coordination
 - Task delegation and result aggregation
 - Multi-agent workflows
+- Async parallel task execution
+- Priority-based task scheduling
+- Timeout handling
 """
 
+from __future__ import annotations
+
+import asyncio
+import time
 import uuid
-from typing import Any
+from dataclasses import dataclass, field
+from enum import IntEnum
+from typing import TYPE_CHECKING, Any
 
 from ._tool_helpers import beta_tool
 
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+
+
 # Global state for active tasks
-_ACTIVE_TASKS: dict[str, "AgentTask"] = {}
+_ACTIVE_TASKS: dict[str, AgentTask] = {}
+
+
+class TaskPriority(IntEnum):
+    """Task execution priority (lower = higher priority)."""
+
+    CRITICAL = 0
+    HIGH = 25
+    NORMAL = 50
+    LOW = 75
+    BACKGROUND = 100
+
+
+class TaskStatus:
+    """Task status constants."""
+
+    PENDING = "pending"
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+
+
+@dataclass
+class TaskResult:
+    """Result of a task execution."""
+
+    task_id: str
+    status: str
+    result: Any = None
+    error: str | None = None
+    duration: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class AgentTask:
-    """Represents a running agent task."""
+    """Represents a running agent task with priority and timeout."""
 
     def __init__(
         self,
@@ -26,6 +77,8 @@ class AgentTask:
         agent_type: str,
         prompt: str,
         model: str | None = None,
+        priority: TaskPriority = TaskPriority.NORMAL,
+        timeout: float | None = None,
     ) -> None:
         """Initialize agent task.
 
@@ -34,19 +87,27 @@ class AgentTask:
             agent_type: Type of specialized agent
             prompt: Task prompt for the agent
             model: Optional model override
+            priority: Task execution priority
+            timeout: Optional timeout in seconds
         """
         self.task_id = task_id
         self.agent_type = agent_type
         self.prompt = prompt
         self.model = model
-        self.status = "pending"  # pending, running, completed, failed
+        self.priority = priority
+        self.timeout = timeout
+        self.status = TaskStatus.PENDING
         self.result: str | None = None
         self.error: str | None = None
         self.messages: list[dict[str, Any]] = []
+        self.created_at = time.time()
+        self.started_at: float | None = None
+        self.completed_at: float | None = None
 
     def start(self) -> None:
         """Start the agent task."""
-        self.status = "running"
+        self.status = TaskStatus.RUNNING
+        self.started_at = time.time()
 
     def complete(self, result: str) -> None:
         """Mark task as completed.
@@ -54,8 +115,9 @@ class AgentTask:
         Args:
             result: Task result
         """
-        self.status = "completed"
+        self.status = TaskStatus.COMPLETED
         self.result = result
+        self.completed_at = time.time()
 
     def fail(self, error: str) -> None:
         """Mark task as failed.
@@ -63,8 +125,20 @@ class AgentTask:
         Args:
             error: Error message
         """
-        self.status = "failed"
+        self.status = TaskStatus.FAILED
         self.error = error
+        self.completed_at = time.time()
+
+    def cancel(self) -> None:
+        """Cancel the task."""
+        self.status = TaskStatus.CANCELLED
+        self.completed_at = time.time()
+
+    def set_timeout(self) -> None:
+        """Mark task as timed out."""
+        self.status = TaskStatus.TIMEOUT
+        self.error = f"Task timed out after {self.timeout}s"
+        self.completed_at = time.time()
 
     def add_message(self, role: str, content: str) -> None:
         """Add message to task conversation.
@@ -78,6 +152,24 @@ class AgentTask:
                 "role": role,
                 "content": content,
             }
+        )
+
+    @property
+    def duration(self) -> float:
+        """Get task duration in seconds."""
+        if self.started_at is None:
+            return 0.0
+        end_time = self.completed_at or time.time()
+        return end_time - self.started_at
+
+    @property
+    def is_done(self) -> bool:
+        """Check if task is done (completed, failed, cancelled, timeout)."""
+        return self.status in (
+            TaskStatus.COMPLETED,
+            TaskStatus.FAILED,
+            TaskStatus.CANCELLED,
+            TaskStatus.TIMEOUT,
         )
 
 
@@ -144,6 +236,8 @@ def task(
     subagent_type: str,
     description: str | None = None,
     model: str | None = None,
+    priority: str | None = None,
+    timeout: float | None = None,
 ) -> dict[str, Any]:
     """Launch a specialized subagent to handle complex tasks autonomously.
 
@@ -162,6 +256,8 @@ def task(
         subagent_type: Type of specialized agent to use
         description: Short (3-5 word) description of the task
         model: Optional model override (sonnet, opus, haiku)
+        priority: Task priority (critical, high, normal, low, background)
+        timeout: Optional timeout in seconds
 
     Returns:
         Dictionary containing task ID and status
@@ -174,6 +270,16 @@ def task(
                 "available_types": list(AGENT_TYPES.keys()),
             }
 
+        # Parse priority
+        priority_map = {
+            "critical": TaskPriority.CRITICAL,
+            "high": TaskPriority.HIGH,
+            "normal": TaskPriority.NORMAL,
+            "low": TaskPriority.LOW,
+            "background": TaskPriority.BACKGROUND,
+        }
+        task_priority = priority_map.get(priority or "normal", TaskPriority.NORMAL)
+
         # Create task
         task_id = str(uuid.uuid4())
         agent_task = AgentTask(
@@ -181,6 +287,8 @@ def task(
             agent_type=subagent_type,
             prompt=prompt,
             model=model,
+            priority=task_priority,
+            timeout=timeout,
         )
 
         # Store task
@@ -191,9 +299,11 @@ def task(
 
         return {
             "task_id": task_id,
-            "status": "running",
+            "status": TaskStatus.RUNNING,
             "agent_type": subagent_type,
             "description": description or "Agent task",
+            "priority": task_priority.name,
+            "timeout": timeout,
             "message": (
                 f"Task {task_id} started with {subagent_type} agent. "
                 "The agent will work autonomously on the task."
@@ -313,12 +423,18 @@ class AgentCoordinator:
     """Coordinates multiple agents working together.
 
     Manages message passing, task delegation, and result aggregation
-    across multiple agent tasks.
+    across multiple agent tasks with async parallel execution.
     """
 
-    def __init__(self) -> None:
-        """Initialize agent coordinator."""
+    def __init__(self, max_concurrent: int = 5) -> None:
+        """Initialize agent coordinator.
+
+        Args:
+            max_concurrent: Maximum concurrent tasks
+        """
         self.agents: dict[str, AgentTask] = {}
+        self.max_concurrent = max_concurrent
+        self._semaphore: asyncio.Semaphore | None = None
 
     def register_agent(self, task: AgentTask) -> None:
         """Register an agent task.
@@ -362,9 +478,143 @@ class AgentCoordinator:
                 "status": task.status,
                 "result": task.result,
                 "error": task.error,
+                "duration": task.duration,
             }
             for task_id, task in self.agents.items()
         }
+
+    async def run_task_async(
+        self,
+        task: AgentTask,
+        executor: Callable[[AgentTask], Coroutine[Any, Any, str]],
+    ) -> TaskResult:
+        """Run a single task asynchronously with timeout.
+
+        Args:
+            task: Task to execute
+            executor: Async function that executes the task
+
+        Returns:
+            TaskResult with execution status
+        """
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self.max_concurrent)
+
+        async with self._semaphore:
+            task.start()
+            try:
+                if task.timeout:
+                    result = await asyncio.wait_for(
+                        executor(task),
+                        timeout=task.timeout,
+                    )
+                else:
+                    result = await executor(task)
+
+                task.complete(result)
+                return TaskResult(
+                    task_id=task.task_id,
+                    status=TaskStatus.COMPLETED,
+                    result=result,
+                    duration=task.duration,
+                )
+
+            except TimeoutError:
+                task.set_timeout()
+                return TaskResult(
+                    task_id=task.task_id,
+                    status=TaskStatus.TIMEOUT,
+                    error=task.error,
+                    duration=task.duration,
+                )
+
+            except Exception as e:
+                task.fail(str(e))
+                return TaskResult(
+                    task_id=task.task_id,
+                    status=TaskStatus.FAILED,
+                    error=str(e),
+                    duration=task.duration,
+                )
+
+    async def run_parallel(
+        self,
+        executor: Callable[[AgentTask], Coroutine[Any, Any, str]],
+        tasks: list[AgentTask] | None = None,
+    ) -> list[TaskResult]:
+        """Run multiple tasks in parallel with concurrency limit.
+
+        Args:
+            executor: Async function that executes each task
+            tasks: List of tasks to execute (default: all registered)
+
+        Returns:
+            List of TaskResults
+        """
+        task_list = tasks or list(self.agents.values())
+
+        # Sort by priority (lower = higher priority)
+        task_list.sort(key=lambda t: t.priority)
+
+        # Run all tasks concurrently
+        results = await asyncio.gather(
+            *[self.run_task_async(t, executor) for t in task_list],
+            return_exceptions=True,
+        )
+
+        # Convert exceptions to TaskResults
+        final_results: list[TaskResult] = []
+        for i, result in enumerate(results):
+            if isinstance(result, BaseException):
+                final_results.append(
+                    TaskResult(
+                        task_id=task_list[i].task_id,
+                        status=TaskStatus.FAILED,
+                        error=str(result),
+                    )
+                )
+            elif isinstance(result, TaskResult):
+                final_results.append(result)
+
+        return final_results
+
+    def get_pending_tasks(self) -> list[AgentTask]:
+        """Get all pending tasks sorted by priority.
+
+        Returns:
+            List of pending tasks
+        """
+        pending = [t for t in self.agents.values() if t.status == TaskStatus.PENDING]
+        return sorted(pending, key=lambda t: t.priority)
+
+    def get_completed_results(self) -> list[TaskResult]:
+        """Get results for all completed tasks.
+
+        Returns:
+            List of TaskResults for completed tasks
+        """
+        return [
+            TaskResult(
+                task_id=t.task_id,
+                status=t.status,
+                result=t.result,
+                error=t.error,
+                duration=t.duration,
+            )
+            for t in self.agents.values()
+            if t.is_done
+        ]
+
+    def cleanup_done(self) -> int:
+        """Remove completed tasks from registry.
+
+        Returns:
+            Number of tasks removed
+        """
+        done_ids = [tid for tid, t in self.agents.items() if t.is_done]
+        for tid in done_ids:
+            del self.agents[tid]
+        return len(done_ids)
 
 
 # ============================================================================
@@ -457,6 +707,9 @@ def list_agent_types() -> dict[str, dict[str, Any]]:
 __all__ = [
     "AgentCoordinator",
     "AgentTask",
+    "TaskPriority",
+    "TaskResult",
+    "TaskStatus",
     "cleanup_tasks",
     "get_agent_info",
     "get_all_agent_tools",

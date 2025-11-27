@@ -12,6 +12,7 @@ DESIGN PATTERNS:
 - Delegation: CLI delegates to SDK for actual tool execution
 - Adapter: CLI adapts LLM parameter names to SDK parameter names
 - Validation: All inputs validated before execution
+- Hooks: Pre/post hooks triggered during tool execution (Phase 5)
 """
 
 from pathlib import Path
@@ -19,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from devorbit._bash_tools import bash
 from devorbit._file_tools import edit_file, get_all_file_tools, read_file, write_file
+from devorbit._hooks import HookType, execute_hooks, get_registry
 from devorbit._search_tools import get_all_search_tools, glob_files, grep_code
 from devorbit._types import Tool
 
@@ -122,6 +124,8 @@ class ToolExecutor:
     def execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         """Execute a tool and return the result.
 
+        Triggers pre/post hooks if registered (Phase 5 integration).
+
         Args:
             tool_name: Name of the tool to execute
             tool_input: Input parameters for the tool
@@ -136,11 +140,162 @@ class ToolExecutor:
         if not handler:
             raise ValueError(f"Unknown tool: {tool_name}")
 
+        # Execute PRE_TOOL_CALL hooks (Phase 5)
+        pre_results = self._execute_pre_hooks(tool_name, tool_input)
+
+        # Check if any pre-hook stopped execution
+        for result in pre_results:
+            if result.get("stopped_chain") or not result.get("should_continue", True):
+                return f"Tool execution stopped by hook: {result.get('hook', 'unknown')}"
+
         try:
-            return handler(tool_input)
+            tool_result = handler(tool_input)
+
+            # Execute POST_TOOL_CALL hooks (Phase 5)
+            self._execute_post_hooks(tool_name, tool_input, tool_result)
+
+            return tool_result
         except Exception as e:
+            # Execute error hooks (Phase 5)
+            self._execute_error_hooks(tool_name, tool_input, e)
             # Return error as string for LLM to see
             return f"Error executing {tool_name}: {e}"
+
+    def _execute_pre_hooks(
+        self, tool_name: str, tool_input: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Execute pre-tool-call hooks.
+
+        Args:
+            tool_name: Name of tool being executed
+            tool_input: Tool parameters
+
+        Returns:
+            List of hook execution results
+        """
+        if not get_registry().is_enabled():
+            return []
+
+        results = execute_hooks(
+            HookType.PRE_TOOL_CALL,
+            context_data={
+                "tool_name": tool_name,
+                "tool_input": str(tool_input),
+                **tool_input,
+            },
+            metadata={
+                "working_dir": str(self.session.working_dir),
+            },
+        )
+
+        # Print shell hook output so it's visible to the user
+        self._display_hook_output(results)
+        return results
+
+    def _display_hook_output(self, results: list[dict[str, Any]]) -> None:
+        """Display output from shell hooks.
+
+        Args:
+            results: List of hook execution results
+        """
+        for result in results:
+            if result.get("skipped"):
+                continue
+
+            # Print stdout from shell hooks
+            stdout = result.get("stdout", "").strip()
+            if stdout:
+                self.session.print_info(f"[hook:{result.get('hook', 'unknown')}] {stdout}")
+
+            # Print stderr as warnings
+            stderr = result.get("stderr", "").strip()
+            if stderr:
+                self.session.print_warning(f"[hook:{result.get('hook', 'unknown')}] {stderr}")
+
+    def _execute_post_hooks(
+        self, tool_name: str, tool_input: dict[str, Any], result: str
+    ) -> list[dict[str, Any]]:
+        """Execute post-tool-call hooks.
+
+        Args:
+            tool_name: Name of tool that was executed
+            tool_input: Tool parameters
+            result: Tool execution result
+
+        Returns:
+            List of hook execution results
+        """
+        if not get_registry().is_enabled():
+            return []
+
+        # Determine specific hook type based on tool
+        hook_type = HookType.POST_TOOL_CALL
+
+        # Map tool names to specific file hook types
+        if tool_name == "write_file":
+            hook_type = HookType.POST_FILE_WRITE
+        elif tool_name == "read_file":
+            hook_type = HookType.POST_FILE_READ
+        elif tool_name == "edit_file":
+            hook_type = HookType.POST_FILE_EDIT
+
+        # Execute both specific and generic hooks
+        results = execute_hooks(
+            hook_type,
+            context_data={
+                "tool_name": tool_name,
+                "result": result[:500],  # Truncate for env var size limits
+                "file_path": tool_input.get("file_path", tool_input.get("path", "")),
+                **{k: str(v)[:200] for k, v in tool_input.items()},
+            },
+            metadata={
+                "working_dir": str(self.session.working_dir),
+            },
+        )
+
+        # Also execute generic POST_TOOL_CALL if we used a specific type
+        if hook_type != HookType.POST_TOOL_CALL:
+            generic_results = execute_hooks(
+                HookType.POST_TOOL_CALL,
+                context_data={
+                    "tool_name": tool_name,
+                    "result": result[:500],
+                    **{k: str(v)[:200] for k, v in tool_input.items()},
+                },
+            )
+            results.extend(generic_results)
+
+        # Display output from shell hooks
+        self._display_hook_output(results)
+        return results
+
+    def _execute_error_hooks(
+        self, tool_name: str, tool_input: dict[str, Any], error: Exception
+    ) -> list[dict[str, Any]]:
+        """Execute error hooks when tool execution fails.
+
+        Args:
+            tool_name: Name of tool that failed
+            tool_input: Tool parameters
+            error: The exception that occurred
+
+        Returns:
+            List of hook execution results
+        """
+        if not get_registry().is_enabled():
+            return []
+
+        return execute_hooks(
+            HookType.TOOL_ERROR,
+            context_data={
+                "tool_name": tool_name,
+                "error": str(error),
+                "error_type": type(error).__name__,
+            },
+            metadata={
+                "working_dir": str(self.session.working_dir),
+            },
+        )
 
     def _execute_bash(self, tool_input: dict[str, Any]) -> str:
         """Execute bash command using SDK's bash tool.
