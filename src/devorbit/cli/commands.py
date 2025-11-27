@@ -1,17 +1,32 @@
-"""Command handler for slash commands in Devorbit CLI."""
+"""Command handler for slash commands in Devorbit CLI.
 
-from pathlib import Path
+This module provides the CommandHandler class that bridges the REPL
+with the Command Pattern implementation in cli/core/commands.py.
+
+The actual command implementations are in builtin_commands.py.
+"""
+
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
+# Import builtin commands to register them
+from . import builtin_commands as _builtin_commands  # noqa: F401
+from .core.commands import CommandContext, CommandInvoker, CommandResult, get_command_registry
 
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
-from .session import CLISession
+    from .session import CLISession
 
 
 class CommandHandler:
-    """Handles slash commands in the REPL."""
+    """Handles slash commands in the REPL.
+
+    This class provides the interface between the REPL and the
+    Command Pattern implementation. It uses CommandInvoker for
+    execution and maintains backward compatibility with the
+    existing REPL interface.
+    """
 
     def __init__(self, session: CLISession) -> None:
         """Initialize command handler.
@@ -20,21 +35,8 @@ class CommandHandler:
             session: CLI session instance
         """
         self.session = session
-
-        # Register built-in commands
-        self.commands: dict[str, Callable[[list[str]], bool]] = {
-            "help": self.cmd_help,
-            "exit": self.cmd_exit,
-            "quit": self.cmd_exit,
-            "clear": self.cmd_clear,
-            "history": self.cmd_history,
-            "status": self.cmd_status,
-            "model": self.cmd_model,
-            "provider": self.cmd_provider,
-            "cd": self.cmd_cd,
-            "pwd": self.cmd_pwd,
-            "planning": self.cmd_planning,
-        }
+        self.registry = get_command_registry()
+        self.invoker = CommandInvoker(registry=self.registry)
 
     def handle_command(self, command_line: str) -> bool:
         """Handle a slash command.
@@ -45,234 +47,111 @@ class CommandHandler:
         Returns:
             True to continue REPL, False to exit
         """
-        # Parse command and arguments
-        parts = command_line[1:].split()
+        result = self.invoker.execute(command_line, self.session)
+
+        # Handle special cases
+        if result.data.get("action") == "toggle_multiline":
+            # Return True and let REPL handle multiline toggle
+            # The REPL checks for /multiline command specifically
+            return True
+
+        # Display messages based on result
+        if result.success:
+            if result.message and result.message not in ("toggle_multiline", ""):
+                # Message is informational, already printed by command
+                pass
+        elif result.message:
+            # Error message
+            self.session.print_error(result.message)
+
+        return result.continue_repl
+
+    def get_completions(self, prefix: str = "") -> list[str]:
+        """Get command name completions for autocomplete.
+
+        Args:
+            prefix: Prefix to filter by
+
+        Returns:
+            List of matching command names with / prefix
+        """
+        completions = self.registry.get_completions(prefix.lstrip("/"))
+        return ["/" + c for c in completions]
+
+    def is_command(self, text: str) -> bool:
+        """Check if text is a valid command.
+
+        Args:
+            text: Text to check
+
+        Returns:
+            True if text starts with / and is a known command
+        """
+        if not text.startswith("/"):
+            return False
+
+        parts = text[1:].split()
         if not parts:
-            self.session.print_error("Empty command")
-            return True
+            return False
 
-        cmd_name = parts[0].lower()
-        cmd_args = parts[1:]
+        return self.registry.exists(parts[0])
 
-        # Execute command
-        if cmd_name in self.commands:
-            return self.commands[cmd_name](cmd_args)
+    def get_command_help(self, command_name: str) -> str | None:
+        """Get help text for a specific command.
 
-        self.session.print_error(f"Unknown command: /{cmd_name}")
-        self.session.print("Type /help to see available commands")
-        return True
+        Args:
+            command_name: Command name (with or without /)
 
-    def cmd_help(self, args: list[str]) -> bool:
-        """Display help information.
+        Returns:
+            Help text or None if command not found
+        """
+        name = command_name.lstrip("/")
+        cmd = self.registry.get(name)
+        if cmd:
+            return cmd.get_help()
+        return None
+
+    def list_commands(self) -> list[str]:
+        """List all available command names.
+
+        Returns:
+            List of command names (without / prefix)
+        """
+        return [cmd.name for cmd in self.registry.list_commands()]
+
+    def execute_command(
+        self,
+        name: str,
+        args: list[str] | None = None,
+    ) -> CommandResult:
+        """Execute a command programmatically.
+
+        Args:
+            name: Command name (without /)
+            args: Command arguments
+
+        Returns:
+            CommandResult from execution
+        """
+        args = args or []
+        command_line = f"/{name} {' '.join(args)}".strip()
+        return self.invoker.execute(command_line, self.session)
+
+    def get_context(self, args: list[str] | None = None) -> CommandContext:
+        """Create a CommandContext for the current session.
 
         Args:
             args: Command arguments
 
         Returns:
-            True to continue REPL
+            CommandContext instance
         """
-        help_text = """
-Available Commands:
-
-    /help              - Show this help message
-    /exit, /quit       - Exit the REPL
-    /clear             - Clear conversation history
-    /history           - Show conversation history
-    /status            - Show current session status
-    /model [name]      - Show or change the current model
-    /provider          - Show current provider
-    /cd <path>         - Change working directory
-    /pwd               - Print working directory
-    /planning          - Toggle planning mode
-    /multiline         - Toggle multi-line input mode
-
-Input Features:
-    - Use @file.py to attach files to your message
-    - Use @**/*.py to attach files matching glob patterns
-    - Tab for autocomplete (commands, files, models)
-    - Ctrl+Enter to submit (multi-line mode)
-    - Ctrl+R to search command history
-
-System Information:
-    - Provider: {provider}
-    - Model: {model}
-    - Working Dir: {working_dir}
-    - Messages: {msg_count}
-
-Tips:
-    - Use Ctrl+D or /exit to quit
-    - Use Ctrl+C to cancel current operation
-    - Commands starting with / are system commands
-    - Everything else is sent to the LLM
-        """.format(
-            provider=self.session.provider,
-            model=self.session.model or "(default)",
+        return CommandContext(
+            session=self.session,
             working_dir=self.session.working_dir,
-            msg_count=len(self.session.messages),
+            args=args or [],
+            raw_input="",
         )
-        self.session.print(help_text)
-        return True
-
-    def cmd_exit(self, args: list[str]) -> bool:
-        """Exit the REPL.
-
-        Args:
-            args: Command arguments
-
-        Returns:
-            False to exit REPL
-        """
-        self.session.print("Goodbye! 👋")
-        self.session.is_running = False
-        return False
-
-    def cmd_clear(self, args: list[str]) -> bool:
-        """Clear conversation history.
-
-        Args:
-            args: Command arguments
-
-        Returns:
-            True to continue REPL
-        """
-        self.session.clear_history()
-        self.session.print_success("Conversation history cleared")
-        return True
-
-    def cmd_history(self, args: list[str]) -> bool:
-        """Show conversation history.
-
-        Args:
-            args: Command arguments
-
-        Returns:
-            True to continue REPL
-        """
-        if not self.session.messages:
-            self.session.print_info("No conversation history")
-            return True
-
-        self.session.print("\nConversation History:\n")
-        for i, msg in enumerate(self.session.messages, 1):
-            role = msg["role"]
-            content = msg["content"]
-            if isinstance(content, str):
-                preview = content[:100] + "..." if len(content) > 100 else content
-            else:
-                preview = str(content)[:100]
-
-            self.session.print(f"{i}. [{role}] {preview}")
-
-        self.session.print(f"\nTotal messages: {len(self.session.messages)}")
-        return True
-
-    def cmd_status(self, args: list[str]) -> bool:
-        """Show current session status.
-
-        Args:
-            args: Command arguments
-
-        Returns:
-            True to continue REPL
-        """
-        status = f"""
-Session Status:
-    Provider: {self.session.provider}
-    Model: {self.session.model or "(default)"}
-    Working Directory: {self.session.working_dir}
-    Messages: {len(self.session.messages)}
-    Planning Mode: {"Enabled" if self.session.planning_mode else "Disabled"}
-    Debug Mode: {"Enabled" if self.session.debug else "Disabled"}
-        """
-        self.session.print(status)
-        return True
-
-    def cmd_model(self, args: list[str]) -> bool:
-        """Show or change the current model.
-
-        Args:
-            args: Command arguments
-
-        Returns:
-            True to continue REPL
-        """
-        if not args:
-            self.session.print(f"Current model: {self.session.model or '(default)'}")
-        else:
-            new_model = args[0]
-            self.session.model = new_model
-            self.session.print_success(f"Model changed to: {new_model}")
-        return True
-
-    def cmd_provider(self, args: list[str]) -> bool:
-        """Show current provider.
-
-        Args:
-            args: Command arguments
-
-        Returns:
-            True to continue REPL
-        """
-        self.session.print(f"Current provider: {self.session.provider}")
-        self.session.print_info("Note: Provider cannot be changed during session")
-        return True
-
-    def cmd_cd(self, args: list[str]) -> bool:
-        """Change working directory.
-
-        Args:
-            args: Command arguments
-
-        Returns:
-            True to continue REPL
-        """
-        if not args:
-            self.session.print_error("Usage: /cd <path>")
-            return True
-
-        new_dir = Path(args[0]).expanduser().resolve()
-        if not new_dir.exists():
-            self.session.print_error(f"Directory not found: {new_dir}")
-            return True
-
-        if not new_dir.is_dir():
-            self.session.print_error(f"Not a directory: {new_dir}")
-            return True
-
-        self.session.working_dir = new_dir
-        self.session.print_success(f"Changed working directory to: {new_dir}")
-        return True
-
-    def cmd_pwd(self, args: list[str]) -> bool:
-        """Print working directory.
-
-        Args:
-            args: Command arguments
-
-        Returns:
-            True to continue REPL
-        """
-        self.session.print(str(self.session.working_dir))
-        return True
-
-    def cmd_planning(self, args: list[str]) -> bool:
-        """Toggle planning mode.
-
-        Args:
-            args: Command arguments
-
-        Returns:
-            True to continue REPL
-        """
-        self.session.planning_mode = not self.session.planning_mode
-        status = "enabled" if self.session.planning_mode else "disabled"
-        self.session.print_success(f"Planning mode {status}")
-
-        if self.session.planning_mode:
-            self.session.print_info(
-                "The agent will present plans for approval before executing changes"
-            )
-        return True
 
 
 __all__ = ["CommandHandler"]
