@@ -45,4 +45,3 @@ indent_size = 2
 # Git config files
 [.git*]
 indent_size = 2
-
