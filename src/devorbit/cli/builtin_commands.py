@@ -559,7 +559,7 @@ def cmd_permissions(ctx: CommandContext) -> CommandResult:
             level = PermissionLevel[level_name]
         except KeyError:
             return CommandResult.error(
-                f"Invalid level: {level_name}\n" "Valid levels: ALLOW, DENY, ASK, ASK_ONCE"
+                f"Invalid level: {level_name}\nValid levels: ALLOW, DENY, ASK, ASK_ONCE"
             )
 
         manager.add_rule(pattern=pattern, level=level, tool=tool)
