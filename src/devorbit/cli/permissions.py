@@ -442,8 +442,8 @@ class ToolApprovalPrompt:
             if choice[0] == "approve_all":
                 self.console.print("[bold green]✓ Approving all tools...[/bold green]")
                 # Approve everything (except dangerous in non-auto mode)
-                results = []
-                for (tool_name, tool_input), (is_dangerous, _) in zip(
+                results: list[bool] = []
+                for (tool_name, tool_input), (is_dangerous, _danger_reason) in zip(
                     tool_calls, tool_statuses, strict=False
                 ):
                     if is_dangerous and not self.session.auto_approve_tools:

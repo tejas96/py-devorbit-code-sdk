@@ -118,7 +118,7 @@ class MultiLineEditor:
                     default=default,
                     key_bindings=self.kb,
                 )
-                return text.strip()  # type: ignore[no-any-return]
+                return str(text).strip()
 
             # Fallback to basic input
             if use_multiline:
