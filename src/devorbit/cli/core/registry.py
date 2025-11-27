@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 
 if TYPE_CHECKING:
-    from devorbit._types import Tool
+    from devorbit.core.types import Tool
 
 
 T = TypeVar("T")

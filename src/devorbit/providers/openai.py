@@ -19,7 +19,7 @@ except ImportError:
     TIKTOKEN_AVAILABLE = False
     tiktoken = None
 
-from .._models import (
+from ..core.models import (
     MessageResponse,
     ResponseContentBlock,
     TextBlock,
@@ -27,7 +27,7 @@ from .._models import (
     ToolUseBlock,
     Usage,
 )
-from .._types import Message, StopReason, Tool
+from ..core.types import Message, StopReason, Tool
 from ._base import BaseProvider
 
 

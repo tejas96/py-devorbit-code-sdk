@@ -22,7 +22,7 @@ from .registry import ToolHandler, ToolRegistry, get_tool_registry
 
 
 if TYPE_CHECKING:
-    from devorbit._types import Tool
+    from devorbit.core.types import Tool
 
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -120,7 +120,7 @@ def register_tool(
 
     Example:
         ```python
-        from devorbit._bash_tools import bash
+        from devorbit.tools.bash import bash
 
         @register_tool(definition=bash.tool_definition)
         def bash_handler(tool_input: dict) -> str:

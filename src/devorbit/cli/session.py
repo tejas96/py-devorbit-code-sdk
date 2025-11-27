@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from devorbit._types import ContentBlock
+from devorbit.core.types import ContentBlock
 
 
 try:
@@ -20,9 +20,10 @@ except ImportError:
     HAS_RICH = False
 
 from devorbit import Devorbit
-from devorbit._hooks import get_registry, load_hooks_from_config
+from devorbit.core.hooks import get_registry, load_hooks_from_config
 
 from .permissions import ToolApprovalPrompt
+from .system_prompt import build_system_prompt
 from .tools import ToolExecutor
 from .ui import (
     CodeBlockDisplay,
@@ -37,7 +38,7 @@ from .ui import (
 
 
 if TYPE_CHECKING:
-    from devorbit._types import Message
+    from devorbit.core.types import Message
 
 
 # ANSI escape codes for terminal colors
@@ -126,12 +127,34 @@ class CLISession:
         self.tool_executor = ToolExecutor(self)
         self.tool_approval = ToolApprovalPrompt(self)
 
+        # System prompt for the LLM (after tool executor for dynamic tool list)
+        self.system_prompt = self._build_system_prompt()
+
         # Set initial status line values
         self.status_line.set_model(self.model, provider)
         self.status_line.set_project(working_dir or Path.cwd())
 
         # Load hooks from .devorbit.json config
         self._load_hooks_config()
+
+    def _build_system_prompt(self) -> str:
+        """Build the system prompt for the LLM.
+
+        Returns:
+            Complete system prompt string with context
+        """
+        # Get list of available tools from tool executor
+        tools_available = None
+        if hasattr(self, "tool_executor"):
+            tool_defs = self.tool_executor.get_tool_definitions()
+            tools_available = [t.get("name", "") for t in tool_defs if t.get("name")]
+
+        return build_system_prompt(
+            working_dir=self.working_dir,
+            provider=self.provider,
+            model=self.model,
+            tools_available=tools_available,
+        )
 
     def _load_hooks_config(self) -> None:
         """Load hooks from .devorbit.json config file."""

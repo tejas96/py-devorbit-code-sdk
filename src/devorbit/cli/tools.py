@@ -1,51 +1,43 @@
 """Tool execution system for Devorbit CLI.
 
-This module handles tool execution for the CLI, coordinating between
-LLM tool requests and actual tool implementations.
+This module handles tool execution for the CLI using the ToolRegistry.
 
-ARCHITECTURE PRINCIPLE:
-This module acts as a thin coordination layer, delegating actual tool
-execution to the SDK's built-in tools. This eliminates code duplication
-and ensures consistency across the platform.
+ARCHITECTURE (Phase 7 - Clean):
+- Uses ToolRegistry for auto-discovery of tools
+- Generic execution via registry.execute()
+- No manual tool handlers - tools register themselves
+- Hooks integration for pre/post execution
 
 DESIGN PATTERNS:
-- Delegation: CLI delegates to SDK for actual tool execution
-- Adapter: CLI adapts LLM parameter names to SDK parameter names
-- Validation: All inputs validated before execution
-- Hooks: Pre/post hooks triggered during tool execution (Phase 5)
+- Registry Pattern: Central tool registry for auto-discovery
+- Facade Pattern: Simple interface to complex tool system
+- Observer Pattern: Hooks for pre/post tool execution
 """
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from devorbit._bash_tools import bash
-from devorbit._file_tools import edit_file, get_all_file_tools, read_file, write_file
-from devorbit._hooks import HookType, execute_hooks, get_registry
-from devorbit._search_tools import get_all_search_tools, glob_files, grep_code
-from devorbit._types import Tool
+# Import tools module to trigger auto-registration
+import devorbit.tools  # noqa: F401
+from devorbit.core.hooks import HookType, execute_hooks
+from devorbit.core.tool_registry import get_tool_registry
+from devorbit.core.types import Tool
 
-from .core.validation import InputValidator, validate_command, validate_path
+from .core.validation import InputValidator, validate_command
 
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from .session import CLISession
 
 
 class ToolExecutor:
-    """Executes tools requested by the LLM.
+    """Executes tools requested by the LLM using the ToolRegistry.
 
-    This class bridges between LLM tool requests (in the form of ToolUseBlocks)
-    and actual tool implementations in the Devorbit SDK.
+    This class provides a clean interface for tool execution:
+    - get_tool_definitions(): Returns all tools for LLM
+    - execute_tool(): Executes any registered tool by name
 
-    ZERO DUPLICATION PRINCIPLE:
-    All tool execution is delegated to SDK implementations. This class only
-    handles:
-    1. Tool name -> SDK function mapping
-    2. Input parameter transformation (CLI conventions -> SDK format)
-    3. Output formatting for CLI display
-    4. Working directory context injection
+    All tools are auto-discovered from the registry - no manual handlers needed!
     """
 
     def __init__(self, session: "CLISession") -> None:
@@ -55,76 +47,24 @@ class ToolExecutor:
             session: CLI session instance
         """
         self.session = session
-
-        # Get or create bash session for persistent state
-        self._bash_session_id = f"cli_{id(session)}"
-
-        # Input validator with working directory context
         self._validator = InputValidator(base_dir=session.working_dir)
-
-        # Map tool names to execution functions
-        # All handlers delegate to SDK implementations
-        self.tool_handlers: dict[str, Callable[[dict[str, Any]], str]] = {
-            "bash": self._execute_bash,
-            "read_file": self._execute_read,
-            "write_file": self._execute_write,
-            "edit_file": self._execute_edit,
-            "grep": self._execute_grep,
-            "glob": self._execute_glob,
-        }
+        self._registry = get_tool_registry()
 
     def get_tool_definitions(self) -> list[Tool]:
         """Get all available tool definitions for the LLM.
 
-        Imports tool definitions directly from SDK modules to avoid duplication.
-        SDK tools are decorated with @beta_tool which auto-generates definitions.
+        Returns definitions from the ToolRegistry - tools auto-register themselves.
 
         Returns:
             List of tool definitions in Claude SDK format
         """
-        # ✅ Import tool definitions from SDK - zero duplication!
-        tools: list[dict[str, Any]] = []
-
-        # Get bash tool (only the main bash tool, not bash_output/kill_shell)
-        bash_def: dict[str, Any] = bash.tool_definition  # type: ignore[attr-defined]
-        tools.append(bash_def)
-
-        # Get file tools (read, write, edit - skip multi_edit and ls for now)
-        file_tools = get_all_file_tools()
-        for tool in file_tools:
-            if tool["name"] in ["read_file", "write_file", "edit_file"]:
-                tools.append(tool)
-
-        # Get search tools (grep, glob)
-        search_tools = get_all_search_tools()
-        # Map SDK tool names to CLI expected names
-        for tool in search_tools:
-            if tool["name"] == "grep_code":
-                # Create a copy and rename to 'grep' for CLI compatibility
-                grep_tool = tool.copy()
-                grep_tool["name"] = "grep"
-                # Update description to CLI format
-                grep_tool["description"] = (
-                    "Search for patterns in files using regex. "
-                    "Returns matching lines with line numbers."
-                )
-                # Map input_schema parameters (SDK uses different names)
-                tools.append(grep_tool)
-            elif tool["name"] == "glob_files":
-                # Create a copy and rename to 'glob' for CLI compatibility
-                glob_tool = tool.copy()
-                glob_tool["name"] = "glob"
-                glob_tool["description"] = (
-                    "Find files matching a glob pattern. Returns list of matching file paths."
-                )
-                tools.append(glob_tool)
-
-        return tools  # type: ignore[return-value]
+        return self._registry.get_all_definitions()
 
     def execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         """Execute a tool and return the result.
 
-        Triggers pre/post hooks if registered (Phase 5 integration).
+        Uses the ToolRegistry for generic execution.
+        Triggers pre/post hooks if registered.
 
         Args:
             tool_name: Name of the tool to execute
@@ -136,11 +76,12 @@ class ToolExecutor:
         Raises:
             ValueError: If tool is not found
         """
-        handler = self.tool_handlers.get(tool_name)
-        if not handler:
+        # Check if tool exists
+        tool = self._registry.get(tool_name)
+        if not tool:
             raise ValueError(f"Unknown tool: {tool_name}")
 
-        # Execute PRE_TOOL_CALL hooks (Phase 5)
+        # Execute PRE_TOOL_CALL hooks
         pre_results = self._execute_pre_hooks(tool_name, tool_input)
 
         # Check if any pre-hook stopped execution
@@ -149,17 +90,213 @@ class ToolExecutor:
                 return f"Tool execution stopped by hook: {result.get('hook', 'unknown')}"
 
         try:
-            tool_result = handler(tool_input)
+            # Prepare parameters (adapt CLI conventions to SDK)
+            params = self._prepare_params(tool_name, tool_input)
 
-            # Execute POST_TOOL_CALL hooks (Phase 5)
-            self._execute_post_hooks(tool_name, tool_input, tool_result)
+            # Log execution
+            self._log_execution(tool_name, params)
 
-            return tool_result
+            # Execute via registry
+            result = self._registry.execute(tool_name, params)
+
+            # Format result for CLI display
+            output = self._format_result(tool_name, result)
+
+            # Execute POST_TOOL_CALL hooks
+            self._execute_post_hooks(tool_name, tool_input, output)
+
+            return output
+
         except Exception as e:
-            # Execute error hooks (Phase 5)
+            error_msg = f"Error executing {tool_name}: {e!s}"
+
+            # Execute error hooks
             self._execute_error_hooks(tool_name, tool_input, e)
-            # Return error as string for LLM to see
-            return f"Error executing {tool_name}: {e}"
+
+            if self.session.debug:
+                import traceback
+
+                error_msg += f"\n{traceback.format_exc()}"
+
+            return error_msg
+
+    def _prepare_params(self, tool_name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
+        """Prepare parameters for tool execution.
+
+        Handles:
+        - Working directory injection
+        - Path resolution
+        - Parameter validation
+
+        Args:
+            tool_name: Tool name
+            tool_input: Raw input from LLM
+
+        Returns:
+            Prepared parameters for SDK tool
+        """
+        params = tool_input.copy()
+
+        # Handle bash tool
+        if tool_name == "bash":
+            # Validate command
+            if "command" in params:
+                cmd_validation = validate_command(params["command"])
+                if not cmd_validation.valid:
+                    raise ValueError(cmd_validation.to_error_string())
+                for warning in cmd_validation.warnings:
+                    self.session.print_warning(f"⚠️  {warning}")
+
+            # Set working directory
+            if "cwd" not in params:
+                params["cwd"] = str(self.session.working_dir)
+
+            # Set default timeout
+            if "timeout" not in params:
+                params["timeout"] = 60.0
+
+        # Handle file tools - resolve paths
+        elif tool_name in ("read_file", "write_file", "edit_file"):
+            # Handle path parameter (LLM might use 'path' or 'file_path')
+            file_path = params.get("file_path") or params.get("path")
+            if file_path:
+                resolved = self._resolve_path(file_path)
+                params["file_path"] = resolved
+                # Remove 'path' if it was used
+                params.pop("path", None)
+
+            # Handle content parameter for write_file
+            if tool_name == "write_file":
+                if "content" in params and "contents" not in params:
+                    params["contents"] = params.pop("content")
+
+        # Handle search tools
+        elif tool_name in ("grep", "glob"):
+            # Set default path to working directory
+            if "path" not in params:
+                params["path"] = str(self.session.working_dir)
+            else:
+                params["path"] = self._resolve_path(params["path"])
+
+        return params
+
+    def _resolve_path(self, path: str) -> str:
+        """Resolve a path relative to working directory.
+
+        Args:
+            path: Path to resolve
+
+        Returns:
+            Absolute path string
+        """
+        p = Path(path)
+        if not p.is_absolute():
+            p = self.session.working_dir / p
+        return str(p.resolve())
+
+    def _log_execution(self, tool_name: str, params: dict[str, Any]) -> None:
+        """Log tool execution for user visibility.
+
+        Args:
+            tool_name: Tool being executed
+            params: Parameters being used
+        """
+        if tool_name == "bash":
+            self.session.print_info(f"Executing: {params.get('command', '')}")
+        elif tool_name == "read_file":
+            self.session.print_info(f"Reading: {params.get('file_path', '')}")
+        elif tool_name == "write_file":
+            self.session.print_info(f"Writing: {params.get('file_path', '')}")
+        elif tool_name == "edit_file":
+            self.session.print_info(f"Editing: {params.get('file_path', '')}")
+        elif tool_name == "grep":
+            self.session.print_info(f"Searching: {params.get('pattern', '')}")
+        elif tool_name == "glob":
+            self.session.print_info(f"Finding: {params.get('pattern', '')}")
+
+    def _format_result(self, tool_name: str, result: Any) -> str:
+        """Format tool result for CLI display.
+
+        Args:
+            tool_name: Tool that was executed
+            result: Raw result from tool
+
+        Returns:
+            Formatted string for display
+        """
+        # Handle dict results (common for SDK tools)
+        if isinstance(result, dict):
+            if "error" in result:
+                return f"Error: {result['error']}"
+            if "output" in result:
+                return str(result["output"])
+            if "content" in result:
+                return self._format_file_content(result)
+            if "matches" in result:
+                return self._format_search_results(result)
+            # Default: return as string
+            return str(result)
+
+        # Handle string results
+        if isinstance(result, str):
+            return result
+
+        # Handle list results (e.g., glob)
+        if isinstance(result, list):
+            return "\n".join(str(item) for item in result)
+
+        return str(result)
+
+    def _format_file_content(self, result: dict[str, Any]) -> str:
+        """Format file content with line numbers.
+
+        Args:
+            result: Result dict with content
+
+        Returns:
+            Formatted content string
+        """
+        content = result.get("content", "")
+        if not content:
+            return "(empty file)"
+
+        lines = content.split("\n")
+        start_line = result.get("start_line", 1)
+
+        formatted_lines = []
+        for i, line in enumerate(lines, start=start_line):
+            formatted_lines.append(f"{i:6}\t{line}")
+
+        return "\n".join(formatted_lines)
+
+    def _format_search_results(self, result: dict[str, Any]) -> str:
+        """Format search results.
+
+        Args:
+            result: Result dict with matches
+
+        Returns:
+            Formatted results string
+        """
+        matches = result.get("matches", [])
+        if not matches:
+            return "No matches found"
+
+        output_lines = []
+        for match in matches:
+            if isinstance(match, dict):
+                file_path = match.get("file", "")
+                line_num = match.get("line", 0)
+                content = match.get("content", "")
+                output_lines.append(f"{file_path}:{line_num}: {content}")
+            else:
+                output_lines.append(str(match))
+
+        return "\n".join(output_lines)
+
+    # ========================================================================
+    # Hooks Integration
+    # ========================================================================
 
     def _execute_pre_hooks(
         self, tool_name: str, tool_input: dict[str, Any]
@@ -167,50 +304,35 @@ class ToolExecutor:
         """Execute pre-tool-call hooks.
 
         Args:
-            tool_name: Name of tool being executed
-            tool_input: Tool parameters
+            tool_name: Tool being called
+            tool_input: Tool input parameters
 
         Returns:
-            List of hook execution results
+            List of hook results
         """
-        if not get_registry().is_enabled():
-            return []
+        results: list[dict[str, Any]] = []
 
-        results = execute_hooks(
-            HookType.PRE_TOOL_CALL,
-            context_data={
-                "tool_name": tool_name,
-                "tool_input": str(tool_input),
-                **tool_input,
-            },
-            metadata={
-                "working_dir": str(self.session.working_dir),
-            },
-        )
+        try:
+            hook_results = execute_hooks(
+                HookType.PRE_TOOL_CALL,
+                context_data={
+                    "tool_name": tool_name,
+                    "tool_input": tool_input,
+                },
+                metadata={
+                    "working_dir": str(self.session.working_dir),
+                },
+            )
 
-        # Print shell hook output so it's visible to the user
-        self._display_hook_output(results)
+            for hr in hook_results:
+                results.append(hr)
+                self._display_hook_output(hr)
+
+        except Exception as e:
+            if self.session.debug:
+                self.session.print_warning(f"Pre-hook error: {e}")
+
         return results
-
-    def _display_hook_output(self, results: list[dict[str, Any]]) -> None:
-        """Display output from shell hooks.
-
-        Args:
-            results: List of hook execution results
-        """
-        for result in results:
-            if result.get("skipped"):
-                continue
-
-            # Print stdout from shell hooks
-            stdout = result.get("stdout", "").strip()
-            if stdout:
-                self.session.print_info(f"[hook:{result.get('hook', 'unknown')}] {stdout}")
-
-            # Print stderr as warnings
-            stderr = result.get("stderr", "").strip()
-            if stderr:
-                self.session.print_warning(f"[hook:{result.get('hook', 'unknown')}] {stderr}")
 
     def _execute_post_hooks(
         self, tool_name: str, tool_input: dict[str, Any], result: str
@@ -218,480 +340,100 @@ class ToolExecutor:
         """Execute post-tool-call hooks.
 
         Args:
-            tool_name: Name of tool that was executed
-            tool_input: Tool parameters
+            tool_name: Tool that was called
+            tool_input: Tool input parameters
             result: Tool execution result
 
         Returns:
-            List of hook execution results
+            List of hook results
         """
-        if not get_registry().is_enabled():
-            return []
+        results: list[dict[str, Any]] = []
 
-        # Determine specific hook type based on tool
-        hook_type = HookType.POST_TOOL_CALL
-
-        # Map tool names to specific file hook types
-        if tool_name == "write_file":
-            hook_type = HookType.POST_FILE_WRITE
-        elif tool_name == "read_file":
-            hook_type = HookType.POST_FILE_READ
-        elif tool_name == "edit_file":
-            hook_type = HookType.POST_FILE_EDIT
-
-        # Execute both specific and generic hooks
-        results = execute_hooks(
-            hook_type,
-            context_data={
-                "tool_name": tool_name,
-                "result": result[:500],  # Truncate for env var size limits
-                "file_path": tool_input.get("file_path", tool_input.get("path", "")),
-                **{k: str(v)[:200] for k, v in tool_input.items()},
-            },
-            metadata={
-                "working_dir": str(self.session.working_dir),
-            },
-        )
-
-        # Also execute generic POST_TOOL_CALL if we used a specific type
-        if hook_type != HookType.POST_TOOL_CALL:
-            generic_results = execute_hooks(
+        try:
+            hook_results = execute_hooks(
                 HookType.POST_TOOL_CALL,
                 context_data={
                     "tool_name": tool_name,
-                    "result": result[:500],
-                    **{k: str(v)[:200] for k, v in tool_input.items()},
+                    "tool_input": tool_input,
+                    "result": result[:1000],  # Truncate large results
+                },
+                metadata={
+                    "working_dir": str(self.session.working_dir),
                 },
             )
-            results.extend(generic_results)
 
-        # Display output from shell hooks
-        self._display_hook_output(results)
+            for hr in hook_results:
+                results.append(hr)
+                self._display_hook_output(hr)
+
+            # Special hooks for specific tools
+            if tool_name == "write_file":
+                file_path = tool_input.get("file_path") or tool_input.get("path", "")
+                write_results = execute_hooks(
+                    HookType.POST_FILE_WRITE,
+                    context_data={"file_path": file_path},
+                    metadata={"working_dir": str(self.session.working_dir)},
+                )
+                for wr in write_results:
+                    results.append(wr)
+                    self._display_hook_output(wr)
+
+        except Exception as e:
+            if self.session.debug:
+                self.session.print_warning(f"Post-hook error: {e}")
+
         return results
 
     def _execute_error_hooks(
         self, tool_name: str, tool_input: dict[str, Any], error: Exception
     ) -> list[dict[str, Any]]:
-        """Execute error hooks when tool execution fails.
+        """Execute error hooks when tool fails.
 
         Args:
-            tool_name: Name of tool that failed
-            tool_input: Tool parameters
+            tool_name: Tool that failed
+            tool_input: Tool input parameters
             error: The exception that occurred
 
         Returns:
-            List of hook execution results
+            List of hook results
         """
-        if not get_registry().is_enabled():
-            return []
+        results: list[dict[str, Any]] = []
 
-        return execute_hooks(
-            HookType.TOOL_ERROR,
-            context_data={
-                "tool_name": tool_name,
-                "error": str(error),
-                "error_type": type(error).__name__,
-            },
-            metadata={
-                "working_dir": str(self.session.working_dir),
-            },
-        )
-
-    def _execute_bash(self, tool_input: dict[str, Any]) -> str:
-        """Execute bash command using SDK's bash tool.
-
-        Delegates to SDK's bash implementation which provides:
-        - Persistent bash sessions with state retention
-        - Environment variable tracking
-        - Working directory persistence
-        - Background process support
-        - Output streaming
-
-        Args:
-            tool_input: Tool parameters (command, timeout, run_in_background)
-
-        Returns:
-            Command output formatted for CLI display
-        """
-        # Debug: print what we received
-        if self.session.debug:
-            self.session.print_info(f"DEBUG: tool_input = {tool_input}")
-
-        # Validate command parameter
-        if "command" not in tool_input:
-            available_keys = list(tool_input.keys())
-            return (
-                f"Error: 'command' parameter not found. "
-                f"Available keys: {available_keys}. "
-                f"Please provide a 'command' parameter with the bash command to execute."
+        try:
+            hook_results = execute_hooks(
+                HookType.TOOL_ERROR,
+                context_data={
+                    "tool_name": tool_name,
+                    "tool_input": tool_input,
+                    "error": str(error),
+                    "error_type": type(error).__name__,
+                },
+                metadata={
+                    "working_dir": str(self.session.working_dir),
+                },
             )
 
-        command = tool_input["command"]
+            for hr in hook_results:
+                results.append(hr)
+                self._display_hook_output(hr)
 
-        # Validate command (warnings for dangerous patterns)
-        cmd_validation = validate_command(command)
-        if not cmd_validation.valid:
-            return f"Error: {cmd_validation.to_error_string()}"
+        except Exception as e:
+            if self.session.debug:
+                self.session.print_warning(f"Error-hook error: {e}")
 
-        # Log warnings but don't block
-        for warning in cmd_validation.warnings:
-            self.session.print_warning(f"⚠️  {warning}")
+        return results
 
-        self.session.print_info(f"Executing: {command}")
-
-        # Delegate to SDK bash tool
-        result = bash(
-            command=command,
-            session_id=self._bash_session_id,
-            cwd=str(self.session.working_dir),
-            timeout=tool_input.get("timeout", 60.0),
-            run_in_background=tool_input.get("run_in_background", False),
-        )
-
-        # Format result for CLI display
-        return self._format_bash_result(result)
-
-    def _execute_read(self, tool_input: dict[str, Any]) -> str:
-        """Read file using SDK's read_file tool.
-
-        Delegates to SDK's read_file which provides:
-        - Line-numbered output (cat -n format)
-        - Offset/limit support for large files
-        - Safety checks and validation
-        - Syntax highlighting support
+    def _display_hook_output(self, hook_result: dict[str, Any]) -> None:
+        """Display hook output to CLI console.
 
         Args:
-            tool_input: Tool parameters (file_path/path, offset, limit)
-
-        Returns:
-            File content with line numbers
+            hook_result: Result from hook execution
         """
-        # Accept both 'file_path' (SDK format) and 'path' (CLI format)
-        path_str = tool_input.get("file_path") or tool_input.get("path")
-        if not path_str:
-            return "Error: Missing 'file_path' or 'path' parameter"
+        stdout = hook_result.get("stdout", "")
+        stderr = hook_result.get("stderr", "")
 
-        # Validate path
-        path_validation = validate_path(
-            path_str,
-            base_dir=self.session.working_dir,
-        )
-        if not path_validation.valid:
-            return f"Error: {path_validation.to_error_string()}"
+        if stdout and self.session.console:
+            self.session.print_info(stdout.strip())
 
-        # Resolve relative paths against working directory
-        file_path = self._resolve_path(path_str)
-
-        self.session.print_info(f"Reading: {file_path}")
-
-        # Delegate to SDK read_file tool
-        result = read_file(
-            file_path=str(file_path),
-            offset=tool_input.get("offset"),
-            limit=tool_input.get("limit"),
-        )
-
-        # Format result for CLI display
-        return self._format_tool_result(result)
-
-    def _execute_write(self, tool_input: dict[str, Any]) -> str:
-        """Write file using SDK's write_file tool.
-
-        Delegates to SDK's write_file which provides:
-        - Automatic directory creation
-        - Overwrite confirmation (when enabled)
-        - File size reporting
-        - Safety checks
-
-        Args:
-            tool_input: Tool parameters (file_path/path, content)
-
-        Returns:
-            Success message with file details
-        """
-        # Accept both 'file_path' (SDK format) and 'path' (CLI format)
-        path_str = tool_input.get("file_path") or tool_input.get("path")
-        if not path_str:
-            return "Error: Missing 'file_path' or 'path' parameter"
-        content = tool_input.get("content", "")
-
-        # Validate path
-        path_validation = validate_path(
-            path_str,
-            base_dir=self.session.working_dir,
-        )
-        if not path_validation.valid:
-            return f"Error: {path_validation.to_error_string()}"
-
-        # Resolve relative paths against working directory
-        file_path = self._resolve_path(path_str)
-
-        self.session.print_info(f"Writing: {file_path}")
-
-        # Delegate to SDK write_file tool
-        result = write_file(
-            file_path=str(file_path),
-            content=content,
-        )
-
-        # Format result for CLI display
-        return self._format_tool_result(result)
-
-    def _execute_edit(self, tool_input: dict[str, Any]) -> str:
-        """Edit file using SDK's edit_file tool.
-
-        Delegates to SDK's edit_file which provides:
-        - Exact string replacement
-        - Multiple occurrence detection
-        - Diff generation
-        - Backup creation
-        - Atomic operations
-
-        Args:
-            tool_input: Tool parameters (file_path/path, old_string/old_text, new_string/new_text)
-
-        Returns:
-            Success message with edit details and diff
-        """
-        # Accept both 'file_path' (SDK format) and 'path' (CLI format)
-        path_str = tool_input.get("file_path") or tool_input.get("path")
-        if not path_str:
-            return "Error: Missing 'file_path' or 'path' parameter"
-        # Accept both SDK and CLI parameter names
-        old_text = tool_input.get("old_string") or tool_input.get("old_text", "")
-        new_text = tool_input.get("new_string") or tool_input.get("new_text", "")
-
-        # Validate path
-        path_validation = validate_path(
-            path_str,
-            base_dir=self.session.working_dir,
-            must_exist=True,
-        )
-        if not path_validation.valid:
-            return f"Error: {path_validation.to_error_string()}"
-
-        # Resolve relative paths against working directory
-        file_path = self._resolve_path(path_str)
-
-        self.session.print_info(f"Editing: {file_path}")
-
-        # Delegate to SDK edit_file tool
-        # NOTE: SDK uses 'old_string'/'new_string', LLM provides 'old_text'/'new_text'
-        result = edit_file(
-            file_path=str(file_path),
-            old_string=old_text,  # Map old_text -> old_string
-            new_string=new_text,  # Map new_text -> new_string
-        )
-
-        # Format result for CLI display
-        return self._format_tool_result(result)
-
-    def _execute_grep(self, tool_input: dict[str, Any]) -> str:
-        """Search code using SDK's grep_code tool.
-
-        Delegates to SDK's grep_code which provides:
-        - Powerful regex search
-        - File type filtering
-        - Context lines (before/after)
-        - Case-insensitive search
-        - Multiline mode
-        - Output format options
-
-        Args:
-            tool_input: Tool parameters (pattern, path, file_pattern, etc.)
-
-        Returns:
-            Search results with matches
-        """
-        pattern = tool_input["pattern"]
-        path_str = tool_input.get("path", ".")
-
-        # Validate path
-        path_validation = validate_path(
-            path_str,
-            base_dir=self.session.working_dir,
-        )
-        if not path_validation.valid:
-            return f"Error: {path_validation.to_error_string()}"
-
-        # Resolve relative paths against working directory
-        search_path = self._resolve_path(path_str)
-
-        self.session.print_info(f"Searching for '{pattern}' in {search_path}")
-
-        # Map CLI parameters to SDK parameters
-        # CLI uses 'file_pattern', SDK uses 'glob'
-        glob_pattern = tool_input.get("file_pattern")
-
-        # Delegate to SDK grep_code tool
-        result = grep_code(
-            pattern=pattern,
-            path=str(search_path),
-            glob=glob_pattern,
-            output_mode="content",  # CLI wants full content, not just file names
-        )
-
-        # Format result for CLI display
-        return self._format_tool_result(result)
-
-    def _execute_glob(self, tool_input: dict[str, Any]) -> str:
-        """Find files using SDK's glob_files tool.
-
-        Delegates to SDK's glob_files which provides:
-        - Fast file pattern matching
-        - Recursive patterns (e.g., "**/*.py")
-        - Sorted by modification time
-        - File count reporting
-
-        Args:
-            tool_input: Tool parameters (pattern, path)
-
-        Returns:
-            List of matching files with count
-        """
-        pattern = tool_input["pattern"]
-        path_str = tool_input.get("path", ".")
-
-        # Validate path
-        path_validation = validate_path(
-            path_str,
-            base_dir=self.session.working_dir,
-        )
-        if not path_validation.valid:
-            return f"Error: {path_validation.to_error_string()}"
-
-        # Resolve relative paths against working directory
-        search_path = self._resolve_path(path_str)
-
-        self.session.print_info(f"Finding files matching: {pattern}")
-
-        # Delegate to SDK glob_files tool
-        result = glob_files(
-            pattern=pattern,
-            path=str(search_path),
-        )
-
-        # Format result for CLI display
-        return self._format_tool_result(result)
-
-    # ========================================================================
-    # Helper Methods
-    # ========================================================================
-
-    def _resolve_path(self, path_str: str) -> Path:
-        """Resolve a path string relative to working directory.
-
-        Args:
-            path_str: Path string (absolute or relative)
-
-        Returns:
-            Resolved absolute path
-        """
-        path = Path(path_str)
-        if not path.is_absolute():
-            path = self.session.working_dir / path
-        return path.resolve()
-
-    def _format_tool_result(self, result: dict[str, Any]) -> str:
-        """Format SDK tool result for CLI display.
-
-        SDK tools return structured dicts with either:
-        - Success: {content, file_path, line_count, etc.}
-        - Error: {error, file_path, etc.}
-
-        Args:
-            result: Tool result dict from SDK
-
-        Returns:
-            Formatted string for CLI display
-        """
-        # Check for errors
-        if "error" in result:
-            return f"Error: {result['error']}"
-
-        # For read_file: return content
-        if "content" in result:
-            content = result["content"]
-            return str(content) if content is not None else ""
-
-        # For write_file: return success message
-        if "message" in result:
-            message = result["message"]
-            return str(message) if message is not None else "Success"
-
-        # For edit_file: return diff and message
-        if "diff" in result:
-            message = result.get("message", "File edited successfully")
-            diff = result["diff"]
-            return f"{message}\n\nDiff:\n{diff}"
-
-        # For grep_code: format search results (check before glob since both have "matches")
-        if "total_matches" in result:
-            matches = result.get("matches", [])
-            total = result.get("total_matches", 0)
-            if total == 0:
-                return "No matches found"
-            # Format grep results
-            output_lines = [f"Found {total} match(es):"]
-            for match in matches:
-                if isinstance(match, dict):
-                    file_path = match.get("file", "")
-                    content = match.get("content", "")
-                    try:
-                        rel_path = Path(file_path).relative_to(self.session.working_dir)
-                        output_lines.append(f"{rel_path}: {content}")
-                    except (ValueError, TypeError):
-                        output_lines.append(f"{file_path}: {content}")
-                else:
-                    output_lines.append(str(match))
-            return "\n".join(output_lines)
-
-        # For glob_files: format matches
-        if "matches" in result and "count" in result:
-            matches = result["matches"]
-            count = result["count"]
-            if count == 0:
-                return "No files found matching pattern"
-            # Convert absolute paths to relative for CLI display
-            rel_matches = []
-            for match in matches:
-                try:
-                    rel_path = Path(match).relative_to(self.session.working_dir)
-                    rel_matches.append(str(rel_path))
-                except (ValueError, TypeError):
-                    # If path is outside working_dir, show absolute
-                    rel_matches.append(str(match))
-            return f"Found {count} file(s):\n" + "\n".join(rel_matches)
-
-        # Fallback: convert dict to string
-        return str(result)
-
-    def _format_bash_result(self, result: dict[str, Any]) -> str:
-        """Format bash execution result for CLI display.
-
-        Args:
-            result: Bash execution result from SDK
-
-        Returns:
-            Formatted output for CLI
-        """
-        # Check for errors
-        if "error" in result:
-            return f"Error: {result['error']}"
-
-        # Check for background task
-        if result.get("is_background"):
-            task_id = result.get("task_id", "unknown")
-            return f"Background task started: {task_id}\n{result.get('output', '')}"
-
-        # Regular output
-        output = result.get("output", "")
-        exit_code = result.get("exit_code", 0)
-
-        if exit_code != 0:
-            output += f"\nExit code: {exit_code}"
-
-        return output or "(no output)"
-
-
-__all__ = ["ToolExecutor"]
+        if stderr and self.session.console:
+            self.session.print_warning(stderr.strip())

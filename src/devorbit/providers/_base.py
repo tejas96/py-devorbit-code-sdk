@@ -7,8 +7,8 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
-from .._models import MessageResponse, TokenCountResponse
-from .._types import Message, Tool
+from ..core.models import MessageResponse, TokenCountResponse
+from ..core.types import Message, Tool
 
 
 class BaseProvider(ABC):

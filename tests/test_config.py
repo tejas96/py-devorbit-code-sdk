@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from devorbit._config import (
+from devorbit.core.config import (
     DevorbitConfig,
     load_config,
     load_devorbit_json,

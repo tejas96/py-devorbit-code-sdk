@@ -1,6 +1,6 @@
 """Tests for type definitions."""
 
-from devorbit._types import (
+from devorbit.core.types import (
     ImageContent,
     Message,
     MessageCreateParams,

@@ -17,8 +17,17 @@ class TestBash:
         cleanup_sessions()
 
     def test_bash_simple_command(self) -> None:
-        """Test executing a simple command."""
+        """Test executing a simple command (uses bash_simple by default)."""
         result = bash("echo 'Hello, World!'")
+
+        assert "error" not in result
+        assert "Hello, World!" in result["output"]
+        assert result["exit_code"] == 0
+        # Note: bash_simple doesn't return session_id (no persistent session)
+
+    def test_bash_simple_command_with_session(self) -> None:
+        """Test executing a simple command with persistent session."""
+        result = bash("echo 'Hello, World!'", session_id="test-simple")
 
         assert "error" not in result
         assert "Hello, World!" in result["output"]
@@ -85,8 +94,16 @@ class TestBash:
         assert "timed out" in result["error"].lower()
 
     def test_bash_command_error(self) -> None:
-        """Test handling command errors."""
+        """Test handling command errors (uses bash_simple by default)."""
         result = bash("nonexistent_command_xyz")
+
+        # Should complete even if command fails
+        # Note: bash_simple returns exit_code, not session_id
+        assert result["exit_code"] != 0
+
+    def test_bash_command_error_with_session(self) -> None:
+        """Test handling command errors with persistent session."""
+        result = bash("nonexistent_command_xyz", session_id="test-error")
 
         # Should complete even if command fails
         assert "session_id" in result
@@ -131,8 +148,8 @@ class TestBashOutput:
 
     def test_bash_output_session_status(self) -> None:
         """Test session status in output."""
-        # Create session
-        result = bash("echo 'test'")
+        # Create session with explicit session_id (required for persistent session)
+        result = bash("echo 'test'", session_id="test-status-session")
         session_id = result["session_id"]
 
         # Get output
