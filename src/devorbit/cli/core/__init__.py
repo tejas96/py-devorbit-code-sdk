@@ -6,9 +6,10 @@ This module provides the foundational patterns for the CLI:
 - Validation: Input validation and sanitization
 """
 
-from .registry import Registry, ToolRegistry
 from .decorators import cli_tool, register_tool
+from .registry import Registry, ToolRegistry
 from .validation import InputValidator, sanitize_path, validate_input
+
 
 __all__ = [
     # Registry

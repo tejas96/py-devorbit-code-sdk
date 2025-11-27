@@ -11,9 +11,9 @@ Security is a top priority - all validation is strict by default.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-import re
 from typing import Any
 
 
