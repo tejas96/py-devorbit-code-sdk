@@ -226,7 +226,69 @@ class BashSession:
 
 
 # ============================================================================
-# Enhanced Bash Tool
+# Simple Bash Execution (Recommended for CLI)
+# ============================================================================
+
+
+def bash_simple(
+    command: str,
+    cwd: str | None = None,
+    timeout: float | None = None,
+) -> dict[str, Any]:
+    """Execute a shell command using subprocess.run (simple, reliable).
+
+    This is a simpler, more robust approach that uses subprocess.run
+    directly without persistent sessions. Recommended for most CLI usage.
+
+    Args:
+        command: Shell command to execute
+        cwd: Working directory (default: current directory)
+        timeout: Command timeout in seconds (default: 120)
+
+    Returns:
+        Dictionary containing command output
+    """
+    if timeout is None:
+        timeout = 120.0
+
+    working_dir = Path(cwd) if cwd else Path.cwd()
+
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            shell=True,
+            capture_output=True,
+            text=True,
+            cwd=str(working_dir),
+            timeout=timeout,
+            env=os.environ.copy(),
+        )
+
+        output = result.stdout
+        if result.stderr:
+            output += f"\n[stderr]\n{result.stderr}" if output else result.stderr
+
+        return {
+            "output": output,
+            "exit_code": result.returncode,
+            "cwd": str(working_dir),
+        }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "error": f"Command timed out after {timeout}s",
+            "command": command,
+        }
+    except Exception as e:
+        return {
+            "error": f"Command failed: {e!s}",
+            "command": command,
+        }
+
+
+# ============================================================================
+# Enhanced Bash Tool (with optional persistent sessions)
 # ============================================================================
 
 
@@ -240,22 +302,26 @@ def bash(
 ) -> dict[str, Any]:
     """Execute shell commands with persistent session support.
 
-    Enhanced bash tool with persistent sessions, environment tracking,
-    and background execution support. Sessions maintain state across
-    multiple command executions.
+    By default, uses simple subprocess.run for reliability. For persistent
+    sessions with state retention, provide a session_id.
 
     Args:
         command: Shell command to execute
-        session_id: Session ID for persistent sessions (creates new if not provided)
-        cwd: Working directory (only used for new sessions)
+        session_id: Session ID for persistent sessions (uses simple mode if not provided)
+        cwd: Working directory (default: current directory)
         timeout: Command timeout in seconds (default: 120)
-        run_in_background: Run command in background
+        run_in_background: Run command in background (requires session_id)
 
     Returns:
         Dictionary containing command output and session information
     """
+    # Use simple mode by default (more reliable for CLI)
+    # Only use persistent sessions if explicitly requested
+    if session_id is None and not run_in_background:
+        return bash_simple(command, cwd, timeout)
+
     try:
-        # Get or create session
+        # Get or create session for persistent mode
         if session_id and session_id in _BASH_SESSIONS:
             session = _BASH_SESSIONS[session_id]
         else:

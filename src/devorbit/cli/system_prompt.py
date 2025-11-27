@@ -24,9 +24,7 @@ def build_system_prompt(
     Returns:
         Complete system prompt string
     """
-    tools_list = tools_available or [
-        "bash", "read_file", "write_file", "edit_file", "glob", "grep"
-    ]
+    tools_list = tools_available or ["bash", "read_file", "write_file", "edit_file", "glob", "grep"]
     tools_str = ", ".join(tools_list)
 
     return f"""You are Devorbit, an interactive AI coding assistant running in the user's terminal.
@@ -136,4 +134,3 @@ IMPORTANT:
 
 
 __all__ = ["DEFAULT_SYSTEM_PROMPT", "build_system_prompt"]
-
