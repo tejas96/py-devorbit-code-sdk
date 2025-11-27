@@ -2,6 +2,8 @@
 
 This module provides interactive prompts for approving tool executions
 before they run, with keyboard navigation and dangerous command detection.
+
+Now integrated with the core permission system (cli/core/permissions.py).
 """
 
 from __future__ import annotations
@@ -12,6 +14,13 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
+
+from .core.permissions import (
+    PermissionLevel,
+    PermissionManager,
+    ToolCategory,
+    get_permission_manager,
+)
 
 
 try:
@@ -122,7 +131,14 @@ class DangerousCommandDetector:
 
 
 class ToolApprovalPrompt:
-    """Interactive prompt for approving tool executions with Rich UI."""
+    """Interactive prompt for approving tool executions with Rich UI.
+
+    Now integrated with PermissionManager for:
+    - Persistent permission rules
+    - Session-based decisions (ask once)
+    - Audit logging
+    - Category-based defaults
+    """
 
     def __init__(self, session: CLISession):
         """Initialize the approval prompt.
@@ -132,6 +148,35 @@ class ToolApprovalPrompt:
         """
         self.session = session
         self.console = session.console if session.console else Console()
+
+        # Initialize permission manager with this prompt as callback
+        self._permission_manager = get_permission_manager()
+        self._permission_manager.prompt_callback = self._prompt_callback
+
+    def _prompt_callback(
+        self,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        is_dangerous: bool,
+        reason: str | None,
+    ) -> bool:
+        """Callback for PermissionManager to prompt user.
+
+        Args:
+            tool_name: Name of the tool
+            tool_input: Tool input parameters
+            is_dangerous: Whether operation is dangerous
+            reason: Reason for prompt
+
+        Returns:
+            True if approved, False if denied
+        """
+        return self.show_approval_prompt(tool_name, tool_input, is_dangerous, reason)
+
+    @property
+    def permission_manager(self) -> PermissionManager:
+        """Get the permission manager."""
+        return self._permission_manager
 
     def _create_tool_tree(
         self, tool_name: str, tool_input: dict[str, Any], is_dangerous: bool = False
@@ -303,6 +348,12 @@ class ToolApprovalPrompt:
     def approve_tool(self, tool_name: str, tool_input: dict[str, Any]) -> bool:
         """Check if a tool should be approved for execution.
 
+        Uses the PermissionManager for:
+        - Checking persistent rules
+        - Session-based decisions
+        - Audit logging
+        - Dangerous operation detection
+
         Args:
             tool_name: Name of the tool
             tool_input: Tool input parameters
@@ -310,20 +361,86 @@ class ToolApprovalPrompt:
         Returns:
             True if approved, False if denied
         """
-        # Check for dangerous operations
-        is_dangerous, danger_reason = DangerousCommandDetector.check_tool_call(
-            tool_name, tool_input
+        # Use permission manager for comprehensive check
+        allowed, level, reason = self._permission_manager.check_permission(
+            tool_name,
+            tool_input,
+            auto_approve=self.session.auto_approve_tools,
         )
 
-        # Show approval prompt
-        approved = self.show_approval_prompt(tool_name, tool_input, is_dangerous, danger_reason)
-
-        if approved:
-            self.session.print_success(f"✓ Approved: {tool_name}")
+        if allowed:
+            if level == PermissionLevel.ALLOW:
+                self.console.print(f"[dim]⚡ Auto-allowed:[/dim] [cyan]{tool_name}[/cyan]")
+            elif reason:
+                self.session.print_success(f"✓ Approved: {tool_name} ({reason})")
+            else:
+                self.session.print_success(f"✓ Approved: {tool_name}")
+        elif reason:
+            self.session.print_warning(f"✗ Denied: {tool_name} ({reason})")
         else:
             self.session.print_warning(f"✗ Denied: {tool_name}")
 
-        return approved
+        return allowed
+
+    def add_permission_rule(
+        self,
+        pattern: str,
+        level: PermissionLevel,
+        tool: str | None = None,
+        category: ToolCategory | None = None,
+        reason: str | None = None,
+    ) -> None:
+        """Add a permission rule.
+
+        Args:
+            pattern: Glob pattern to match
+            level: Permission level (ALLOW, DENY, ASK, ASK_ONCE)
+            tool: Specific tool (optional)
+            category: Tool category (optional)
+            reason: Reason for rule (optional)
+        """
+        self._permission_manager.add_rule(
+            pattern=pattern,
+            level=level,
+            tool=tool,
+            category=category,
+            reason=reason,
+        )
+
+    def remove_permission_rule(self, pattern: str, tool: str | None = None) -> bool:
+        """Remove a permission rule.
+
+        Args:
+            pattern: Pattern to match
+            tool: Specific tool (optional)
+
+        Returns:
+            True if rule was removed
+        """
+        return self._permission_manager.remove_rule(pattern, tool)
+
+    def list_permission_rules(self) -> list[Any]:
+        """List all permission rules.
+
+        Returns:
+            List of PermissionRule objects
+        """
+        return self._permission_manager.list_rules()
+
+    def clear_session_permissions(self) -> None:
+        """Clear session-level permission decisions."""
+        self._permission_manager.clear_session()
+
+    def get_audit_log(self, limit: int = 100) -> list[Any]:
+        """Get recent permission audit log.
+
+        Args:
+            limit: Maximum entries to return
+
+        Returns:
+            List of AuditLogEntry objects
+        """
+        return self._permission_manager.get_audit_log(limit)
 
     def approve_batch(self, tool_calls: list[tuple[str, dict[str, Any]]]) -> list[bool]:
         """Approve a batch of tool calls with Rich UI.
