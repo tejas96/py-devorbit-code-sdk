@@ -410,25 +410,25 @@ class ToolApprovalPrompt:
         kb = KeyBindings()
         choice = [""]
 
-        @kb.add("a")  # type: ignore[misc]
-        @kb.add("A")  # type: ignore[misc]
+        @kb.add("a")
+        @kb.add("A")
         def _(event: Any) -> None:
             choice[0] = "approve_all"
             event.app.exit(result="approve_all")
 
-        @kb.add("e")  # type: ignore[misc]
-        @kb.add("E")  # type: ignore[misc]
+        @kb.add("e")
+        @kb.add("E")
         def _(event: Any) -> None:
             choice[0] = "approve_each"
             event.app.exit(result="approve_each")
 
-        @kb.add("d")  # type: ignore[misc]
-        @kb.add("D")  # type: ignore[misc]
+        @kb.add("d")
+        @kb.add("D")
         def _(event: Any) -> None:
             choice[0] = "deny_all"
             event.app.exit(result="deny_all")
 
-        @kb.add("c-c")  # type: ignore[misc]
+        @kb.add("c-c")
         def _(event: Any) -> None:
             choice[0] = "deny_all"
             event.app.exit(result="deny_all")
@@ -442,8 +442,8 @@ class ToolApprovalPrompt:
             if choice[0] == "approve_all":
                 self.console.print("[bold green]✓ Approving all tools...[/bold green]")
                 # Approve everything (except dangerous in non-auto mode)
-                results = []
-                for (tool_name, tool_input), (is_dangerous, _) in zip(
+                results: list[bool] = []
+                for (tool_name, tool_input), (is_dangerous, _danger_reason) in zip(
                     tool_calls, tool_statuses, strict=False
                 ):
                     if is_dangerous and not self.session.auto_approve_tools:

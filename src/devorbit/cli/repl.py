@@ -101,8 +101,7 @@ class DevorbitREPL:
             and HTML is not None
             and self.prompt_style is not None
         ):
-            cwd = self.session.working_dir.name
-            return HTML(f"<prompt>devorbit</prompt> <path>{cwd}</path><prompt>></prompt> ")
+            return HTML("<prompt>devorbit</prompt> <prompt>></prompt> ")
         return "devorbit> "
 
     def read_input(self) -> str | None:

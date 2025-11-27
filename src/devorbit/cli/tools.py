@@ -7,6 +7,11 @@ ARCHITECTURE PRINCIPLE:
 This module acts as a thin coordination layer, delegating actual tool
 execution to the SDK's built-in tools. This eliminates code duplication
 and ensures consistency across the platform.
+
+DESIGN PATTERNS:
+- Delegation: CLI delegates to SDK for actual tool execution
+- Adapter: CLI adapts LLM parameter names to SDK parameter names
+- Validation: All inputs validated before execution
 """
 
 from pathlib import Path
@@ -16,6 +21,8 @@ from devorbit._bash_tools import bash
 from devorbit._file_tools import edit_file, get_all_file_tools, read_file, write_file
 from devorbit._search_tools import get_all_search_tools, glob_files, grep_code
 from devorbit._types import Tool
+
+from .core.validation import InputValidator, validate_command, validate_path
 
 
 if TYPE_CHECKING:
@@ -49,6 +56,9 @@ class ToolExecutor:
 
         # Get or create bash session for persistent state
         self._bash_session_id = f"cli_{id(session)}"
+
+        # Input validator with working directory context
+        self._validator = InputValidator(base_dir=session.working_dir)
 
         # Map tool names to execution functions
         # All handlers delegate to SDK implementations
@@ -103,7 +113,7 @@ class ToolExecutor:
                 glob_tool = tool.copy()
                 glob_tool["name"] = "glob"
                 glob_tool["description"] = (
-                    "Find files matching a glob pattern. " "Returns list of matching file paths."
+                    "Find files matching a glob pattern. Returns list of matching file paths."
                 )
                 tools.append(glob_tool)
 
@@ -162,6 +172,16 @@ class ToolExecutor:
             )
 
         command = tool_input["command"]
+
+        # Validate command (warnings for dangerous patterns)
+        cmd_validation = validate_command(command)
+        if not cmd_validation.valid:
+            return f"Error: {cmd_validation.to_error_string()}"
+
+        # Log warnings but don't block
+        for warning in cmd_validation.warnings:
+            self.session.print_warning(f"⚠️  {warning}")
+
         self.session.print_info(f"Executing: {command}")
 
         # Delegate to SDK bash tool
@@ -192,6 +212,14 @@ class ToolExecutor:
             File content with line numbers
         """
         path_str = tool_input["path"]
+
+        # Validate path
+        path_validation = validate_path(
+            path_str,
+            base_dir=self.session.working_dir,
+        )
+        if not path_validation.valid:
+            return f"Error: {path_validation.to_error_string()}"
 
         # Resolve relative paths against working directory
         file_path = self._resolve_path(path_str)
@@ -226,6 +254,14 @@ class ToolExecutor:
         path_str = tool_input["path"]
         content = tool_input["content"]
 
+        # Validate path
+        path_validation = validate_path(
+            path_str,
+            base_dir=self.session.working_dir,
+        )
+        if not path_validation.valid:
+            return f"Error: {path_validation.to_error_string()}"
+
         # Resolve relative paths against working directory
         file_path = self._resolve_path(path_str)
 
@@ -259,6 +295,15 @@ class ToolExecutor:
         path_str = tool_input["path"]
         old_text = tool_input["old_text"]
         new_text = tool_input["new_text"]
+
+        # Validate path
+        path_validation = validate_path(
+            path_str,
+            base_dir=self.session.working_dir,
+            must_exist=True,
+        )
+        if not path_validation.valid:
+            return f"Error: {path_validation.to_error_string()}"
 
         # Resolve relative paths against working directory
         file_path = self._resolve_path(path_str)
@@ -295,6 +340,14 @@ class ToolExecutor:
         """
         pattern = tool_input["pattern"]
         path_str = tool_input.get("path", ".")
+
+        # Validate path
+        path_validation = validate_path(
+            path_str,
+            base_dir=self.session.working_dir,
+        )
+        if not path_validation.valid:
+            return f"Error: {path_validation.to_error_string()}"
 
         # Resolve relative paths against working directory
         search_path = self._resolve_path(path_str)
@@ -333,6 +386,14 @@ class ToolExecutor:
         """
         pattern = tool_input["pattern"]
         path_str = tool_input.get("path", ".")
+
+        # Validate path
+        path_validation = validate_path(
+            path_str,
+            base_dir=self.session.working_dir,
+        )
+        if not path_validation.valid:
+            return f"Error: {path_validation.to_error_string()}"
 
         # Resolve relative paths against working directory
         search_path = self._resolve_path(path_str)
