@@ -6,11 +6,12 @@ Anthropic and AsyncAnthropic clients.
 
 from typing import Any
 
-from ._beta import AsyncBeta, Beta
-from ._errors import UnsupportedProviderError
-from ._types import ProviderType
-from .providers._base import BaseProvider
-from .resources import AsyncMessages, Messages
+from devorbit.providers._base import BaseProvider
+from devorbit.resources import AsyncMessages, Messages
+
+from .beta import AsyncBeta, Beta
+from .errors import UnsupportedProviderError
+from .types import ProviderType
 
 
 class Devorbit:
@@ -88,7 +89,7 @@ class Devorbit:
             UnsupportedProviderError: If provider is not supported
         """
         if provider == "anthropic":
-            from .providers.anthropic import AnthropicProvider  # noqa: PLC0415
+            from devorbit.providers.anthropic import AnthropicProvider  # noqa: PLC0415
 
             return AnthropicProvider(
                 api_key=api_key or "",
@@ -98,7 +99,7 @@ class Devorbit:
                 **kwargs,
             )
         if provider == "openai":
-            from .providers.openai import OpenAIProvider  # noqa: PLC0415
+            from devorbit.providers.openai import OpenAIProvider  # noqa: PLC0415
 
             return OpenAIProvider(
                 api_key=api_key or "",
@@ -108,7 +109,7 @@ class Devorbit:
                 **kwargs,
             )
         if provider == "gemini":
-            from .providers.gemini import GeminiProvider  # noqa: PLC0415
+            from devorbit.providers.gemini import GeminiProvider  # noqa: PLC0415
 
             return GeminiProvider(
                 api_key=api_key or "",
@@ -118,7 +119,7 @@ class Devorbit:
                 **kwargs,
             )
         if provider == "mistral":
-            from .providers.mistral import MistralProvider  # noqa: PLC0415
+            from devorbit.providers.mistral import MistralProvider  # noqa: PLC0415
 
             return MistralProvider(
                 api_key=api_key or "",
@@ -128,7 +129,7 @@ class Devorbit:
                 **kwargs,
             )
         if provider == "codellama":
-            from .providers.codellama import CodeLlamaProvider  # noqa: PLC0415
+            from devorbit.providers.codellama import CodeLlamaProvider  # noqa: PLC0415
 
             return CodeLlamaProvider(
                 api_key=api_key or "",
@@ -222,7 +223,7 @@ class AsyncDevorbit:
             UnsupportedProviderError: If provider is not supported
         """
         if provider == "anthropic":
-            from .providers.anthropic import AnthropicProvider  # noqa: PLC0415
+            from devorbit.providers.anthropic import AnthropicProvider  # noqa: PLC0415
 
             return AnthropicProvider(
                 api_key=api_key or "",
@@ -232,7 +233,7 @@ class AsyncDevorbit:
                 **kwargs,
             )
         if provider == "openai":
-            from .providers.openai import OpenAIProvider  # noqa: PLC0415
+            from devorbit.providers.openai import OpenAIProvider  # noqa: PLC0415
 
             return OpenAIProvider(
                 api_key=api_key or "",
@@ -242,7 +243,7 @@ class AsyncDevorbit:
                 **kwargs,
             )
         if provider == "gemini":
-            from .providers.gemini import GeminiProvider  # noqa: PLC0415
+            from devorbit.providers.gemini import GeminiProvider  # noqa: PLC0415
 
             return GeminiProvider(
                 api_key=api_key or "",
@@ -252,7 +253,7 @@ class AsyncDevorbit:
                 **kwargs,
             )
         if provider == "mistral":
-            from .providers.mistral import MistralProvider  # noqa: PLC0415
+            from devorbit.providers.mistral import MistralProvider  # noqa: PLC0415
 
             return MistralProvider(
                 api_key=api_key or "",
@@ -262,7 +263,7 @@ class AsyncDevorbit:
                 **kwargs,
             )
         if provider == "codellama":
-            from .providers.codellama import CodeLlamaProvider  # noqa: PLC0415
+            from devorbit.providers.codellama import CodeLlamaProvider  # noqa: PLC0415
 
             return CodeLlamaProvider(
                 api_key=api_key or "",

@@ -7,7 +7,7 @@ This module provides planning mode support matching Claude Code's behavior:
 
 from typing import Any
 
-from ._tool_helpers import beta_tool
+from .tool_helpers import beta_tool
 
 
 # ============================================================================

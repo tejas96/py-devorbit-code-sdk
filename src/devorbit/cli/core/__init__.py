@@ -17,17 +17,7 @@ Import from `devorbit` directly for:
 - Subagents: `from devorbit import AgentTask, AgentCoordinator, TaskPriority`
 """
 
-# Re-export SDK modules for backwards compatibility
-from devorbit._agent_tools import (
-    AgentCoordinator,
-    AgentTask,
-    TaskPriority,
-)
-from devorbit._agent_tools import TaskResult as AgentTaskResult
-from devorbit._agent_tools import (
-    TaskStatus,
-)
-from devorbit._hooks import (
+from devorbit.core.hooks import (
     Hook,
     HookContext,
     HookRegistry,
@@ -36,7 +26,7 @@ from devorbit._hooks import (
     hook,
     register_hook,
 )
-from devorbit._recovery import (
+from devorbit.core.recovery import (
     ErrorCategory,
     ErrorClassifier,
     ErrorInfo,
@@ -47,6 +37,17 @@ from devorbit._recovery import (
     get_recovery_manager,
     reset_recovery_manager,
     with_retry,
+)
+
+# Re-export SDK modules for backwards compatibility
+from devorbit.tools.agent import (
+    AgentCoordinator,
+    AgentTask,
+    TaskPriority,
+)
+from devorbit.tools.agent import TaskResult as AgentTaskResult
+from devorbit.tools.agent import (
+    TaskStatus,
 )
 
 from .commands import (

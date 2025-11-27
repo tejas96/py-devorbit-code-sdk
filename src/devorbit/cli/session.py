@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from devorbit._types import ContentBlock
+from devorbit.core.types import ContentBlock
 
 
 try:
@@ -20,7 +20,7 @@ except ImportError:
     HAS_RICH = False
 
 from devorbit import Devorbit
-from devorbit._hooks import get_registry, load_hooks_from_config
+from devorbit.core.hooks import get_registry, load_hooks_from_config
 
 from .permissions import ToolApprovalPrompt
 from .tools import ToolExecutor
@@ -37,7 +37,7 @@ from .ui import (
 
 
 if TYPE_CHECKING:
-    from devorbit._types import Message
+    from devorbit.core.types import Message
 
 
 # ANSI escape codes for terminal colors

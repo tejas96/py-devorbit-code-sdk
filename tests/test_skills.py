@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from devorbit._skills import (
+from devorbit.core.skills import (
     Skill,
     SkillRegistry,
     execute_skill,

@@ -3,52 +3,9 @@
 A unified Python SDK for multiple LLM providers with a Claude SDK-like interface.
 """
 
-from ._agent_tools import (
-    AgentCoordinator,
-    AgentTask,
-    TaskPriority,
-    TaskResult,
-    TaskStatus,
-    cleanup_tasks,
-    get_agent_info,
-    get_all_agent_tools,
-    list_active_tasks,
-    list_agent_types,
-    task,
-    task_cancel,
-    task_status,
-)
-from ._bash_tools import (
-    bash,
-    bash_output,
-    cleanup_sessions,
-    get_all_bash_tools,
-    kill_shell,
-    list_active_sessions,
-)
-from ._beta import AsyncBeta, Beta
-from ._builtin_tools import (
-    BASH_TOOL,
-    COMPUTER_USE_TOOL,
-    TEXT_EDITOR_TOOL,
-    create_bash_tool,
-    create_computer_use_tool,
-    create_text_editor_tool,
-    get_all_builtin_tools,
-)
-from ._client import AsyncDevorbit, Devorbit
-from ._commands import (
-    Command,
-    CommandRegistry,
-    execute_command,
-    get_all_command_tools,
-    list_slash_commands,
-    load_commands,
-    parse_command_invocation,
-    register_command,
-    run_slash_command,
-)
-from ._config import (
+from .core.beta import AsyncBeta, Beta
+from .core.client import AsyncDevorbit, Devorbit
+from .core.config import (
     DevorbitConfig,
     get_all_config_tools,
     load_config,
@@ -56,7 +13,7 @@ from ._config import (
     save_config,
     update_config,
 )
-from ._errors import (
+from .core.errors import (
     APIConnectionError,
     APIError,
     APIStatusError,
@@ -74,15 +31,7 @@ from ._errors import (
     UnprocessableEntityError,
     UnsupportedProviderError,
 )
-from ._file_tools import (
-    edit_file,
-    get_all_file_tools,
-    ls_directory,
-    multi_edit_file,
-    read_file,
-    write_file,
-)
-from ._hooks import (
+from .core.hooks import (
     Hook,
     HookContext,
     HookRegistry,
@@ -102,8 +51,8 @@ from ._hooks import (
     trigger_hook,
     unregister_hook,
 )
-from ._mcp import MCPClient, MCPManager, MCPServerConfig, load_mcp_config
-from ._models import (
+from .core.mcp import MCPClient, MCPManager, MCPServerConfig, load_mcp_config
+from .core.models import (
     BatchRequestCounts,
     BatchResult,
     ContentBlockDeltaEvent,
@@ -111,7 +60,6 @@ from ._models import (
     ContentBlockStopEvent,
     DocumentBlock,
     MessageBatchResponse,
-    MessageDeltaEvent,
     MessageResponse,
     MessageStartEvent,
     MessageStopEvent,
@@ -121,17 +69,7 @@ from ._models import (
     ToolUseBlock,
     Usage,
 )
-from ._notebook_tools import (
-    NotebookCell,
-    NotebookContent,
-    NotebookReadResult,
-    create_notebook_edit_tool,
-    create_notebook_read_tool,
-    get_all_notebook_tools,
-    notebook_edit,
-    notebook_read,
-)
-from ._planning import (
+from .core.planning import (
     PlanningState,
     cancel_plan,
     enter_planning_mode,
@@ -141,7 +79,7 @@ from ._planning import (
     get_planning_status,
     is_planning_active,
 )
-from ._plugins import (
+from .core.plugins import (
     BasePlugin,
     DevorbitPlugin,
     LoadedPlugin,
@@ -156,7 +94,7 @@ from ._plugins import (
     list_plugins,
     load_and_initialize_plugin,
 )
-from ._recovery import (
+from .core.recovery import (
     ErrorCategory,
     ErrorClassifier,
     ErrorInfo,
@@ -168,8 +106,7 @@ from ._recovery import (
     reset_recovery_manager,
     with_retry,
 )
-from ._search_tools import get_all_search_tools, glob_files, grep_code
-from ._skills import (
+from .core.skills import (
     Skill,
     SkillRegistry,
     execute_skill,
@@ -181,15 +118,8 @@ from ._skills import (
     run_skill,
     validate_skill,
 )
-from ._todo_tools import (
-    clear_todo_state,
-    get_all_todo_tools,
-    get_current_todos,
-    todo_read,
-    todo_write,
-)
-from ._tool_helpers import ToolExecutor, beta_tool, gather_tools
-from ._types import (
+from .core.tool_helpers import ToolExecutor, beta_tool, gather_tools
+from .core.types import (
     BashTool,
     BatchCreateParams,
     BatchRequest,
@@ -211,7 +141,76 @@ from ._types import (
     ToolResultContent,
     ToolUseContent,
 )
-from ._web_tools import (
+from .slash_commands.loader import (
+    Command,
+    CommandRegistry,
+    execute_command,
+    get_all_command_tools,
+    list_slash_commands,
+    load_commands,
+    parse_command_invocation,
+    register_command,
+    run_slash_command,
+)
+from .tools.agent import (
+    AgentCoordinator,
+    AgentTask,
+    TaskPriority,
+    TaskResult,
+    TaskStatus,
+    cleanup_tasks,
+    get_agent_info,
+    get_all_agent_tools,
+    list_active_tasks,
+    list_agent_types,
+    task,
+    task_cancel,
+    task_status,
+)
+from .tools.bash import (
+    bash,
+    bash_output,
+    cleanup_sessions,
+    get_all_bash_tools,
+    kill_shell,
+    list_active_sessions,
+)
+from .tools.builtin import (
+    BASH_TOOL,
+    COMPUTER_USE_TOOL,
+    TEXT_EDITOR_TOOL,
+    create_bash_tool,
+    create_computer_use_tool,
+    create_text_editor_tool,
+    get_all_builtin_tools,
+)
+from .tools.file import (
+    edit_file,
+    get_all_file_tools,
+    ls_directory,
+    multi_edit_file,
+    read_file,
+    write_file,
+)
+from .tools.notebook import (
+    NotebookCell,
+    NotebookContent,
+    NotebookReadResult,
+    create_notebook_edit_tool,
+    create_notebook_read_tool,
+    get_all_notebook_tools,
+    notebook_edit,
+    notebook_read,
+)
+from .tools.search import get_all_search_tools, glob_files, grep_code
+from .tools.todo import (
+    clear_todo_state,
+    get_all_todo_tools,
+    get_current_todos,
+    todo_read,
+    todo_write,
+)
+from .tools.web import (
     WebFetchResult,
     WebSearchResult,
     create_web_fetch_tool,
@@ -344,7 +343,6 @@ __all__ = [
     "Message",
     "MessageBatchResponse",
     "MessageCreateParams",
-    "MessageDeltaEvent",
     "MessageResponse",
     "MessageStartEvent",
     "MessageStopEvent",

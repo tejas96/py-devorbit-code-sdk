@@ -660,7 +660,7 @@ def cmd_hooks(ctx: CommandContext) -> CommandResult:
         enable  - Enable all hooks
         disable - Disable all hooks
     """
-    from devorbit._hooks import get_registry
+    from devorbit.core.hooks import get_registry
 
     registry = get_registry()
     subcommand = ctx.args[0].lower() if ctx.args else "list"
@@ -724,7 +724,7 @@ def cmd_recovery(ctx: CommandContext) -> CommandResult:
     The SDK automatically retries transient errors (timeouts, rate limits)
     with exponential backoff.
     """
-    from devorbit._recovery import RecoveryStrategy
+    from devorbit.core.recovery import RecoveryStrategy
 
     ctx.print("\nError Recovery System (Phase 5):\n")
     ctx.print("  The SDK automatically handles transient errors:\n")

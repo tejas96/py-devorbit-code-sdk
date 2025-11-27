@@ -7,7 +7,7 @@ This module provides robust error handling and recovery mechanisms:
 - Context-aware error handling
 
 Example:
-    from devorbit._recovery import RetryHandler, ErrorClassifier, RecoveryManager
+    from devorbit.core.recovery import RetryHandler, ErrorClassifier, RecoveryManager
 
     # Simple retry with backoff
     retry = RetryHandler(max_retries=3, backoff_factor=2.0)

@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from ._tool_helpers import beta_tool
+from .tool_helpers import beta_tool
 
 
 # ============================================================================

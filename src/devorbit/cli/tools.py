@@ -18,11 +18,11 @@ DESIGN PATTERNS:
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from devorbit._bash_tools import bash
-from devorbit._file_tools import edit_file, get_all_file_tools, read_file, write_file
-from devorbit._hooks import HookType, execute_hooks, get_registry
-from devorbit._search_tools import get_all_search_tools, glob_files, grep_code
-from devorbit._types import Tool
+from devorbit.core.hooks import HookType, execute_hooks, get_registry
+from devorbit.core.types import Tool
+from devorbit.tools.bash import bash
+from devorbit.tools.file import edit_file, get_all_file_tools, read_file, write_file
+from devorbit.tools.search import get_all_search_tools, glob_files, grep_code
 
 from .core.validation import InputValidator, validate_command, validate_path
 

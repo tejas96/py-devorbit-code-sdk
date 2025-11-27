@@ -1,6 +1,6 @@
 """Tests for hooks system."""
 
-from devorbit._hooks import (
+from devorbit.core.hooks import (
     Hook,
     HookContext,
     HookRegistry,

@@ -18,17 +18,17 @@ from typing import (
     get_type_hints,
 )
 
-from ._models import MessageResponse, ToolUseBlock
-from ._types import Message, Tool
+from .models import MessageResponse, ToolUseBlock
+from .types import Message, Tool
 
 
 if TYPE_CHECKING:
-    from ._mcp import MCPManager
+    from .mcp import MCPManager
 
 T = TypeVar("T")
 
 
-def beta_tool(func: Callable[..., T]) -> Callable[..., T]:
+def beta_tool(func: Callable[..., T]) -> Callable[..., T]:  # noqa: UP047
     """Decorator to convert a Python function into a tool definition.
 
     This mirrors Claude SDK's @beta_tool decorator.

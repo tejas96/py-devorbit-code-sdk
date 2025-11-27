@@ -19,7 +19,7 @@ from enum import Enum
 from functools import wraps
 from typing import Any
 
-from ._tool_helpers import beta_tool
+from .tool_helpers import beta_tool
 
 
 # ============================================================================

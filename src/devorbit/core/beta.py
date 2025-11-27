@@ -3,9 +3,9 @@
 This module provides the beta namespace similar to Claude SDK's beta features.
 """
 
-from .providers._base import BaseProvider
-from .resources.batches import AsyncMessageBatches, MessageBatches
-from .resources.messages import AsyncMessages, Messages
+from devorbit.providers._base import BaseProvider
+from devorbit.resources.batches import AsyncMessageBatches, MessageBatches
+from devorbit.resources.messages import AsyncMessages, Messages
 
 
 class BetaMessages(Messages):

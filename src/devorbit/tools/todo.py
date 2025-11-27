@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
-from ._tool_helpers import beta_tool
+from devorbit.core.tool_helpers import beta_tool
 
 
 # Task status types

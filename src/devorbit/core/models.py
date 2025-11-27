@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from ._types import StopReason
+from .types import StopReason
 
 
 # ============================================================================

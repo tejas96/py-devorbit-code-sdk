@@ -6,8 +6,8 @@ This module provides the Batches resource class for processing messages in batch
 import builtins
 from typing import Any
 
-from .._models import BatchResult, MessageBatchResponse
-from .._types import BatchRequest
+from ..core.models import BatchResult, MessageBatchResponse
+from ..core.types import BatchRequest
 from ..providers._base import BaseProvider
 
 

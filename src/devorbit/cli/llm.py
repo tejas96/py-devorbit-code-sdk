@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 
-from devorbit._models import MessageResponse, TextBlock, ToolUseBlock
-from devorbit._recovery import ErrorCategory, ErrorClassifier, RetryHandler
+from devorbit.core.models import MessageResponse, TextBlock, ToolUseBlock
+from devorbit.core.recovery import ErrorCategory, ErrorClassifier, RetryHandler
 
 
 if TYPE_CHECKING:

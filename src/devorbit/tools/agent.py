@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any
 
-from ._tool_helpers import beta_tool
+from devorbit.core.tool_helpers import beta_tool
 
 
 if TYPE_CHECKING:

@@ -3,7 +3,7 @@
 import pytest
 
 from devorbit import AsyncDevorbit, Devorbit
-from devorbit._errors import UnsupportedProviderError
+from devorbit.core.errors import UnsupportedProviderError
 
 
 def test_devorbit_init():

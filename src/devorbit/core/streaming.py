@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager, suppress
 from typing import Any
 
-from ._models import (
+from .models import (
     MessageResponse,
     ResponseContentBlock,
     TextBlock,

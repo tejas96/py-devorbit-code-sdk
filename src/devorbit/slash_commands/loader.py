@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ._tool_helpers import beta_tool
+from devorbit.core.tool_helpers import beta_tool
 
 
 # ============================================================================
