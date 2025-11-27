@@ -104,6 +104,14 @@ ignore_missing_imports = true
 module = "devorbit.providers.gemini"
 disable_error_code = ["attr-defined", "arg-type"]
 
+# CLI modules using prompt_toolkit decorators (untyped decorators from prompt_toolkit)
+[[tool.mypy.overrides]]
+module = [
+    "devorbit.cli.input.editor",
+    "devorbit.cli.permissions"
+]
+disable_error_code = ["misc"]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100
