@@ -1,4 +1,4 @@
-"""CLI session management with enhanced UI system."""
+"""CLI session management with Claude Code UI system."""
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -8,30 +8,16 @@ from devorbit._types import ContentBlock
 
 try:
     from rich.console import Console as RichConsole
-    from rich.panel import Panel as RichPanel
-    from rich.text import Text as RichText
 
     HAS_RICH = True
 except ImportError:
-    RichConsole = None  # type: ignore[assignment,misc]
-    RichPanel = None  # type: ignore[assignment,misc]
-    RichText = None  # type: ignore[assignment,misc]
+    RichConsole = None
     HAS_RICH = False
 
 from devorbit import Devorbit
 
 from .permissions import ToolApprovalPrompt
 from .tools import ToolExecutor
-from .ui import (
-    CodeBlockDisplay,
-    DiffDisplay,
-    LiveToolExecution,
-    NotificationManager,
-    ProgressIndicator,
-    StatusLine,
-    StreamingDisplay,
-    ToolCallDisplay,
-)
 
 
 if TYPE_CHECKING:
@@ -39,7 +25,7 @@ if TYPE_CHECKING:
 
 
 class CLISession:
-    """Manages a Devorbit CLI session."""
+    """Manages a Devorbit CLI session with Claude Code UI."""
 
     def __init__(
         self,
@@ -57,7 +43,7 @@ class CLISession:
             provider: LLM provider to use
             api_key: API key for the provider
             model: Specific model to use (optional)
-            working_dir: Working directory for file operations (default: current directory)
+            working_dir: Working directory for file operations
             no_color: Disable colored output
             debug: Enable debug mode
             auto_approve_tools: Automatically approve non-dangerous tool executions
@@ -65,7 +51,7 @@ class CLISession:
         self.provider = provider
         self.api_key = api_key
 
-        # Set model with provider-specific defaults if not specified
+        # Set model with provider-specific defaults
         if model is None:
             default_models = {
                 "anthropic": "claude-sonnet-4-5",
@@ -90,7 +76,7 @@ class CLISession:
 
         # Initialize Devorbit client
         self.client = Devorbit(
-            provider=provider,  # type: ignore[arg-type]
+            provider=provider,  # type: ignore
             api_key=api_key,
         )
 
@@ -101,57 +87,58 @@ class CLISession:
         self.is_running = True
         self.planning_mode = False
 
-        # Initialize enhanced UI components
-        self.notifications = NotificationManager(self.console, no_color)
-        self.progress = ProgressIndicator(self.console, no_color)
-        self.status_line = StatusLine(self.console, no_color=no_color)
-        self.streaming = StreamingDisplay(self.console, no_color)
-        self.tool_display = ToolCallDisplay(self.console, no_color)
-        self.live_tool_execution = LiveToolExecution(
-            self.console, no_color
-        )  # NEW: Animated tool execution
-        self.code_display = CodeBlockDisplay(self.console, no_color)
-        self.diff_display = DiffDisplay(self.console, no_color)
+        # Initialize Claude Code style displays
+        # Import here to avoid circular imports
+        from .ui.streaming_display_enhanced import (
+            ClaudeStyleStreamingDisplay,
+            ClaudeStyleToolDisplay,
+        )
+        
+        self.claude_streaming = ClaudeStyleStreamingDisplay(self.console, no_color)
+        self.claude_tool_display = ClaudeStyleToolDisplay(self.console, no_color)
 
         # Initialize tool executor and approval system
         self.tool_executor = ToolExecutor(self)
         self.tool_approval = ToolApprovalPrompt(self)
 
-        # Set initial status line values
-        self.status_line.set_model(self.model, provider)
-        self.status_line.set_project(working_dir or Path.cwd())
-
     def display_welcome(self) -> None:
-        """Display welcome banner."""
-        if not HAS_RICH or self.console is None or RichPanel is None or RichText is None:
+        """Display welcome banner - KEEPING ORIGINAL AS REQUESTED."""
+        if not HAS_RICH or self.console is None:
             print("Welcome to Devorbit CLI!")
             print(f"Provider: {self.provider}")
             print(f"Working directory: {self.working_dir}")
             return
 
-        welcome_text = RichText()
-        welcome_text.append("Devorbit CLI\n", style="bold cyan")
-        welcome_text.append("Provider: ", style="dim")
-        welcome_text.append(f"{self.provider}\n", style="green")
-        if self.model:
-            welcome_text.append("Model: ", style="dim")
-            welcome_text.append(f"{self.model}\n", style="green")
-        welcome_text.append("Working directory: ", style="dim")
-        welcome_text.append(f"{self.working_dir}\n", style="yellow")
-        welcome_text.append("\nType ", style="dim")
-        welcome_text.append("/help", style="bold")
-        welcome_text.append(" for available commands or ", style="dim")
-        welcome_text.append("/exit", style="bold")
-        welcome_text.append(" to quit", style="dim")
+        try:
+            from rich.panel import Panel
+            from rich.text import Text
 
-        panel = RichPanel(
-            welcome_text,
-            title="🤖 Welcome",
-            border_style="cyan",
-            padding=(1, 2),
-        )
-        self.console.print(panel)
-        self.console.print()
+            welcome_text = Text()
+            welcome_text.append("Devorbit CLI\n", style="bold cyan")
+            welcome_text.append("Provider: ", style="dim")
+            welcome_text.append(f"{self.provider}\n", style="green")
+            if self.model:
+                welcome_text.append("Model: ", style="dim")
+                welcome_text.append(f"{self.model}\n", style="green")
+            welcome_text.append("Working directory: ", style="dim")
+            welcome_text.append(f"{self.working_dir}\n", style="yellow")
+            welcome_text.append("\nType ", style="dim")
+            welcome_text.append("/help", style="bold")
+            welcome_text.append(" for available commands or ", style="dim")
+            welcome_text.append("/exit", style="bold")
+            welcome_text.append(" to quit", style="dim")
+
+            panel = Panel(
+                welcome_text,
+                title="🤖 Welcome",
+                border_style="cyan",
+                padding=(1, 2),
+            )
+            self.console.print(panel)
+            self.console.print()
+        except ImportError:
+            print("Welcome to Devorbit CLI!")
+            print(f"Provider: {self.provider}")
 
     def add_message(
         self, role: str, content: str | list[ContentBlock] | list[dict[str, Any]]
@@ -163,8 +150,8 @@ class CLISession:
             content: Message content
         """
         message: Message = {
-            "role": role,  # type: ignore[typeddict-item]
-            "content": content,  # type: ignore[typeddict-item]
+            "role": role,  # type: ignore
+            "content": content,  # type: ignore
         }
         self.messages.append(message)
 
@@ -176,8 +163,8 @@ class CLISession:
         """Print to console with proper formatting.
 
         Args:
-            *args: Positional arguments for print/console.print
-            **kwargs: Keyword arguments for print/console.print
+            *args: Positional arguments
+            **kwargs: Keyword arguments
         """
         if HAS_RICH and self.console is not None:
             self.console.print(*args, **kwargs)
@@ -185,33 +172,48 @@ class CLISession:
             print(*args, **kwargs)
 
     def print_error(self, message: str) -> None:
-        """Print an error message.
+        """Print an error message in Claude Code style.
 
         Args:
-            message: Error message to display
+            message: Error message
         """
-        self.notifications.error(message)
+        if self.console and not self.no_color:
+            self.console.print(f"[rgb(239,68,68)]✗[/rgb(239,68,68)] {message}")
+        else:
+            print(f"✗ {message}")
 
     def print_success(self, message: str) -> None:
-        """Print a success message.
+        """Print a success message in Claude Code style.
 
         Args:
-            message: Success message to display
+            message: Success message
         """
-        self.notifications.success(message)
+        if self.console and not self.no_color:
+            self.console.print(f"[rgb(16,185,129)]✓[/rgb(16,185,129)] {message}")
+        else:
+            print(f"✓ {message}")
 
     def print_info(self, message: str) -> None:
-        """Print an info message.
+        """Print an info message in Claude Code style.
 
         Args:
-            message: Info message to display
+            message: Info message
         """
-        self.notifications.info(message)
+        if self.console and not self.no_color:
+            self.console.print(f"[dim]{message}[/dim]")
+        else:
+            print(message)
 
     def print_warning(self, message: str) -> None:
-        """Print a warning message.
+        """Print a warning message in Claude Code style.
 
         Args:
-            message: Warning message to display
+            message: Warning message
         """
-        self.notifications.warning(message)
+        if self.console and not self.no_color:
+            self.console.print(f"[rgb(245,158,11)]⚠[/rgb(245,158,11)] {message}")
+        else:
+            print(f"⚠ {message}")
+
+
+__all__ = ["CLISession"]

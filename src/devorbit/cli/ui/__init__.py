@@ -11,6 +11,7 @@ from .notifications import NotificationManager, NotificationType
 from .progress import ProgressIndicator
 from .statusline import StatusLine
 from .tool_execution import LiveToolExecution
+from .streaming_display_enhanced import ClaudeStyleStreamingDisplay, ClaudeStyleToolDisplay
 
 
 __all__ = [
@@ -26,4 +27,6 @@ __all__ = [
     "StreamingDisplay",
     "ToolCallDisplay",
     "ArrowMenu",
+    "ClaudeStyleStreamingDisplay",
+    "ClaudeStyleToolDisplay",
 ]
