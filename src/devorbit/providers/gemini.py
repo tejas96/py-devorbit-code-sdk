@@ -3,6 +3,7 @@
 This provider translates between our unified interface and Google's Gemini API.
 """
 
+import json
 import os
 import random
 from collections.abc import AsyncIterator, Iterator
@@ -84,30 +85,85 @@ class GeminiProvider(BaseProvider):
             if isinstance(content, str):
                 gemini_messages.append({"role": role, "parts": [{"text": content}]})
             elif isinstance(content, list):
-                parts: list[dict[str, Any]] = []
-                for block in content:
-                    if block["type"] == "text":
-                        parts.append({"text": block["text"]})
-                    elif block["type"] == "image":
-                        source = block["source"]
-                        if source["type"] == "base64":
-                            # No need to decode - Gemini accepts base64 directly
-                            parts.append(
-                                {
-                                    "inline_data": {
-                                        "mime_type": source["media_type"],
-                                        "data": source["data"],
-                                    }
-                                }
-                            )
-                    elif block["type"] == "tool_result":
-                        # Gemini handles tool results differently
-                        parts.append({"text": str(block.get("content", ""))})
-
+                parts = self._convert_content_blocks(content)
                 if parts:
                     gemini_messages.append({"role": role, "parts": parts})
 
         return system, gemini_messages
+
+    def _convert_content_blocks(self, content: list[Any]) -> list[dict[str, Any]]:
+        """Convert content blocks to Gemini parts format.
+
+        Handles both dict blocks and dataclass blocks (TextBlock, ToolUseBlock).
+        """
+        parts: list[dict[str, Any]] = []
+        for block in content:
+            part = self._convert_single_block(block)
+            if part:
+                parts.append(part)
+        return parts
+
+    def _convert_single_block(self, block: Any) -> dict[str, Any] | None:
+        """Convert a single content block to Gemini part format."""
+        # Get block type (works for both dict and dataclass)
+        block_type = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+
+        if block_type == "text":
+            text = block.get("text", "") if isinstance(block, dict) else getattr(block, "text", "")
+            return {"text": text}
+
+        if block_type == "image":
+            return self._convert_image_block(block)
+
+        if block_type == "tool_use":
+            return self._convert_tool_use_block(block)
+
+        if block_type == "tool_result":
+            return self._convert_tool_result_block(block)
+
+        return None
+
+    def _convert_image_block(self, block: Any) -> dict[str, Any] | None:
+        """Convert image block to Gemini inline_data format."""
+        source = (
+            block.get("source", {}) if isinstance(block, dict) else getattr(block, "source", {})
+        )
+        source_type = (
+            source.get("type") if isinstance(source, dict) else getattr(source, "type", None)
+        )
+
+        if source_type != "base64":
+            return None
+
+        media_type = (
+            source.get("media_type", "")
+            if isinstance(source, dict)
+            else getattr(source, "media_type", "")
+        )
+        data = source.get("data", "") if isinstance(source, dict) else getattr(source, "data", "")
+        return {"inline_data": {"mime_type": media_type, "data": data}}
+
+    def _convert_tool_use_block(self, block: Any) -> dict[str, Any]:
+        """Convert tool use block to Gemini function_call format."""
+        tool_name = block.get("name", "") if isinstance(block, dict) else getattr(block, "name", "")
+        tool_input = (
+            block.get("input", {}) if isinstance(block, dict) else getattr(block, "input", {})
+        )
+        return {"function_call": {"name": tool_name, "args": tool_input or {}}}
+
+    def _convert_tool_result_block(self, block: Any) -> dict[str, Any]:
+        """Convert tool result block to Gemini function_response format."""
+        tool_content = (
+            block.get("content", "") if isinstance(block, dict) else getattr(block, "content", "")
+        )
+        tool_use_id = (
+            block.get("tool_use_id", "")
+            if isinstance(block, dict)
+            else getattr(block, "tool_use_id", "")
+        )
+        # Extract tool name from ID (format: "tool_name-1234")
+        name = tool_use_id.split("-")[0] if "-" in str(tool_use_id) else str(tool_use_id)
+        return {"function_response": {"name": name, "response": {"result": str(tool_content)}}}
 
     def _convert_tools_to_gemini(self, tools: list[Tool]) -> list[dict[str, Any]]:
         """Convert our tool format to Gemini format.
@@ -116,18 +172,77 @@ class GeminiProvider(BaseProvider):
             tools: Our tool format
 
         Returns:
-            Gemini tool format
+            Gemini tool format (function declarations)
         """
         gemini_tools: list[dict[str, Any]] = []
         for tool in tools:
+            # Convert JSON Schema to Gemini Schema format
+            input_schema = tool.get("input_schema", {})
+            gemini_params = self._convert_schema_to_gemini(input_schema)
+
             gemini_tools.append(
                 {
                     "name": tool["name"],
                     "description": tool["description"],
-                    "parameters": tool["input_schema"],
+                    "parameters": gemini_params,
                 }
             )
         return gemini_tools
+
+    def _convert_schema_to_gemini(self, schema: dict[str, Any]) -> dict[str, Any]:
+        """Convert JSON Schema to Gemini Schema format.
+
+        Gemini uses a different schema format than standard JSON Schema.
+        This converts between the two formats.
+
+        Args:
+            schema: JSON Schema format
+
+        Returns:
+            Gemini-compatible schema
+        """
+        if not schema:
+            return {}
+
+        gemini_schema: dict[str, Any] = {}
+
+        # Map JSON Schema types to Gemini types
+        type_mapping = {
+            "string": "STRING",
+            "number": "NUMBER",
+            "integer": "INTEGER",
+            "boolean": "BOOLEAN",
+            "array": "ARRAY",
+            "object": "OBJECT",
+        }
+
+        # Handle the type field
+        json_type = schema.get("type", "object")
+        gemini_schema["type"] = type_mapping.get(json_type, "STRING")
+
+        # Handle description
+        if "description" in schema:
+            gemini_schema["description"] = schema["description"]
+
+        # Handle properties (for object types)
+        if "properties" in schema:
+            gemini_schema["properties"] = {}
+            for prop_name, prop_schema in schema["properties"].items():
+                gemini_schema["properties"][prop_name] = self._convert_schema_to_gemini(prop_schema)
+
+        # Handle required fields
+        if "required" in schema:
+            gemini_schema["required"] = schema["required"]
+
+        # Handle array items
+        if "items" in schema:
+            gemini_schema["items"] = self._convert_schema_to_gemini(schema["items"])
+
+        # Handle enum
+        if "enum" in schema:
+            gemini_schema["enum"] = schema["enum"]
+
+        return gemini_schema
 
     def _convert_response(self, response: Any, model: str) -> MessageResponse:
         """Convert Gemini response to our format.
@@ -350,17 +465,96 @@ class GeminiProvider(BaseProvider):
                 tools=gemini_tools,
             )
 
+        # Emit message_start event (Claude SDK compatible)
+        yield {
+            "type": "message_start",
+            "message": {
+                "id": f"gemini-{random.randint(100000, 999999)}",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": model,
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            },
+        }
+
+        # Emit content_block_start event
+        yield {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "text", "text": ""},
+        }
+
         response = gemini_model.generate_content(
             gemini_messages, generation_config=generation_config, stream=True
         )
 
+        accumulated_text = ""
+        content_block_index = 0
+        has_text_block = True  # We already emitted content_block_start for text
+
         for chunk in response:
-            if chunk.text:
-                yield {
-                    "type": "content_block_delta",
-                    "index": 0,
-                    "delta": {"type": "text_delta", "text": chunk.text},
-                }
+            # Process each part in the chunk
+            for part in chunk.parts:
+                # Handle text content
+                if hasattr(part, "text") and part.text:
+                    accumulated_text += part.text
+                    yield {
+                        "type": "content_block_delta",
+                        "index": 0,
+                        "delta": {"type": "text_delta", "text": part.text},
+                    }
+
+                # Handle function calls (tool use)
+                elif hasattr(part, "function_call") and part.function_call:
+                    fc = part.function_call
+                    tool_id = f"{fc.name}-{random.randint(1000, 9999)}"
+
+                    # Close text block if we had one
+                    if has_text_block:
+                        yield {"type": "content_block_stop", "index": content_block_index}
+                        content_block_index += 1
+                        has_text_block = False
+
+                    # Emit tool use block start
+                    yield {
+                        "type": "content_block_start",
+                        "index": content_block_index,
+                        "content_block": {
+                            "type": "tool_use",
+                            "id": tool_id,
+                            "name": fc.name,
+                            "input": {},
+                        },
+                    }
+
+                    # Emit tool input as JSON delta
+                    input_json = json.dumps(dict(fc.args))
+                    yield {
+                        "type": "content_block_delta",
+                        "index": content_block_index,
+                        "delta": {"type": "input_json_delta", "partial_json": input_json},
+                    }
+
+                    # Close tool use block
+                    yield {"type": "content_block_stop", "index": content_block_index}
+                    content_block_index += 1
+
+        # Close text block if still open
+        if has_text_block:
+            yield {"type": "content_block_stop", "index": 0}
+
+        # Emit message_delta event with stop reason
+        yield {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+            "usage": {"output_tokens": len(accumulated_text.split())},
+        }
+
+        # Emit message_stop event
+        yield {"type": "message_stop"}
 
     async def astream_message(
         self,
@@ -404,17 +598,96 @@ class GeminiProvider(BaseProvider):
                 tools=gemini_tools,
             )
 
+        # Emit message_start event (Claude SDK compatible)
+        yield {
+            "type": "message_start",
+            "message": {
+                "id": f"gemini-{random.randint(100000, 999999)}",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": model,
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            },
+        }
+
+        # Emit content_block_start event
+        yield {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "text", "text": ""},
+        }
+
         response = await gemini_model.generate_content_async(
             gemini_messages, generation_config=generation_config, stream=True
         )
 
+        accumulated_text = ""
+        content_block_index = 0
+        has_text_block = True  # We already emitted content_block_start for text
+
         async for chunk in response:
-            if chunk.text:
-                yield {
-                    "type": "content_block_delta",
-                    "index": 0,
-                    "delta": {"type": "text_delta", "text": chunk.text},
-                }
+            # Process each part in the chunk
+            for part in chunk.parts:
+                # Handle text content
+                if hasattr(part, "text") and part.text:
+                    accumulated_text += part.text
+                    yield {
+                        "type": "content_block_delta",
+                        "index": 0,
+                        "delta": {"type": "text_delta", "text": part.text},
+                    }
+
+                # Handle function calls (tool use)
+                elif hasattr(part, "function_call") and part.function_call:
+                    fc = part.function_call
+                    tool_id = f"{fc.name}-{random.randint(1000, 9999)}"
+
+                    # Close text block if we had one
+                    if has_text_block:
+                        yield {"type": "content_block_stop", "index": content_block_index}
+                        content_block_index += 1
+                        has_text_block = False
+
+                    # Emit tool use block start
+                    yield {
+                        "type": "content_block_start",
+                        "index": content_block_index,
+                        "content_block": {
+                            "type": "tool_use",
+                            "id": tool_id,
+                            "name": fc.name,
+                            "input": {},
+                        },
+                    }
+
+                    # Emit tool input as JSON delta
+                    input_json = json.dumps(dict(fc.args))
+                    yield {
+                        "type": "content_block_delta",
+                        "index": content_block_index,
+                        "delta": {"type": "input_json_delta", "partial_json": input_json},
+                    }
+
+                    # Close tool use block
+                    yield {"type": "content_block_stop", "index": content_block_index}
+                    content_block_index += 1
+
+        # Close text block if still open
+        if has_text_block:
+            yield {"type": "content_block_stop", "index": 0}
+
+        # Emit message_delta event with stop reason
+        yield {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+            "usage": {"output_tokens": len(accumulated_text.split())},
+        }
+
+        # Emit message_stop event
+        yield {"type": "message_stop"}
 
     def count_tokens(
         self,
