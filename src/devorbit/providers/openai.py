@@ -3,9 +3,9 @@
 This provider translates between our unified interface and OpenAI's API.
 """
 
+from collections.abc import AsyncIterator, Iterator
 import json
 import os
-from collections.abc import AsyncIterator, Iterator
 from typing import Any, cast
 
 import openai
@@ -17,7 +17,7 @@ try:
     TIKTOKEN_AVAILABLE = True
 except ImportError:
     TIKTOKEN_AVAILABLE = False
-    tiktoken = None  # type: ignore[assignment]
+    tiktoken = None
 
 from .._models import (
     MessageResponse,

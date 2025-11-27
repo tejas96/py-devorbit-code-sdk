@@ -278,7 +278,7 @@ class MCPClient:
         if not self.session:
             raise RuntimeError("Not connected to MCP server. Call connect() first.")
 
-        result = await self.session.read_resource(uri)  # type: ignore[arg-type]
+        result = await self.session.read_resource(uri)
 
         # Extract content
         if hasattr(result, "contents") and result.contents:

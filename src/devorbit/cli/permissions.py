@@ -410,25 +410,25 @@ class ToolApprovalPrompt:
         kb = KeyBindings()
         choice = [""]
 
-        @kb.add("a")
-        @kb.add("A")
+        @kb.add("a")  # type: ignore[misc]
+        @kb.add("A")  # type: ignore[misc]
         def _(event: Any) -> None:
             choice[0] = "approve_all"
             event.app.exit(result="approve_all")
 
-        @kb.add("e")
-        @kb.add("E")
+        @kb.add("e")  # type: ignore[misc]
+        @kb.add("E")  # type: ignore[misc]
         def _(event: Any) -> None:
             choice[0] = "approve_each"
             event.app.exit(result="approve_each")
 
-        @kb.add("d")
-        @kb.add("D")
+        @kb.add("d")  # type: ignore[misc]
+        @kb.add("D")  # type: ignore[misc]
         def _(event: Any) -> None:
             choice[0] = "deny_all"
             event.app.exit(result="deny_all")
 
-        @kb.add("c-c")
+        @kb.add("c-c")  # type: ignore[misc]
         def _(event: Any) -> None:
             choice[0] = "deny_all"
             event.app.exit(result="deny_all")
