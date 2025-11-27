@@ -4,9 +4,9 @@ This module handles message sending, streaming responses, and tool execution
 in a provider-agnostic way.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
-from devorbit._models import MessageResponse, TextBlock, ToolUseBlock
+from devorbit._models import MessageResponse, TextBlock, ToolUseBlock, Usage
 
 
 if TYPE_CHECKING:
@@ -38,7 +38,7 @@ class LLMHandler:
         stream: bool = True,
         max_tokens: int | None = None,
         temperature: float | None = None,
-    ) -> str:
+    ) -> Tuple[str, Usage | None]:
         """Send a message to the LLM and get response.
 
         Args:
@@ -48,7 +48,7 @@ class LLMHandler:
             temperature: Sampling temperature
 
         Returns:
-            Assistant's response text
+            Tuple of (assistant's response text, usage)
 
         Raises:
             Exception: If message sending fails
@@ -69,9 +69,9 @@ class LLMHandler:
             self.session.print_error(f"Failed to send message: {e}")
             if self.session.debug:
                 raise
-            return f"Error: {e}"
+            return f"Error: {e}", None
 
-    def _send_streaming(self, max_tokens: int, temperature: float | None) -> str:
+    def _send_streaming(self, max_tokens: int, temperature: float | None) -> Tuple[str, Usage | None]:
         """Send message with streaming response and tool execution.
 
         Args:
@@ -79,10 +79,11 @@ class LLMHandler:
             temperature: Sampling temperature
 
         Returns:
-            Complete response text
+            Tuple of (complete response text, usage)
         """
         full_response_text = ""
         tool_round = 0
+        usage: Usage | None = None
 
         # Tool execution loop
         while tool_round < self.max_tool_rounds:
@@ -111,6 +112,10 @@ class LLMHandler:
                     final_message = stream.get_final_message()
 
                 self.session.streaming.end_streaming()
+
+                # Capture usage from final message (if provider supplies it)
+                if hasattr(final_message, "usage"):
+                    usage = final_message.usage  # type: ignore[assignment]
 
                 # Add text to full response
                 if text_chunk_buffer:
@@ -208,9 +213,26 @@ class LLMHandler:
         if tool_round >= self.max_tool_rounds:
             self.session.print_warning("\n⚠ Reached maximum tool execution rounds")
 
-        return full_response_text
+        # Fallback: if usage is missing or zero, approximate using count_tokens + response length
+        try:
+            if usage is None or (
+                getattr(usage, "input_tokens", 0) == 0
+                and getattr(usage, "output_tokens", 0) == 0
+            ):
+                token_count = self.session.client.messages.count_tokens(
+                    model=self.session.model,
+                    messages=self.session.messages,
+                )
+                usage = Usage(
+                    input_tokens=getattr(token_count, "input_tokens", 0),
+                    output_tokens=len(full_response_text.split()),
+                )
+        except Exception:
+            pass
 
-    def _send_non_streaming(self, max_tokens: int, temperature: float | None) -> str:
+        return full_response_text, usage
+
+    def _send_non_streaming(self, max_tokens: int, temperature: float | None) -> Tuple[str, Usage | None]:
         """Send message without streaming (with tool execution support).
 
         Args:
@@ -218,10 +240,11 @@ class LLMHandler:
             temperature: Sampling temperature
 
         Returns:
-            Complete response text
+            Tuple of (complete response text, usage)
         """
         full_response_text = ""
         tool_round = 0
+        usage: Usage | None = None
 
         # Tool execution loop
         while tool_round < self.max_tool_rounds:
@@ -237,6 +260,10 @@ class LLMHandler:
                 temperature=temperature,
                 tools=self.session.tool_executor.get_tool_definitions(),
             )
+
+            # Capture usage from response (if provider supplies it)
+            if hasattr(response, "usage"):
+                usage = response.usage  # type: ignore[assignment]
 
             # Extract text content
             text_blocks = [block for block in response.content if isinstance(block, TextBlock)]
@@ -332,7 +359,24 @@ class LLMHandler:
         if tool_round >= self.max_tool_rounds:
             self.session.print_warning("\n⚠ Reached maximum tool execution rounds")
 
-        return full_response_text
+        # if usage is missing or zero, approximate using count_tokens + response length
+        try:
+            if usage is None or (
+                getattr(usage, "input_tokens", 0) == 0
+                and getattr(usage, "output_tokens", 0) == 0
+            ):
+                token_count = self.session.client.messages.count_tokens(
+                    model=self.session.model,
+                    messages=self.session.messages,
+                )
+                usage = Usage(
+                    input_tokens=getattr(token_count, "input_tokens", 0),
+                    output_tokens=len(full_response_text.split()),
+                )
+        except Exception:
+            pass
+
+        return full_response_text, usage
 
     def set_model_params(
         self, max_tokens: int | None = None, temperature: float | None = None

@@ -177,15 +177,20 @@ class DevorbitREPL:
 
         # Regular message - send to LLM
         try:
-            # Send message with streaming (provider-agnostic)
-            response = self.llm_handler.send_message(
+            response_text, usage = self.llm_handler.send_message(
                 clean_input,
                 stream=True,  # Enable streaming for real-time display
             )
 
-            # Add assistant response to history
-            if response:
-                self.session.add_message("assistant", response)
+            if response_text:
+                self.session.add_message("assistant", response_text)
+                if usage is not None:
+                    input_tokens = getattr(usage, "input_tokens", 0)
+                    output_tokens = getattr(usage, "output_tokens", 0)
+                    total_tokens = input_tokens + output_tokens
+                    self.session.print(
+                        f"\n[Token Usage] Input: {input_tokens} | Output: {output_tokens} | Total: {total_tokens}\n"
+                    )
             else:
                 self.session.print_warning("No response received from LLM")
 
