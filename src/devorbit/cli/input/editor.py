@@ -53,27 +53,27 @@ class MultiLineEditor:
 
             if self.kb:
                 # Ctrl+Enter to submit (in multi-line mode)
-                @self.kb.add("c-enter")  # type: ignore[misc]
+                @self.kb.add("c-enter")
                 def _submit(event: Any) -> None:
                     """Submit input on Ctrl+Enter."""
                     event.current_buffer.validate_and_handle()
 
                 # Ctrl+C to cancel
-                @self.kb.add("c-c")  # type: ignore[misc]
+                @self.kb.add("c-c")
                 def _cancel(event: Any) -> None:
                     """Cancel input on Ctrl+C."""
                     event.current_buffer.text = ""
                     event.app.exit(exception=KeyboardInterrupt)
 
                 # Ctrl+K to delete to end of line
-                @self.kb.add("c-k")  # type: ignore[misc]
+                @self.kb.add("c-k")
                 def _kill_to_end(event: Any) -> None:
                     """Delete from cursor to end of line."""
                     buffer = event.current_buffer
                     buffer.delete(count=len(buffer.document.current_line_after_cursor))
 
                 # Ctrl+U to delete to beginning of line
-                @self.kb.add("c-u")  # type: ignore[misc]
+                @self.kb.add("c-u")
                 def _kill_to_beginning(event: Any) -> None:
                     """Delete from cursor to beginning of line."""
                     buffer = event.current_buffer
@@ -82,7 +82,7 @@ class MultiLineEditor:
                     )
 
                 # Ctrl+W to delete previous word
-                @self.kb.add("c-w")  # type: ignore[misc]
+                @self.kb.add("c-w")
                 def _delete_word(event: Any) -> None:
                     """Delete previous word."""
                     buffer = event.current_buffer
