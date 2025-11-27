@@ -98,4 +98,3 @@ def cmd_ls(ctx: CommandContext) -> CommandResult:
         return CommandResult.ok()
     except PermissionError:
         return CommandResult.error(f"Permission denied: {path}")
-

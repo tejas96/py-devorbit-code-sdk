@@ -109,4 +109,3 @@ def cmd_version(ctx: CommandContext) -> CommandResult:
     except ImportError:
         ctx.print("Devorbit (version unknown)")
     return CommandResult.ok()
-

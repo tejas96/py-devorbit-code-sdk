@@ -134,4 +134,3 @@ def cmd_recovery(ctx: CommandContext) -> CommandResult:
     ctx.print("")
 
     return CommandResult.ok()
-

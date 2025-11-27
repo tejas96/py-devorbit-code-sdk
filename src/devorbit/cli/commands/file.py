@@ -78,4 +78,3 @@ def cmd_init(ctx: CommandContext) -> CommandResult:
         return CommandResult.ok()
     except PermissionError:
         return CommandResult.error(f"Permission denied: {devorbit_file}")
-

@@ -71,4 +71,3 @@ def cmd_multiline(ctx: CommandContext) -> CommandResult:
         message="toggle_multiline",
         data={"action": "toggle_multiline"},
     )
-

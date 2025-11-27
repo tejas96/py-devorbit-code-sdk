@@ -220,4 +220,3 @@ def cmd_autoapprove(ctx: CommandContext) -> CommandResult:
         ctx.print_info("Dangerous operations still require explicit approval")
 
     return CommandResult.ok()
-

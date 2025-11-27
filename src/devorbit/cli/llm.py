@@ -174,13 +174,14 @@ class LLMHandler:
             self.session.streaming.start_streaming()
 
             try:
-                # Get stream from provider with tool definitions
+                # Get stream from provider with tool definitions and system prompt
                 stream = self.session.client.messages.stream(
                     model=self.session.model,
                     messages=self.session.messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
                     tools=self.session.tool_executor.get_tool_definitions(),
+                    system=self.session.system_prompt,
                 )
 
                 # Process stream
@@ -329,13 +330,14 @@ class LLMHandler:
 
             self.session.print_info("Processing your request...")
 
-            # Send message with tool definitions
+            # Send message with tool definitions and system prompt
             response: MessageResponse = self.session.client.messages.create(
                 model=self.session.model,
                 messages=self.session.messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 tools=self.session.tool_executor.get_tool_definitions(),
+                system=self.session.system_prompt,
             )
 
             # Extract text content
