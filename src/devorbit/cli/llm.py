@@ -237,12 +237,7 @@ class LLMHandler:
                         )
                         continue
 
-                    # Start Claude Code-style execution display
-                    self.session.live_tool_execution.start_execution(
-                        tool_call.name, tool_call.input or {}
-                    )
-
-                    # Execute approved tool
+                    # Execute approved tool (display handled by cli/tools.py)
                     try:
                         result = self.session.tool_executor.execute_tool(
                             tool_call.name, tool_call.input or {}
@@ -254,15 +249,6 @@ class LLMHandler:
                                 "content": result,
                             }
                         )
-                        # Show final result with Claude Code-style display
-                        is_success = not result.startswith("Error")
-                        self.session.live_tool_execution.finish_execution(
-                            tool_name=tool_call.name,
-                            tool_input=tool_call.input or {},
-                            success=is_success,
-                            output=result if is_success else None,
-                            error=result if not is_success else None,
-                        )
                     except Exception as e:
                         error_msg = f"Tool execution failed: {e}"
                         tool_results.append(
@@ -272,13 +258,6 @@ class LLMHandler:
                                 "content": error_msg,
                                 "is_error": True,
                             }
-                        )
-                        # Show error result with Claude Code-style display
-                        self.session.live_tool_execution.finish_execution(
-                            tool_name=tool_call.name,
-                            tool_input=tool_call.input or {},
-                            success=False,
-                            error=error_msg,
                         )
 
                 # Add tool results as user message
@@ -380,12 +359,7 @@ class LLMHandler:
                     )
                     continue
 
-                # Start Claude Code-style execution display
-                self.session.live_tool_execution.start_execution(
-                    tool_call.name, tool_call.input or {}
-                )
-
-                # Execute approved tool
+                # Execute approved tool (display handled by cli/tools.py)
                 try:
                     result = self.session.tool_executor.execute_tool(
                         tool_call.name, tool_call.input or {}
@@ -397,15 +371,6 @@ class LLMHandler:
                             "content": result,
                         }
                     )
-                    # Show final result with Claude Code-style display
-                    is_success = not result.startswith("Error")
-                    self.session.live_tool_execution.finish_execution(
-                        tool_name=tool_call.name,
-                        tool_input=tool_call.input or {},
-                        success=is_success,
-                        output=result if is_success else None,
-                        error=result if not is_success else None,
-                    )
                 except Exception as e:
                     error_msg = f"Tool execution failed: {e}"
                     tool_results.append(
@@ -415,13 +380,6 @@ class LLMHandler:
                             "content": error_msg,
                             "is_error": True,
                         }
-                    )
-                    # Show error result with Claude Code-style display
-                    self.session.live_tool_execution.finish_execution(
-                        tool_name=tool_call.name,
-                        tool_input=tool_call.input or {},
-                        success=False,
-                        error=error_msg,
                     )
 
             # Add tool results to messages

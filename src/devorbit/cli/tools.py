@@ -7,6 +7,7 @@ ARCHITECTURE (Phase 7 - Clean):
 - Generic execution via registry.execute()
 - No manual tool handlers - tools register themselves
 - Hooks integration for pre/post execution
+- Claude Code-style execution display
 
 DESIGN PATTERNS:
 - Registry Pattern: Central tool registry for auto-discovery
@@ -24,6 +25,7 @@ from devorbit.core.tool_registry import get_tool_registry
 from devorbit.core.types import Tool
 
 from .core.validation import InputValidator, validate_command
+from .ui.claude_style import ToolExecutionDisplay
 
 
 if TYPE_CHECKING:
@@ -37,7 +39,10 @@ class ToolExecutor:
     - get_tool_definitions(): Returns all tools for LLM
     - execute_tool(): Executes any registered tool by name
 
-    All tools are auto-discovered from the registry - no manual handlers needed!
+    Features:
+    - Auto-discovery from registry - no manual handlers needed!
+    - Claude Code-style execution display with status dots
+    - Pre/post hooks integration
     """
 
     def __init__(self, session: "CLISession") -> None:
@@ -49,6 +54,14 @@ class ToolExecutor:
         self.session = session
         self._validator = InputValidator(base_dir=session.working_dir)
         self._registry = get_tool_registry()
+
+        # Claude-style execution display
+        self._tool_display = ToolExecutionDisplay(
+            console=session.console if hasattr(session, "console") else None
+        )
+
+        # Use Claude-style display
+        self.use_claude_style = True
 
     def get_tool_definitions(self) -> list[Tool]:
         """Get all available tool definitions for the LLM.
@@ -65,6 +78,7 @@ class ToolExecutor:
 
         Uses the ToolRegistry for generic execution.
         Triggers pre/post hooks if registered.
+        Shows Claude Code-style execution display.
 
         Args:
             tool_name: Name of the tool to execute
@@ -89,18 +103,35 @@ class ToolExecutor:
             if result.get("stopped_chain") or not result.get("should_continue", True):
                 return f"Tool execution stopped by hook: {result.get('hook', 'unknown')}"
 
+        # Get command string for display
+        command = self._get_display_command(tool_name, tool_input)
+
+        # Start Claude-style execution display (shows "Running..." with transient Live)
+        if self.use_claude_style:
+            self._tool_display.show_tool_start(tool_name, command)
+
         try:
             # Prepare parameters (adapt CLI conventions to SDK)
             params = self._prepare_params(tool_name, tool_input)
 
-            # Log execution
-            self._log_execution(tool_name, params)
+            # Legacy log (only if not using Claude style)
+            if not self.use_claude_style:
+                self._log_execution(tool_name, params)
 
             # Execute via registry
             result = self._registry.execute(tool_name, params)
 
             # Format result for CLI display
             output = self._format_result(tool_name, result)
+
+            # Complete Claude-style display
+            if self.use_claude_style:
+                self._tool_display.show_tool_complete(
+                    tool_name=tool_name,
+                    command=command,
+                    success=True,
+                    output=output,
+                )
 
             # Execute POST_TOOL_CALL hooks
             self._execute_post_hooks(tool_name, tool_input, output)
@@ -109,6 +140,15 @@ class ToolExecutor:
 
         except Exception as e:
             error_msg = f"Error executing {tool_name}: {e!s}"
+
+            # Complete Claude-style display with error
+            if self.use_claude_style:
+                self._tool_display.show_tool_complete(
+                    tool_name=tool_name,
+                    command=command,
+                    success=False,
+                    error=error_msg,
+                )
 
             # Execute error hooks
             self._execute_error_hooks(tool_name, tool_input, e)
@@ -119,6 +159,27 @@ class ToolExecutor:
                 error_msg += f"\n{traceback.format_exc()}"
 
             return error_msg
+
+    def _get_display_command(self, tool_name: str, tool_input: dict[str, Any]) -> str:
+        """Get command string for display.
+
+        Args:
+            tool_name: Tool name
+            tool_input: Tool input parameters
+
+        Returns:
+            Command string for display
+        """
+        if tool_name.lower() == "bash":
+            return str(tool_input.get("command", str(tool_input)))
+        if tool_name in ("read_file", "write_file", "edit_file"):
+            return str(tool_input.get("file_path", tool_input.get("path", str(tool_input))))
+        if tool_name in ("grep", "glob"):
+            return str(tool_input.get("pattern", str(tool_input)))
+        # Return first value or tool name
+        if tool_input:
+            return str(next(iter(tool_input.values())))[:60]
+        return tool_name
 
     def _prepare_params(self, tool_name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
         """Prepare parameters for tool execution.
