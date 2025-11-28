@@ -28,12 +28,10 @@ from .tools import ToolExecutor
 from .ui import (
     CodeBlockDisplay,
     DiffDisplay,
-    LiveToolExecution,
     NotificationManager,
     ProgressIndicator,
     StatusLine,
     StreamingDisplay,
-    ToolCallDisplay,
 )
 
 
@@ -116,10 +114,6 @@ class CLISession:
         self.progress = ProgressIndicator(self.console, no_color)
         self.status_line = StatusLine(self.console, no_color=no_color)
         self.streaming = StreamingDisplay(self.console, no_color)
-        self.tool_display = ToolCallDisplay(self.console, no_color)
-        self.live_tool_execution = LiveToolExecution(
-            self.console, no_color
-        )  # NEW: Animated tool execution
         self.code_display = CodeBlockDisplay(self.console, no_color)
         self.diff_display = DiffDisplay(self.console, no_color)
 

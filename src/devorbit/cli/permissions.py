@@ -3,7 +3,9 @@
 This module provides interactive prompts for approving tool executions
 before they run, with keyboard navigation and dangerous command detection.
 
-Now integrated with the core permission system (cli/core/permissions.py).
+Now integrated with:
+- Core permission system (cli/core/permissions.py)
+- Claude Code-style UI (cli/ui/claude_style.py)
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from .core.permissions import (
     ToolCategory,
     get_permission_manager,
 )
+from .ui.claude_style import ClaudeStyleUI
 
 
 try:
@@ -131,13 +134,11 @@ class DangerousCommandDetector:
 
 
 class ToolApprovalPrompt:
-    """Interactive prompt for approving tool executions with Rich UI.
+    """Interactive prompt for approving tool executions with Claude Code-style UI.
 
-    Now integrated with PermissionManager for:
-    - Persistent permission rules
-    - Session-based decisions (ask once)
-    - Audit logging
-    - Category-based defaults
+    Now integrated with:
+    - PermissionManager for persistent rules and audit logging
+    - ClaudeStyleUI for Claude Code-like permission prompts
     """
 
     def __init__(self, session: CLISession):
@@ -152,6 +153,12 @@ class ToolApprovalPrompt:
         # Initialize permission manager with this prompt as callback
         self._permission_manager = get_permission_manager()
         self._permission_manager.prompt_callback = self._prompt_callback
+
+        # Initialize Claude-style UI
+        self._claude_ui = ClaudeStyleUI(self.console)
+
+        # Use Claude-style prompts
+        self.use_claude_style = True
 
     def _prompt_callback(
         self,
@@ -247,7 +254,7 @@ class ToolApprovalPrompt:
         is_dangerous: bool = False,
         danger_reason: str | None = None,
     ) -> bool:
-        """Show an interactive approval prompt with Rich UI.
+        """Show an interactive approval prompt with Claude Code-style UI.
 
         Args:
             tool_name: Name of the tool
@@ -265,6 +272,90 @@ class ToolApprovalPrompt:
             return True
             # Always prompt for dangerous commands even in auto-approve mode
 
+        # Use Claude-style UI if enabled
+        if self.use_claude_style:
+            return self._show_claude_style_prompt(
+                tool_name, tool_input, is_dangerous, danger_reason
+            )
+
+        # Fallback to legacy prompt
+        return self._show_legacy_prompt(tool_name, tool_input, is_dangerous, danger_reason)
+
+    def _show_claude_style_prompt(
+        self,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        is_dangerous: bool = False,
+        danger_reason: str | None = None,
+    ) -> bool:
+        """Show Claude Code-style permission prompt.
+
+        Args:
+            tool_name: Name of the tool
+            tool_input: Tool input parameters
+            is_dangerous: Whether operation is dangerous
+            danger_reason: Reason for danger flag
+
+        Returns:
+            True if approved, False if denied
+        """
+        # Get working directory
+        working_dir = str(self.session.working_dir)
+
+        # Request permission via Claude-style UI
+        approved, remember = self._claude_ui.request_permission(
+            tool_name=tool_name,
+            tool_input=tool_input,
+            working_dir=working_dir,
+            is_dangerous=is_dangerous,
+        )
+
+        if approved and remember:
+            # Add permission rule for this command in this directory
+            command = self._get_command_from_input(tool_name, tool_input)
+            self._permission_manager.add_rule(
+                pattern=command,
+                level=PermissionLevel.ALLOW,
+                tool=tool_name,
+                reason=f"Auto-approved for {working_dir}",
+            )
+
+        return approved
+
+    def _get_command_from_input(self, tool_name: str, tool_input: dict[str, Any]) -> str:
+        """Extract command string from tool input.
+
+        Args:
+            tool_name: Name of the tool
+            tool_input: Tool input parameters
+
+        Returns:
+            Command string
+        """
+        if tool_name.lower() == "bash":
+            return str(tool_input.get("command", str(tool_input)))
+        if tool_name in ("read_file", "write_file", "edit_file"):
+            return str(tool_input.get("file_path", str(tool_input)))
+        return str(tool_input)
+
+    def _show_legacy_prompt(
+        self,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        is_dangerous: bool = False,
+        danger_reason: str | None = None,
+    ) -> bool:
+        """Show legacy Rich-based approval prompt (fallback).
+
+        Args:
+            tool_name: Name of the tool
+            tool_input: Tool input parameters
+            is_dangerous: Whether the command is flagged as dangerous
+            danger_reason: Reason for danger flag
+
+        Returns:
+            True if approved, False if denied
+        """
         # Create the tool tree
         tool_tree = self._create_tool_tree(tool_name, tool_input, is_dangerous)
 
