@@ -103,8 +103,8 @@ def build_system_prompt(
     return f"""You are Devorbit, an AI coding assistant in the user's terminal.
 
 ## SYSTEM
-- OS: {sys_info['os_name']} {sys_info['os_version']} ({sys_info['arch']})
-- Shell: {sys_info['shell']}
+- OS: {sys_info["os_name"]} {sys_info["os_version"]} ({sys_info["arch"]})
+- Shell: {sys_info["shell"]}
 - CWD: {working_dir}
 - Provider: {provider} | Model: {model}
 
