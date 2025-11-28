@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from devorbit._plugins import (
+from devorbit.core.plugins import (
     BasePlugin,
     LoadedPlugin,
     PluginMetadata,

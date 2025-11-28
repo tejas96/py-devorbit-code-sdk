@@ -1,7 +1,7 @@
 """Core infrastructure for Devorbit CLI.
 
 This module provides the foundational patterns for the CLI:
-- Registry Pattern: Central registration for tools, commands, hooks
+- Registry Pattern: Central registration for tools, commands
 - Decorator Pattern: Easy registration via decorators
 - Command Pattern: Structured command handling with history
 - Validation: Input validation and sanitization
@@ -9,7 +9,46 @@ This module provides the foundational patterns for the CLI:
 - Persistence: Session save/restore and file backup
 - Concurrency: Parallel execution and rate limiting
 - Permissions: Permission rules, policies, and audit logging
+
+NOTE: Hooks, Recovery, and Subagents are now in the SDK for better reusability.
+Import from `devorbit` directly for:
+- Hooks: `from devorbit import HookType, HookContext, hook, register_hook`
+- Recovery: `from devorbit import RetryHandler, RecoveryManager, with_retry`
+- Subagents: `from devorbit import AgentTask, AgentCoordinator, TaskPriority`
 """
+
+from devorbit.core.hooks import (
+    Hook,
+    HookContext,
+    HookRegistry,
+    HookType,
+    execute_hooks,
+    hook,
+    register_hook,
+)
+from devorbit.core.recovery import (
+    ErrorCategory,
+    ErrorClassifier,
+    ErrorInfo,
+    RecoveryManager,
+    RecoveryStrategy,
+    RetryConfig,
+    RetryHandler,
+    get_recovery_manager,
+    reset_recovery_manager,
+    with_retry,
+)
+
+# Re-export SDK modules for backwards compatibility
+from devorbit.tools.agent import (
+    AgentCoordinator,
+    AgentTask,
+    TaskPriority,
+)
+from devorbit.tools.agent import TaskResult as AgentTaskResult
+from devorbit.tools.agent import (
+    TaskStatus,
+)
 
 from .commands import (
     Command,
@@ -59,9 +98,12 @@ from .validation import InputValidator, sanitize_path, validate_input
 
 
 __all__ = [
-    # Registry
-    "Registry",
-    "ToolRegistry",
+    # Agents/Tasks (from SDK)
+    "AgentCoordinator",
+    "AgentTask",
+    "AgentTaskResult",
+    "TaskPriority",
+    "TaskStatus",
     # Commands
     "Command",
     "CommandCategory",
@@ -81,18 +123,37 @@ __all__ = [
     "context_scope",
     "current_context",
     "get_context_manager",
+    # Decorators
+    "cli_tool",
+    "register_tool",
+    # Recovery (from SDK)
+    "ErrorCategory",
+    "ErrorClassifier",
+    "ErrorInfo",
+    "RecoveryManager",
+    "RecoveryStrategy",
+    "RetryConfig",
+    "RetryHandler",
+    "get_recovery_manager",
+    "reset_recovery_manager",
+    "with_retry",
+    # Hooks (from SDK)
+    "Hook",
+    "HookContext",
+    "HookRegistry",
+    "HookType",
+    "execute_hooks",
+    "hook",
+    "register_hook",
+    # Validation
+    "InputValidator",
+    "sanitize_path",
+    "validate_input",
     # Persistence
     "BackupManager",
     "FileCheckpoint",
     "SessionPersistence",
     "SessionState",
-    # Concurrency
-    "RateLimiter",
-    "ResourceLock",
-    "TaskExecutor",
-    "TaskResult",
-    "get_resource_lock",
-    "get_task_executor",
     # Permissions
     "AuditLogEntry",
     "PermissionDecision",
@@ -104,11 +165,14 @@ __all__ = [
     "TOOL_CATEGORIES",
     "get_permission_manager",
     "reset_permission_manager",
-    # Decorators
-    "cli_tool",
-    "register_tool",
-    # Validation
-    "InputValidator",
-    "sanitize_path",
-    "validate_input",
+    # Concurrency
+    "RateLimiter",
+    "ResourceLock",
+    "TaskExecutor",
+    "TaskResult",
+    "get_resource_lock",
+    "get_task_executor",
+    # Registry
+    "Registry",
+    "ToolRegistry",
 ]

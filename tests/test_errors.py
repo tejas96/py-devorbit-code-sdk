@@ -2,7 +2,7 @@
 
 import pytest
 
-from devorbit._errors import (
+from devorbit.core.errors import (
     APIError,
     AuthenticationError,
     BadRequestError,

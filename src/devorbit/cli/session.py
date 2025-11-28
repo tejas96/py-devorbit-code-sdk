@@ -1,9 +1,10 @@
 """CLI session management with enhanced UI system."""
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from devorbit._types import ContentBlock
+from devorbit.core.types import ContentBlock
 
 
 try:
@@ -19,23 +20,23 @@ except ImportError:
     HAS_RICH = False
 
 from devorbit import Devorbit
+from devorbit.core.hooks import get_registry, load_hooks_from_config
 
 from .permissions import ToolApprovalPrompt
+from .system_prompt import build_system_prompt
 from .tools import ToolExecutor
 from .ui import (
     CodeBlockDisplay,
     DiffDisplay,
-    LiveToolExecution,
     NotificationManager,
     ProgressIndicator,
     StatusLine,
     StreamingDisplay,
-    ToolCallDisplay,
 )
 
 
 if TYPE_CHECKING:
-    from devorbit._types import Message
+    from devorbit.core.types import Message
 
 
 # ANSI escape codes for terminal colors
@@ -113,10 +114,6 @@ class CLISession:
         self.progress = ProgressIndicator(self.console, no_color)
         self.status_line = StatusLine(self.console, no_color=no_color)
         self.streaming = StreamingDisplay(self.console, no_color)
-        self.tool_display = ToolCallDisplay(self.console, no_color)
-        self.live_tool_execution = LiveToolExecution(
-            self.console, no_color
-        )  # NEW: Animated tool execution
         self.code_display = CodeBlockDisplay(self.console, no_color)
         self.diff_display = DiffDisplay(self.console, no_color)
 
@@ -124,9 +121,68 @@ class CLISession:
         self.tool_executor = ToolExecutor(self)
         self.tool_approval = ToolApprovalPrompt(self)
 
+        # System prompt for the LLM (after tool executor for dynamic tool list)
+        self.system_prompt = self._build_system_prompt()
+
         # Set initial status line values
         self.status_line.set_model(self.model, provider)
         self.status_line.set_project(working_dir or Path.cwd())
+
+        # Load hooks from .devorbit.json config
+        self._load_hooks_config()
+
+    def _build_system_prompt(self) -> str:
+        """Build the system prompt for the LLM.
+
+        Returns:
+            Complete system prompt string with context
+        """
+        # Get list of available tools from tool executor
+        tools_available = None
+        if hasattr(self, "tool_executor"):
+            tool_defs = self.tool_executor.get_tool_definitions()
+            tools_available = [t.get("name", "") for t in tool_defs if t.get("name")]
+
+        return build_system_prompt(
+            working_dir=self.working_dir,
+            provider=self.provider,
+            model=self.model,
+            tools_available=tools_available,
+        )
+
+    def _load_hooks_config(self) -> None:
+        """Load hooks from .devorbit.json config file."""
+        config_paths = [
+            self.working_dir / ".devorbit.json",
+            Path.home() / ".devorbit.json",
+        ]
+
+        for config_path in config_paths:
+            if config_path.exists():
+                try:
+                    with config_path.open() as f:
+                        config = json.load(f)
+
+                    hooks = load_hooks_from_config(config)
+                    registry = get_registry()
+
+                    for hook in hooks:
+                        registry.register(hook)
+
+                    if hooks and self.debug:
+                        self.print_info(f"Loaded {len(hooks)} hooks from {config_path}")
+
+                except (json.JSONDecodeError, OSError) as e:
+                    if self.debug:
+                        self.print_warning(f"Failed to load hooks from {config_path}: {e}")
+
+    def get_hooks_info(self) -> list[dict[str, Any]]:
+        """Get information about all registered hooks.
+
+        Returns:
+            List of hook info dictionaries
+        """
+        return get_registry().list_all()
 
     def display_welcome(self) -> None:
         """Display Claude Code style welcome banner."""

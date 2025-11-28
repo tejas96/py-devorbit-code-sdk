@@ -1,12 +1,17 @@
 """LLM interaction handler for Devorbit CLI with streaming support.
 
 This module handles message sending, streaming responses, and tool execution
-in a provider-agnostic way.
+in a provider-agnostic way. Includes automatic retry with exponential backoff
+for transient API errors.
 """
 
 from typing import TYPE_CHECKING
 
-from devorbit._models import MessageResponse, TextBlock, ToolUseBlock
+from prompt_toolkit import prompt
+from prompt_toolkit.formatted_text import HTML
+
+from devorbit.core.models import MessageResponse, TextBlock, ToolUseBlock
+from devorbit.core.recovery import ErrorCategory, ErrorClassifier, RetryHandler
 
 
 if TYPE_CHECKING:
@@ -21,6 +26,10 @@ class LLMHandler:
     agnostic way.
     """
 
+    # Default configuration (Claude Code-like behavior)
+    DEFAULT_MAX_TOOL_ROUNDS = 25  # Higher limit like Claude Code
+    PROMPT_CONTINUE_AT = 10  # Prompt user to continue after this many rounds
+
     def __init__(self, session: "CLISession") -> None:
         """Initialize LLM handler.
 
@@ -30,7 +39,70 @@ class LLMHandler:
         self.session = session
         self.max_tokens = 4096  # Default max tokens
         self.temperature: float | None = None  # Use provider default
-        self.max_tool_rounds = 5  # Max tool execution rounds to prevent loops
+        self.max_tool_rounds = self.DEFAULT_MAX_TOOL_ROUNDS
+        self.prompt_continue_at = self.PROMPT_CONTINUE_AT
+        self._tool_execution_count = 0  # Track total tool executions in session
+
+        # Initialize retry handler for API calls (Phase 5: Error Recovery)
+        self._retry_handler = RetryHandler(
+            max_retries=3,
+            initial_delay=1.0,
+            backoff_factor=2.0,
+            on_retry=self._on_api_retry,
+        )
+
+    def _on_api_retry(self, attempt: int, error: Exception, delay: float) -> None:
+        """Callback when API call is being retried.
+
+        Args:
+            attempt: Current retry attempt number
+            error: The error that triggered the retry
+            delay: Delay before next attempt in seconds
+        """
+        category = ErrorClassifier.classify(error)
+        if category == ErrorCategory.TRANSIENT:
+            self.session.print_warning(f"⚡ API error (attempt {attempt}/3): {error}")
+            self.session.print_info(f"Retrying in {delay:.1f}s...")
+        else:
+            # Non-transient error, will not retry but log for visibility
+            self.session.print_warning(f"⚠ API error: {error}")
+
+    def _should_prompt_continue(self, tool_round: int) -> bool:
+        """Check if we should prompt user to continue.
+
+        Args:
+            tool_round: Current tool round number
+
+        Returns:
+            True if we should prompt user to continue
+        """
+        return tool_round > 0 and tool_round % self.prompt_continue_at == 0
+
+    def _prompt_user_continue(self, tool_round: int) -> bool:
+        """Prompt user to continue execution (Claude Code-style).
+
+        Args:
+            tool_round: Current tool round number
+
+        Returns:
+            True if user wants to continue, False otherwise
+        """
+        self.session.print("")
+        self.session.print_warning(f"⚡ Executed {tool_round} tool rounds so far.")
+        self.session.print_info("The assistant is still working. Continue?")
+        self.session.print("")
+
+        try:
+            response = (
+                prompt(
+                    HTML("<style fg='cyan'>Continue? (y/n): </style>"),
+                )
+                .strip()
+                .lower()
+            )
+            return response in ("y", "yes", "")
+        except (KeyboardInterrupt, EOFError):
+            return False
 
     def send_message(
         self,
@@ -83,21 +155,33 @@ class LLMHandler:
         """
         full_response_text = ""
         tool_round = 0
+        user_stopped = False
 
-        # Tool execution loop
-        while tool_round < self.max_tool_rounds:
+        # Tool execution loop (Claude Code-style with continue prompt)
+        while tool_round < self.max_tool_rounds and not user_stopped:
             tool_round += 1
+
+            # Check if we should prompt user to continue (after every N rounds)
+            if self._should_prompt_continue(tool_round):
+                if not self._prompt_user_continue(tool_round):
+                    user_stopped = True
+                    self.session.print_info(
+                        f"Stopped after {tool_round} tool rounds. "
+                        "You can continue the conversation."
+                    )
+                    break
 
             self.session.streaming.start_streaming()
 
             try:
-                # Get stream from provider with tool definitions
+                # Get stream from provider with tool definitions and system prompt
                 stream = self.session.client.messages.stream(
                     model=self.session.model,
                     messages=self.session.messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
                     tools=self.session.tool_executor.get_tool_definitions(),
+                    system=self.session.system_prompt,
                 )
 
                 # Process stream
@@ -139,6 +223,8 @@ class LLMHandler:
                 # Execute approved tools
                 tool_results = []
                 for tool_call, approved in zip(tool_calls, tool_approvals, strict=False):
+                    self._tool_execution_count += 1
+
                     if not approved:
                         # Tool was denied, send denial result to Claude
                         tool_results.append(
@@ -151,12 +237,7 @@ class LLMHandler:
                         )
                         continue
 
-                    # Start Claude Code-style execution display
-                    self.session.live_tool_execution.start_execution(
-                        tool_call.name, tool_call.input or {}
-                    )
-
-                    # Execute approved tool
+                    # Execute approved tool (display handled by cli/tools.py)
                     try:
                         result = self.session.tool_executor.execute_tool(
                             tool_call.name, tool_call.input or {}
@@ -168,15 +249,6 @@ class LLMHandler:
                                 "content": result,
                             }
                         )
-                        # Show final result with Claude Code-style display
-                        is_success = not result.startswith("Error")
-                        self.session.live_tool_execution.finish_execution(
-                            tool_name=tool_call.name,
-                            tool_input=tool_call.input or {},
-                            success=is_success,
-                            output=result if is_success else None,
-                            error=result if not is_success else None,
-                        )
                     except Exception as e:
                         error_msg = f"Tool execution failed: {e}"
                         tool_results.append(
@@ -186,13 +258,6 @@ class LLMHandler:
                                 "content": error_msg,
                                 "is_error": True,
                             }
-                        )
-                        # Show error result with Claude Code-style display
-                        self.session.live_tool_execution.finish_execution(
-                            tool_name=tool_call.name,
-                            tool_input=tool_call.input or {},
-                            success=False,
-                            error=error_msg,
                         )
 
                 # Add tool results as user message
@@ -205,8 +270,12 @@ class LLMHandler:
                 self.session.print_error(f"Streaming error: {e}")
                 raise
 
-        if tool_round >= self.max_tool_rounds:
-            self.session.print_warning("\n⚠ Reached maximum tool execution rounds")
+        # Handle reaching max rounds (Claude Code-style)
+        if tool_round >= self.max_tool_rounds and not user_stopped:
+            self.session.print_warning(
+                f"\n⚠ Reached maximum tool execution limit ({self.max_tool_rounds} rounds)"
+            )
+            self.session.print_info("The assistant was still working. You can ask it to continue.")
 
         return full_response_text
 
@@ -222,20 +291,32 @@ class LLMHandler:
         """
         full_response_text = ""
         tool_round = 0
+        user_stopped = False
 
-        # Tool execution loop
-        while tool_round < self.max_tool_rounds:
+        # Tool execution loop (Claude Code-style with continue prompt)
+        while tool_round < self.max_tool_rounds and not user_stopped:
             tool_round += 1
+
+            # Check if we should prompt user to continue (after every N rounds)
+            if self._should_prompt_continue(tool_round):
+                if not self._prompt_user_continue(tool_round):
+                    user_stopped = True
+                    self.session.print_info(
+                        f"Stopped after {tool_round} tool rounds. "
+                        "You can continue the conversation."
+                    )
+                    break
 
             self.session.print_info("Processing your request...")
 
-            # Send message with tool definitions
+            # Send message with tool definitions and system prompt
             response: MessageResponse = self.session.client.messages.create(
                 model=self.session.model,
                 messages=self.session.messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 tools=self.session.tool_executor.get_tool_definitions(),
+                system=self.session.system_prompt,
             )
 
             # Extract text content
@@ -264,6 +345,8 @@ class LLMHandler:
             # Execute approved tools
             tool_results = []
             for tool_call, approved in zip(tool_calls, tool_approvals, strict=False):
+                self._tool_execution_count += 1
+
                 if not approved:
                     # Tool was denied, send denial result to Claude
                     tool_results.append(
@@ -276,12 +359,7 @@ class LLMHandler:
                     )
                     continue
 
-                # Start Claude Code-style execution display
-                self.session.live_tool_execution.start_execution(
-                    tool_call.name, tool_call.input or {}
-                )
-
-                # Execute approved tool
+                # Execute approved tool (display handled by cli/tools.py)
                 try:
                     result = self.session.tool_executor.execute_tool(
                         tool_call.name, tool_call.input or {}
@@ -293,15 +371,6 @@ class LLMHandler:
                             "content": result,
                         }
                     )
-                    # Show final result with Claude Code-style display
-                    is_success = not result.startswith("Error")
-                    self.session.live_tool_execution.finish_execution(
-                        tool_name=tool_call.name,
-                        tool_input=tool_call.input or {},
-                        success=is_success,
-                        output=result if is_success else None,
-                        error=result if not is_success else None,
-                    )
                 except Exception as e:
                     error_msg = f"Tool execution failed: {e}"
                     tool_results.append(
@@ -311,13 +380,6 @@ class LLMHandler:
                             "content": error_msg,
                             "is_error": True,
                         }
-                    )
-                    # Show error result with Claude Code-style display
-                    self.session.live_tool_execution.finish_execution(
-                        tool_name=tool_call.name,
-                        tool_input=tool_call.input or {},
-                        success=False,
-                        error=error_msg,
                     )
 
             # Add tool results to messages
@@ -329,8 +391,12 @@ class LLMHandler:
                     response.usage.input_tokens + response.usage.output_tokens, 200000
                 )
 
-        if tool_round >= self.max_tool_rounds:
-            self.session.print_warning("\n⚠ Reached maximum tool execution rounds")
+        # Handle reaching max rounds (Claude Code-style)
+        if tool_round >= self.max_tool_rounds and not user_stopped:
+            self.session.print_warning(
+                f"\n⚠ Reached maximum tool execution limit ({self.max_tool_rounds} rounds)"
+            )
+            self.session.print_info("The assistant was still working. You can ask it to continue.")
 
         return full_response_text
 

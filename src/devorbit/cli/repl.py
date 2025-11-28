@@ -28,7 +28,7 @@ else:
         Style = None  # type: ignore[assignment,misc]
         HAS_PROMPT_TOOLKIT = False
 
-from .commands import CommandHandler
+from .command_handler import CommandHandler
 from .input import AutocompleteEngine, FileMentionParser, InputValidator
 from .llm import LLMHandler
 from .session import CLISession

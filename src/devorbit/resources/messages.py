@@ -6,9 +6,9 @@ messages interface.
 
 from typing import Any, cast
 
-from .._models import MessageResponse, TokenCountResponse
-from .._streaming import AsyncMessageStream, MessageStream
-from .._types import Message, Tool, ToolChoice
+from ..core.models import MessageResponse, TokenCountResponse
+from ..core.streaming import AsyncMessageStream, MessageStream
+from ..core.types import Message, Tool, ToolChoice
 from ..providers._base import BaseProvider
 
 

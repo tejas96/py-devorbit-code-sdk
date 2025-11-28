@@ -3,47 +3,9 @@
 A unified Python SDK for multiple LLM providers with a Claude SDK-like interface.
 """
 
-from ._agent_tools import (
-    cleanup_tasks,
-    get_agent_info,
-    get_all_agent_tools,
-    list_active_tasks,
-    list_agent_types,
-    task,
-    task_cancel,
-    task_status,
-)
-from ._bash_tools import (
-    bash,
-    bash_output,
-    cleanup_sessions,
-    get_all_bash_tools,
-    kill_shell,
-    list_active_sessions,
-)
-from ._beta import AsyncBeta, Beta
-from ._builtin_tools import (
-    BASH_TOOL,
-    COMPUTER_USE_TOOL,
-    TEXT_EDITOR_TOOL,
-    create_bash_tool,
-    create_computer_use_tool,
-    create_text_editor_tool,
-    get_all_builtin_tools,
-)
-from ._client import AsyncDevorbit, Devorbit
-from ._commands import (
-    Command,
-    CommandRegistry,
-    execute_command,
-    get_all_command_tools,
-    list_slash_commands,
-    load_commands,
-    parse_command_invocation,
-    register_command,
-    run_slash_command,
-)
-from ._config import (
+from .core.beta import AsyncBeta, Beta
+from .core.client import AsyncDevorbit, Devorbit
+from .core.config import (
     DevorbitConfig,
     get_all_config_tools,
     load_config,
@@ -51,7 +13,7 @@ from ._config import (
     save_config,
     update_config,
 )
-from ._errors import (
+from .core.errors import (
     APIConnectionError,
     APIError,
     APIStatusError,
@@ -69,28 +31,28 @@ from ._errors import (
     UnprocessableEntityError,
     UnsupportedProviderError,
 )
-from ._file_tools import (
-    edit_file,
-    get_all_file_tools,
-    ls_directory,
-    multi_edit_file,
-    read_file,
-    write_file,
-)
-from ._hooks import (
+from .core.hooks import (
     Hook,
+    HookContext,
     HookRegistry,
     HookType,
+    PythonHookHandler,
+    clear_hooks,
+    disable_hooks,
+    enable_hooks,
+    execute_hook,
     execute_hooks,
     get_all_hook_tools,
     get_registry,
+    hook,
     list_hooks,
     load_hooks_from_config,
     register_hook,
     trigger_hook,
+    unregister_hook,
 )
-from ._mcp import MCPClient, MCPManager, MCPServerConfig, load_mcp_config
-from ._models import (
+from .core.mcp import MCPClient, MCPManager, MCPServerConfig, load_mcp_config
+from .core.models import (
     BatchRequestCounts,
     BatchResult,
     ContentBlockDeltaEvent,
@@ -98,7 +60,6 @@ from ._models import (
     ContentBlockStopEvent,
     DocumentBlock,
     MessageBatchResponse,
-    MessageDeltaEvent,
     MessageResponse,
     MessageStartEvent,
     MessageStopEvent,
@@ -108,17 +69,7 @@ from ._models import (
     ToolUseBlock,
     Usage,
 )
-from ._notebook_tools import (
-    NotebookCell,
-    NotebookContent,
-    NotebookReadResult,
-    create_notebook_edit_tool,
-    create_notebook_read_tool,
-    get_all_notebook_tools,
-    notebook_edit,
-    notebook_read,
-)
-from ._planning import (
+from .core.planning import (
     PlanningState,
     cancel_plan,
     enter_planning_mode,
@@ -128,7 +79,7 @@ from ._planning import (
     get_planning_status,
     is_planning_active,
 )
-from ._plugins import (
+from .core.plugins import (
     BasePlugin,
     DevorbitPlugin,
     LoadedPlugin,
@@ -143,8 +94,19 @@ from ._plugins import (
     list_plugins,
     load_and_initialize_plugin,
 )
-from ._search_tools import get_all_search_tools, glob_files, grep_code
-from ._skills import (
+from .core.recovery import (
+    ErrorCategory,
+    ErrorClassifier,
+    ErrorInfo,
+    RecoveryManager,
+    RecoveryStrategy,
+    RetryConfig,
+    RetryHandler,
+    get_recovery_manager,
+    reset_recovery_manager,
+    with_retry,
+)
+from .core.skills import (
     Skill,
     SkillRegistry,
     execute_skill,
@@ -156,15 +118,8 @@ from ._skills import (
     run_skill,
     validate_skill,
 )
-from ._todo_tools import (
-    clear_todo_state,
-    get_all_todo_tools,
-    get_current_todos,
-    todo_read,
-    todo_write,
-)
-from ._tool_helpers import ToolExecutor, beta_tool, gather_tools
-from ._types import (
+from .core.tool_helpers import ToolExecutor, beta_tool, gather_tools
+from .core.types import (
     BashTool,
     BatchCreateParams,
     BatchRequest,
@@ -186,7 +141,76 @@ from ._types import (
     ToolResultContent,
     ToolUseContent,
 )
-from ._web_tools import (
+from .slash_commands.loader import (
+    Command,
+    CommandRegistry,
+    execute_command,
+    get_all_command_tools,
+    list_slash_commands,
+    load_commands,
+    parse_command_invocation,
+    register_command,
+    run_slash_command,
+)
+from .tools.agent import (
+    AgentCoordinator,
+    AgentTask,
+    TaskPriority,
+    TaskResult,
+    TaskStatus,
+    cleanup_tasks,
+    get_agent_info,
+    get_all_agent_tools,
+    list_active_tasks,
+    list_agent_types,
+    task,
+    task_cancel,
+    task_status,
+)
+from .tools.bash import (
+    bash,
+    bash_output,
+    cleanup_sessions,
+    get_all_bash_tools,
+    kill_shell,
+    list_active_sessions,
+)
+from .tools.builtin import (
+    BASH_TOOL,
+    COMPUTER_USE_TOOL,
+    TEXT_EDITOR_TOOL,
+    create_bash_tool,
+    create_computer_use_tool,
+    create_text_editor_tool,
+    get_all_builtin_tools,
+)
+from .tools.file import (
+    edit_file,
+    get_all_file_tools,
+    ls_directory,
+    multi_edit_file,
+    read_file,
+    write_file,
+)
+from .tools.notebook import (
+    NotebookCell,
+    NotebookContent,
+    NotebookReadResult,
+    create_notebook_edit_tool,
+    create_notebook_read_tool,
+    get_all_notebook_tools,
+    notebook_edit,
+    notebook_read,
+)
+from .tools.search import get_all_search_tools, glob_files, grep_code
+from .tools.todo import (
+    clear_todo_state,
+    get_all_todo_tools,
+    get_current_todos,
+    todo_read,
+    todo_write,
+)
+from .tools.web import (
     WebFetchResult,
     WebSearchResult,
     create_web_fetch_tool,
@@ -203,82 +227,127 @@ from ._web_tools import (
 __version__ = "0.1.0"
 
 __all__ = [
+    # Agent/Subagent Tools
+    "AgentCoordinator",
+    "AgentTask",
+    "TaskPriority",
+    "TaskResult",
+    "TaskStatus",
+    "cleanup_tasks",
+    "get_agent_info",
+    "get_all_agent_tools",
+    "list_active_tasks",
+    "list_agent_types",
+    "task",
+    "task_cancel",
+    "task_status",
+    # Built-in Tools
     "BASH_TOOL",
     "COMPUTER_USE_TOOL",
     "TEXT_EDITOR_TOOL",
+    "create_bash_tool",
+    "create_computer_use_tool",
+    "create_notebook_edit_tool",
+    "create_notebook_read_tool",
+    "create_text_editor_tool",
+    "create_web_fetch_tool",
+    "create_web_search_tool",
+    # Errors
     "APIConnectionError",
     "APIError",
     "APIStatusError",
     "APITimeoutError",
-    "AsyncBeta",
-    "AsyncDevorbit",
     "AuthenticationError",
     "BadRequestError",
+    "DevorbitError",
+    "InternalServerError",
+    "NotFoundError",
+    "OverloadedError",
+    "PermissionDeniedError",
+    "ProviderError",
+    "RateLimitError",
+    "StreamError",
+    "UnprocessableEntityError",
+    "UnsupportedProviderError",
+    # Main Clients
+    "AsyncBeta",
+    "AsyncDevorbit",
+    "Beta",
+    "Devorbit",
+    # Configuration
+    "DevorbitConfig",
+    "load_config",
+    "read_config",
+    "save_config",
+    "update_config",
+    "get_all_config_tools",
+    "Hook",
+    "HookContext",
+    "HookRegistry",
+    "HookType",
+    "PythonHookHandler",
+    "clear_hooks",
+    "disable_hooks",
+    "enable_hooks",
+    "execute_hook",
+    "execute_hooks",
+    "get_all_hook_tools",
+    "get_registry",
+    "hook",
+    "list_hooks",
+    "load_hooks_from_config",
+    "register_hook",
+    "trigger_hook",
+    "unregister_hook",
+    "ErrorCategory",
+    "ErrorClassifier",
+    "ErrorInfo",
+    "RecoveryManager",
+    "RecoveryStrategy",
+    "RetryConfig",
+    "RetryHandler",
+    "get_recovery_manager",
+    "reset_recovery_manager",
+    "with_retry",
+    # Plugins
     "BasePlugin",
+    "DevorbitPlugin",
+    "LoadedPlugin",
+    "PluginMetadata",
+    "PluginRegistry",
+    "disable_plugin",
+    "discover_all_plugins",
+    "enable_plugin",
+    "get_all_plugin_tools",
+    "get_plugin_registry",
+    "get_plugin_tools",
+    "list_plugins",
+    "load_and_initialize_plugin",
+    # Types
     "BashTool",
     "BatchCreateParams",
     "BatchRequest",
     "BatchRequestCounts",
     "BatchResult",
     "BatchStatus",
-    # Beta namespace
-    "Beta",
     "CacheControl",
-    # Commands
-    "Command",
-    "CommandRegistry",
     "ComputerUseTool",
     "ContentBlock",
     "ContentBlockDeltaEvent",
     "ContentBlockStartEvent",
     "ContentBlockStopEvent",
-    # Main clients
-    "Devorbit",
-    # Configuration
-    "DevorbitConfig",
-    # Errors
-    "DevorbitError",
-    "DevorbitPlugin",
     "DocumentBlock",
     "DocumentContent",
     "DocumentSource",
-    # Hooks
-    "Hook",
-    "HookRegistry",
-    "HookType",
     "ImageContent",
-    "InternalServerError",
-    "LoadedPlugin",
-    # MCP support
-    "MCPClient",
-    "MCPManager",
-    "MCPServerConfig",
-    # Types
     "Message",
     "MessageBatchResponse",
     "MessageCreateParams",
-    "MessageDeltaEvent",
-    # Models
     "MessageResponse",
     "MessageStartEvent",
     "MessageStopEvent",
-    "NotFoundError",
-    "NotebookCell",
-    "NotebookContent",
-    "NotebookReadResult",
-    "OverloadedError",
-    "PermissionDeniedError",
-    # Planning
-    "PlanningState",
-    "PluginMetadata",
-    "PluginRegistry",
-    "ProviderError",
     "ProviderType",
-    "RateLimitError",
-    "Skill",
-    "SkillRegistry",
     "StopReason",
-    "StreamError",
     "TextBlock",
     "TextContent",
     "TextEditorTool",
@@ -290,111 +359,83 @@ __all__ = [
     "ToolResultContent",
     "ToolUseBlock",
     "ToolUseContent",
-    "UnprocessableEntityError",
-    "UnsupportedProviderError",
     "Usage",
-    "WebFetchResult",
-    "WebSearchResult",
-    # Enhanced bash tools
-    "bash",
-    "bash_output",
-    # Tool helpers
-    "beta_tool",
-    "cancel_plan",
-    "cleanup_sessions",
-    "cleanup_tasks",
-    "clear_todo_state",
-    # Built-in tools
-    "create_bash_tool",
-    "create_computer_use_tool",
-    "create_notebook_edit_tool",
-    "create_notebook_read_tool",
-    "create_text_editor_tool",
-    "create_web_fetch_tool",
-    "create_web_search_tool",
-    "disable_plugin",
-    "discover_all_plugins",
-    "edit_file",
-    "enable_plugin",
-    "enter_planning_mode",
-    # Commands
-    "execute_command",
-    "execute_hooks",
-    "execute_skill",
-    "exit_plan_mode",
-    "gather_tools",
-    "get_agent_info",
-    "get_all_agent_tools",
-    "get_all_bash_tools",
-    "get_all_builtin_tools",
-    "get_all_command_tools",
-    "get_all_config_tools",
-    "get_all_file_tools",
-    "get_all_hook_tools",
-    "get_all_notebook_tools",
-    "get_all_planning_tools",
-    "get_all_plugin_tools",
-    "get_all_search_tools",
-    "get_all_skill_tools",
-    "get_all_todo_tools",
-    "get_all_web_tools",
-    "get_current_plan",
-    "get_current_todos",
-    "get_planning_status",
-    "get_plugin_registry",
-    "get_plugin_tools",
-    "get_registry",
-    "get_skill_registry",
-    # Search tools
-    "glob_files",
-    "grep_code",
-    "html_to_markdown",
-    "is_planning_active",
-    "kill_shell",
-    # Hooks
-    "list_active_sessions",
-    "list_active_tasks",
-    "list_agent_types",
-    "list_available_skills",
-    "list_hooks",
-    "list_plugins",
-    "list_slash_commands",
-    "load_and_initialize_plugin",
-    # Configuration
-    "load_commands",
-    "load_config",
-    "load_hooks_from_config",
-    # MCP
+    # MCP Support
+    "MCPClient",
+    "MCPManager",
+    "MCPServerConfig",
     "load_mcp_config",
-    "load_skills",
-    # File operations (continued)
-    "ls_directory",
-    "multi_edit_file",
+    # Commands
+    "Command",
+    "CommandRegistry",
+    "execute_command",
+    "get_all_command_tools",
+    "list_slash_commands",
+    "load_commands",
+    "parse_command_invocation",
+    "register_command",
+    "run_slash_command",
+    # Notebooks
+    "NotebookCell",
+    "NotebookContent",
+    "NotebookReadResult",
+    "get_all_notebook_tools",
     "notebook_edit",
     "notebook_read",
-    "parse_command_invocation",
-    # File operation tools
-    "read_config",
-    "read_file",
-    "register_command",
-    "register_hook",
+    # Planning
+    "PlanningState",
+    "cancel_plan",
+    "enter_planning_mode",
+    "exit_plan_mode",
+    "get_all_planning_tools",
+    "get_current_plan",
+    "get_planning_status",
+    "is_planning_active",
+    # Skills
+    "Skill",
+    "SkillRegistry",
+    "execute_skill",
+    "get_all_skill_tools",
+    "get_skill_registry",
+    "list_available_skills",
+    "load_skills",
     "register_skill",
     "run_skill",
-    "run_slash_command",
-    "save_config",
-    # Agent/Task tools
-    "task",
-    "task_cancel",
-    "task_status",
-    # Todo management tools
+    "validate_skill",
+    # Bash Tools
+    "bash",
+    "bash_output",
+    "cleanup_sessions",
+    "get_all_bash_tools",
+    "kill_shell",
+    "list_active_sessions",
+    # File Tools
+    "edit_file",
+    "get_all_file_tools",
+    "ls_directory",
+    "multi_edit_file",
+    "read_file",
+    "write_file",
+    # Search Tools
+    "get_all_search_tools",
+    "glob_files",
+    "grep_code",
+    # Todo Tools
+    "clear_todo_state",
+    "get_all_todo_tools",
+    "get_current_todos",
     "todo_read",
     "todo_write",
-    "trigger_hook",
-    "update_config",
-    "validate_skill",
+    # Web Tools
+    "WebFetchResult",
+    "WebSearchResult",
+    "get_all_web_tools",
+    "html_to_markdown",
     "web_fetch",
     "web_fetch_sync",
     "web_search",
     "web_search_sync",
-    "write_file",
+    # Tool Helpers
+    "beta_tool",
+    "gather_tools",
 ]

@@ -1,6 +1,6 @@
 """Tests for Pydantic models."""
 
-from devorbit._models import MessageResponse, TextBlock, TokenCountResponse, ToolUseBlock, Usage
+from devorbit.core.models import MessageResponse, TextBlock, TokenCountResponse, ToolUseBlock, Usage
 
 
 def test_text_block():

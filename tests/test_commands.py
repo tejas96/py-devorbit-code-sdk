@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from devorbit._commands import (
+from devorbit.slash_commands.loader import (
     Command,
     CommandRegistry,
     execute_command,
