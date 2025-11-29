@@ -24,35 +24,18 @@ try:
 except ImportError:
     HAS_PROMPT_TOOLKIT = False
 
-# 2. Robust Import Strategy
-try:
-    from .commands import CommandHandler
-    from .input import AutocompleteEngine, FileMentionParser, InputValidator
-    from .llm import LLMHandler
-    from .session import CLISession
-except (ImportError, ValueError):
-    try:
-        from ..commands import CommandHandler
-        from ..input import AutocompleteEngine, FileMentionParser, InputValidator
-        from ..llm import LLMHandler
-        from ..session import CLISession
-    except (ImportError, ValueError):
-        current_path = Path(__file__).resolve().parent
-        parent_path = current_path.parent
-        if str(parent_path) not in sys.path:
-            sys.path.insert(0, str(parent_path))
-
-        from devorbit.commands import CommandHandler
-        from devorbit.input import AutocompleteEngine, FileMentionParser, InputValidator
-        from devorbit.llm import LLMHandler
-        from devorbit.session import CLISession
+# 2. Updated Imports (Simple Relative Paths)
+from .command_handler import CommandHandler
+from .input import AutocompleteEngine, FileMentionParser, InputValidator
+from .llm import LLMHandler
+from .session import CLISession
 
 
 class DevorbitREPL:
     """Interactive REPL matching Claude Theme + rotating tips."""
 
     # ------------------------------
-    #     RANDOM TIPS FEATURE
+    #      RANDOM TIPS FEATURE
     # ------------------------------
     TIPS = [
         "Type your message or @path/to/file",
@@ -83,19 +66,19 @@ class DevorbitREPL:
 
         # --- CLAUDE THEME ---
         self.style = Style.from_dict({
-            "frame.border": "#666666",
-            "prompt": "#da7756 bold",
-            "input": "#f0f0f0",
-            "path": "#999999",
-            "git": "#555555",
-            "status": "#da7756",
+            "frame.border": "#666666",      # Sophisticated Dark Grey
+            "prompt": "#da7756 bold",       # Claude Orange for the ">"
+            "input": "#f0f0f0",             # Soft Off-White
+            "path": "#999999",              # Light Grey
+            "git": "#555555",               # Dark Grey
+            "status": "#da7756",            # Orange
             "docs": "#555555",
             "mode": "#da7756 bold",
-            "tip": "#777777 italic",
+            "tip": "#777777 italic",        # Grey Italic for tips
         })
 
     # ------------------------------------------------------------------
-    #     READ INPUT WITH TIP DISPLAY INSIDE THE INPUT BOX
+    #      READ INPUT WITH TIP DISPLAY INSIDE THE INPUT BOX
     # ------------------------------------------------------------------
     def read_input(self) -> str | None:
         if not HAS_PROMPT_TOOLKIT:
@@ -129,7 +112,7 @@ class DevorbitREPL:
         )
 
         # -------------------------
-        # TIP DISPLAY (NEW!)
+        # TIP DISPLAY (Inside Box)
         # -------------------------
         tip_html = HTML(f"<tip>{self.current_tip}</tip>")
 
@@ -151,8 +134,8 @@ class DevorbitREPL:
         input_box = Frame(
             #title=HTML("<title>devorbit</title>"),
             body=HSplit([
-                tip_window,        # <<<<< TIP ADDED HERE
-                input_content,
+                tip_window,        # Tip appears above input
+                input_content,     # Input prompt appears below tip
             ]),
             style="class:frame",
         )
