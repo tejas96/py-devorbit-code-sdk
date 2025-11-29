@@ -1,214 +1,241 @@
-"""REPL (Read-Eval-Print Loop) implementation for Devorbit CLI with enhanced input."""
+"""REPL implementation using Component-Based Rendering (Claude Theme) + Tips."""
 
+import sys
+import random
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-
-if TYPE_CHECKING:
-    from prompt_toolkit import PromptSession
-    from prompt_toolkit.completion import Completer
+# 1. Low-level UI components
+try:
+    from prompt_toolkit import Application
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.layout.containers import Window, FloatContainer, HSplit, VSplit
+    from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+    from prompt_toolkit.layout.layout import Layout
+    from prompt_toolkit.layout.dimension import Dimension
+    from prompt_toolkit.widgets import Frame
+    from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.completion import WordCompleter
     from prompt_toolkit.styles import Style
-else:
+    from prompt_toolkit.enums import DEFAULT_BUFFER
+    HAS_PROMPT_TOOLKIT = True
+except ImportError:
+    HAS_PROMPT_TOOLKIT = False
+
+# 2. Robust Import Strategy
+try:
+    from .commands import CommandHandler
+    from .input import AutocompleteEngine, FileMentionParser, InputValidator
+    from .llm import LLMHandler
+    from .session import CLISession
+except (ImportError, ValueError):
     try:
-        from prompt_toolkit import PromptSession
-        from prompt_toolkit.completion import Completer, WordCompleter
-        from prompt_toolkit.formatted_text import HTML
-        from prompt_toolkit.history import FileHistory
-        from prompt_toolkit.styles import Style
+        from ..commands import CommandHandler
+        from ..input import AutocompleteEngine, FileMentionParser, InputValidator
+        from ..llm import LLMHandler
+        from ..session import CLISession
+    except (ImportError, ValueError):
+        current_path = Path(__file__).resolve().parent
+        parent_path = current_path.parent
+        if str(parent_path) not in sys.path:
+            sys.path.insert(0, str(parent_path))
 
-        HAS_PROMPT_TOOLKIT = True
-    except ImportError:
-        PromptSession = None  # type: ignore[assignment,misc]
-        Completer = None  # type: ignore[assignment,misc]
-        WordCompleter = None  # type: ignore[assignment,misc]
-        HTML = None  # type: ignore[assignment,misc]
-        FileHistory = None  # type: ignore[assignment,misc]
-        Style = None  # type: ignore[assignment,misc]
-        HAS_PROMPT_TOOLKIT = False
-
-from .command_handler import CommandHandler
-from .input import AutocompleteEngine, FileMentionParser, InputValidator
-from .llm import LLMHandler
-from .session import CLISession
+        from devorbit.commands import CommandHandler
+        from devorbit.input import AutocompleteEngine, FileMentionParser, InputValidator
+        from devorbit.llm import LLMHandler
+        from devorbit.session import CLISession
 
 
 class DevorbitREPL:
-    """Interactive REPL for Devorbit CLI."""
+    """Interactive REPL matching Claude Theme + rotating tips."""
+
+    # ------------------------------
+    #     RANDOM TIPS FEATURE
+    # ------------------------------
+    TIPS = [
+        "Type your message or @path/to/file",
+        "Tip: Use @filename to reference files",
+        "Tip: Try /help to see available commands",
+        "Tip: Press Ctrl+D to exit anytime",
+        "Tip: Use /clear to clear history",
+        "Tip: Try /model to switch AI models",
+        "Tip: Reference files with @src/main.py",
+        "Tip: Use /history to see recent messages",
+        "Tip: Press Ctrl+@ for quick file mention",
+        "Tip: Use /exit or Ctrl+D to quit gracefully",
+    ]
 
     def __init__(self, session: CLISession) -> None:
-        """Initialize the REPL.
-
-        Args:
-            session: CLI session instance
-        """
         self.session = session
         self.command_handler = CommandHandler(session)
-
-        # Initialize enhanced input components
-        self.autocomplete = AutocompleteEngine(
-            provider=session.provider,
-            working_dir=session.working_dir,
-        )
-        self.mention_parser = FileMentionParser(working_dir=session.working_dir)
+        self.autocomplete = AutocompleteEngine(session.provider, session.working_dir)
+        self.mention_parser = FileMentionParser(session.working_dir)
         self.input_validator = InputValidator()
-
-        # Initialize LLM handler
         self.llm_handler = LLMHandler(session)
 
-        # Multi-line mode toggle
-        self.multiline_mode = False
+        self.attached_files: list[str] = []
+        self.history_file = Path.home() / ".devorbit_history"
 
-        # Setup prompt session with history
-        history_file = Path.home() / ".devorbit_history"
-        self.prompt_session: PromptSession[str] | None = None
-        self.prompt_style: Style | None = None
-        self.completer: Completer | None = None
+        # Pick a random tip
+        self.current_tip = random.choice(self.TIPS)
 
-        if not TYPE_CHECKING:
-            # Setup autocompleter for prompt_toolkit
-            if HAS_PROMPT_TOOLKIT and WordCompleter is not None:
-                # Create a simple word completer with command names
-                command_words = list(self.autocomplete.command_completer.BUILT_IN_COMMANDS.keys())
-                self.completer = WordCompleter(command_words, sentence=True)
+        # --- CLAUDE THEME ---
+        self.style = Style.from_dict({
+            "frame.border": "#666666",
+            "prompt": "#da7756 bold",
+            "input": "#f0f0f0",
+            "path": "#999999",
+            "git": "#555555",
+            "status": "#da7756",
+            "docs": "#555555",
+            "mode": "#da7756 bold",
+            "tip": "#777777 italic",
+        })
 
-            if HAS_PROMPT_TOOLKIT and PromptSession is not None and FileHistory is not None:
-                self.prompt_session = PromptSession(
-                    history=FileHistory(str(history_file)),
-                    completer=self.completer,
-                    complete_while_typing=True,
-                )
-
-            # Prompt style
-            if HAS_PROMPT_TOOLKIT and Style is not None:
-                self.prompt_style = Style.from_dict(
-                    {
-                        "prompt": "bold cyan",
-                        "path": "yellow",
-                    }
-                )
-
-    def get_prompt_message(self) -> str:
-        """Get the prompt message with current context.
-
-        Returns:
-            Formatted prompt string
-        """
-        if (
-            not TYPE_CHECKING
-            and HAS_PROMPT_TOOLKIT
-            and HTML is not None
-            and self.prompt_style is not None
-        ):
-            return HTML("<prompt>devorbit</prompt> <prompt>></prompt> ")
-        return "devorbit> "
-
+    # ------------------------------------------------------------------
+    #     READ INPUT WITH TIP DISPLAY INSIDE THE INPUT BOX
+    # ------------------------------------------------------------------
     def read_input(self) -> str | None:
-        """Read user input from the prompt.
+        if not HAS_PROMPT_TOOLKIT:
+            return input("> ")
 
-        Returns:
-            User input string or None if EOF/exit
-        """
-        try:
-            if not TYPE_CHECKING and HAS_PROMPT_TOOLKIT and self.prompt_session is not None:
-                prompt_msg = self.get_prompt_message()
-                user_input = self.prompt_session.prompt(
-                    prompt_msg,
-                    style=self.prompt_style,
-                )
-                return user_input.strip()
+        # Keybindings
+        kb = KeyBindings()
 
-            # Fallback to basic input
-            user_input = input(self.get_prompt_message())
-            return user_input.strip()
-        except EOFError:
-            return None
-        except KeyboardInterrupt:
-            self.session.print("\nUse /exit or Ctrl+D to quit")
-            return ""
+        @kb.add("c-d")
+        def _(event):
+            event.app.exit(result=None)
 
+        @kb.add("enter")
+        def _(event):
+            text = event.current_buffer.text
+            event.current_buffer.append_to_history()
+            event.app.exit(result=text)
+
+        @kb.add("c-@")
+        def _(event):
+            event.current_buffer.insert_text("@")
+
+        # Autocomplete
+        buf = Buffer(
+            name=DEFAULT_BUFFER,
+            history=FileHistory(str(self.history_file)),
+            completer=WordCompleter(
+                list(self.autocomplete.command_completer.BUILT_IN_COMMANDS.keys())
+            ),
+            complete_while_typing=True,
+        )
+
+        # -------------------------
+        # TIP DISPLAY (NEW!)
+        # -------------------------
+        tip_html = HTML(f"<tip>{self.current_tip}</tip>")
+
+        tip_window = Window(
+            content=FormattedTextControl(text=tip_html),
+            height=1,
+            style="class:tip",
+        )
+
+        # -------------------------
+        # INPUT AREA
+        # -------------------------
+        input_content = VSplit([
+            Window(content=FormattedTextControl(HTML(" <prompt>></prompt> ")), width=3),
+            Window(content=BufferControl(buffer=buf), style="class:input", wrap_lines=True),
+        ])
+
+        # Frame containing tip + input box
+        input_box = Frame(
+            #title=HTML("<title>devorbit</title>"),
+            body=HSplit([
+                tip_window,        # <<<<< TIP ADDED HERE
+                input_content,
+            ]),
+            style="class:frame",
+        )
+
+        # Status Bar
+        path_str = self.session.working_dir.name
+        mode_str = "auto" if self.session.auto_approve_tools else "manual"
+
+        status_bar = VSplit([
+            Window(content=FormattedTextControl(HTML(f"<path>{path_str}</path> <git>(main)</git>"))),
+            Window(content=FormattedTextControl(HTML("<status>no sandbox</status> <docs>(see /docs)</docs>")), align="center"),
+            Window(content=FormattedTextControl(HTML(f"<mode>{mode_str}</mode>")), width=6, align="right"),
+        ], height=1)
+
+        layout = Layout(FloatContainer(
+            content=HSplit([input_box, status_bar]),
+            floats=[]
+        ))
+
+        # APPLICATION
+        app = Application(
+            layout=layout,
+            key_bindings=kb,
+            style=self.style,
+            mouse_support=True,
+            full_screen=False,
+        )
+
+        # ROTATE TIP FOR NEXT INPUT
+        self.current_tip = random.choice(self.TIPS)
+
+        result = app.run()
+        return result
+
+    # ------------------------------------------------------------------
+    # PROCESS INPUT
+    # ------------------------------------------------------------------
     def process_input(self, user_input: str) -> bool:
-        """Process user input and execute commands.
-
-        Args:
-            user_input: User input string
-
-        Returns:
-            True to continue REPL, False to exit
-        """
         if not user_input:
             return True
 
-        # Validate input
         is_valid, error = self.input_validator.validate_input(user_input)
         if not is_valid:
             self.session.print_error(f"Invalid input: {error}")
             return True
 
-        # Sanitize input
         user_input = self.input_validator.sanitize_input(user_input)
 
-        # Check if it's a slash command
         if user_input.startswith("/"):
-            # Handle special commands that affect REPL state
-            if user_input.strip() == "/multiline":
-                self.multiline_mode = not self.multiline_mode
-                status = "enabled" if self.multiline_mode else "disabled"
-                self.session.print_success(f"Multi-line mode {status}")
-                if self.multiline_mode:
-                    self.session.print_info("Press Ctrl+Enter to submit, Shift+Enter for new line")
-                return True
-
             return self.command_handler.handle_command(user_input)
 
-        # Parse @file mentions
         mentions = self.mention_parser.parse(user_input)
         if mentions:
-            # Display attached files summary
-            summary = self.mention_parser.format_mention_summary(mentions)
-            if summary:
-                self.session.print_info(summary)
-
-            # Remove mentions from the actual prompt
+            self.attached_files = [m.get("path", m.get("file", "")) for m in mentions]
+            print(f"\033[38;2;218;119;86m📎 Attached: {', '.join(self.attached_files)}\033[0m")
             clean_input = self.mention_parser.remove_mentions(user_input)
         else:
             clean_input = user_input
+            self.attached_files = []
 
-        # Regular message - send to LLM
         try:
-            # Send message with streaming (provider-agnostic)
-            response = self.llm_handler.send_message(
-                clean_input,
-                stream=True,  # Enable streaming for real-time display
-            )
-
-            # Add assistant response to history
+            response = self.llm_handler.send_message(clean_input, stream=True)
             if response:
                 self.session.add_message("assistant", response)
             else:
-                self.session.print_warning("No response received from LLM")
-
+                self.session.print_warning("No response received")
         except Exception as e:
-            self.session.print_error(f"Failed to process message: {e}")
+            self.session.print_error(f"Error: {e}")
             if self.session.debug:
                 raise
+        finally:
+            self.attached_files = []
 
         return True
 
+    # ------------------------------------------------------------------
     def run(self) -> None:
-        """Start the REPL loop."""
         while self.session.is_running:
             user_input = self.read_input()
-
-            # Handle EOF (Ctrl+D)
             if user_input is None:
                 self.session.print("\nGoodbye! 👋")
                 break
-
-            # Process the input
-            continue_running = self.process_input(user_input)
-            if not continue_running:
+            if not self.process_input(user_input):
                 break
 
 
