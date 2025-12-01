@@ -8,12 +8,16 @@ This module implements UI components matching Claude Code CLI:
 
 from __future__ import annotations
 
+import sys
 import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-import questionary
+from prompt_toolkit import PromptSession
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.keys import Keys
 from questionary import Style
 from rich.console import Console
 from rich.live import Live
@@ -68,6 +72,7 @@ class ClaudeStylePrompt:
             console: Rich console instance
         """
         self.console = console or Console()
+        self.prompt_session = PromptSession()
 
     def show_permission_prompt(
         self,
@@ -77,9 +82,9 @@ class ClaudeStylePrompt:
         working_dir: str,
         is_dangerous: bool = False,
     ) -> PermissionChoice | None:
-        """Show Claude Code-style permission prompt.
+        """Show Claude Code-style permission prompt with embedded options.
 
-        Shows tool info in a Rich panel, then uses questionary for selection.
+        The panel is shown with transient=True, so it auto-clears when done.
 
         Args:
             tool_name: Name of the tool (e.g., "Bash")
@@ -94,55 +99,104 @@ class ClaudeStylePrompt:
         tool_display = f"{tool_name} command" if tool_name.lower() == "bash" else tool_name
         color = "red" if is_dangerous else "cyan"
 
-        # Build and show tool info panel
-        content = Text()
-        content.append(f"{tool_display}\n", style=f"bold {color}")
-        content.append(f"  {command}\n", style="white")
-        if description:
-            content.append(f"  {description}", style="dim")
-
-        panel = Panel(content, border_style=color, padding=(0, 1))
-        self.console.print(panel)
-
-        # Prepare choices for questionary
+        # Prepare choices
         cmd_short = command[:40] + "..." if len(command) > 40 else command
         dir_short = working_dir if len(working_dir) <= 35 else "..." + working_dir[-32:]
 
         choices = [
-            questionary.Choice("Yes", value="yes"),
-            questionary.Choice(
-                f"Yes, and don't ask again for {cmd_short} in {dir_short}",
-                value="yes_always",
-            ),
-            questionary.Choice("No, and tell Claude what to do differently", value="no"),
+            ("yes", "Yes"),
+            ("yes_always", f"Yes, and don't ask again for {cmd_short} in {dir_short}"),
+            ("no", "No, and tell Claude what to do differently"),
         ]
 
-        try:
-            # Use questionary for reliable arrow key selection
-            result = questionary.select(
-                "Do you want to proceed?",
-                choices=choices,
-                style=CLAUDE_STYLE,
-                qmark="",
-                pointer="❯",
-                use_shortcuts=False,
-                use_arrow_keys=True,
-                use_jk_keys=False,
-                instruction="(↑/↓ to select, Enter to confirm)",
-            ).ask()
+        selected_index = [0]
+        live_display = [None]
 
-            if result is None:
+        # Key bindings for arrow navigation
+        kb = KeyBindings()
+
+        @kb.add(Keys.Up)
+        def move_up(event):
+            selected_index[0] = (selected_index[0] - 1) % len(choices)
+            if live_display[0]:
+                update_display()
+
+        @kb.add(Keys.Down)
+        def move_down(event):
+            selected_index[0] = (selected_index[0] + 1) % len(choices)
+            if live_display[0]:
+                update_display()
+
+        @kb.add(Keys.Enter)
+        def select(event):
+            event.app.exit(result=choices[selected_index[0]][0])
+
+        @kb.add("c-c")
+        def cancel(event):
+            event.app.exit(result=None)
+
+        def create_panel_content() -> Text:
+            """Create panel content with embedded options."""
+            content = Text()
+            content.append(f"{tool_display}\n", style=f"bold {color}")
+            content.append(f"  {command}\n", style="white")
+            if description:
+                content.append(f"  {description}\n", style="dim")
+
+            content.append("\n")
+            content.append("Do you want to proceed?\n", style="bold white")
+
+            # Add choices with pointer
+            for i, (value, label) in enumerate(choices):
+                if i == selected_index[0]:
+                    content.append("  ❯ ", style="cyan bold")
+                    content.append(label, style="cyan bold")
+                else:
+                    content.append("    ", style="dim")
+                    content.append(label, style="dim")
+                content.append("\n")
+
+            content.append("\n")
+            content.append("(↑/↓ to select, Enter to confirm)", style="dim italic")
+
+            return content
+
+        def update_display():
+            """Update the live display with new selection."""
+            if live_display[0]:
+                panel = Panel(
+                    create_panel_content(),
+                    border_style=color,
+                    padding=(0, 1),
+                )
+                live_display[0].update(panel)
+
+        # Initial panel
+        panel = Panel(
+            create_panel_content(),
+            border_style=color,
+            padding=(0, 1),
+        )
+
+        # Show panel with transient=True - it will auto-clear when Live context exits
+        with Live(panel, console=self.console, refresh_per_second=10, transient=True) as live:
+            live_display[0] = live
+            try:
+                result = self.prompt_session.prompt("", key_bindings=kb)
+
+                if result is None:
+                    return None
+
+                # Find the selected index
+                for i, (value, _) in enumerate(choices):
+                    if value == result:
+                        return PermissionChoice(value=result, option_index=i)
+
+                return PermissionChoice(value=result, option_index=0)
+
+            except (KeyboardInterrupt, EOFError):
                 return None
-
-            # Find the selected index
-            for i, choice in enumerate(choices):
-                if choice.value == result:
-                    return PermissionChoice(value=result, option_index=i)
-
-            return PermissionChoice(value=result, option_index=0)
-
-        except (KeyboardInterrupt, EOFError):
-            return None
+            # Panel auto-clears here because transient=True
 
 
 class ToolExecutionDisplay:
@@ -155,7 +209,7 @@ class ToolExecutionDisplay:
     """
 
     # Status dot characters
-    DOT_RUNNING = "○"  # Empty circle (gray)
+    DOT_RUNNING = "●"  # Empty circle (gray)
     DOT_SUCCESS = "●"  # Filled circle (green)
     DOT_FAILED = "●"  # Filled circle (red)
 
@@ -192,19 +246,14 @@ class ToolExecutionDisplay:
         tool_id = tool_id or f"{tool_name}-{time.time()}"
         self._start_time = time.time()
         self._tool_name = tool_name
-        self._command = command[:60] + "..." if len(command) > 60 else command
+        self._command = command
 
         # Create running status display
-        display = self._create_display(ToolStatus.RUNNING)
-
-        # Start Live display for in-place updates
-        self._live = Live(
-            display,
-            console=self.console,
-            refresh_per_second=4,
-            transient=True,  # Clear when stopped, we'll print final state
-        )
-        self._live.start()
+        display = Text()
+        display.append(f"{self.DOT_RUNNING} ", style="dim")
+        display.append(f"{tool_name}({command})\n", style="white")
+        display.append("  └─ Running...", style="white")
+        self.console.print(display)
 
         return tool_id
 
@@ -418,9 +467,6 @@ class ClaudeStyleUI:
         else:
             command = str(next(iter(tool_input.values()))) if tool_input else tool_name
 
-        # Start display (shows gray dot + "Running...")
-        self.tool_display.show_tool_start(tool_name, command)
-
         try:
             # Execute tool
             result = executor(**tool_input)
@@ -462,37 +508,92 @@ class ClaudeStyleUI:
             return {"error": str(e)}
 
     def _get_tool_description(self, tool_name: str, tool_input: dict[str, Any]) -> str:
-        """Get human-readable description of tool action."""
-        if tool_name.lower() == "bash":
-            command = str(tool_input.get("command", ""))
-            if command.startswith("ls"):
-                return "List directory contents"
-            if command.startswith("cat"):
-                return "Display file contents"
-            if command.startswith("grep"):
-                return "Search file contents"
-            if command.startswith("find"):
-                return "Find files"
-            if "softwareupdate" in command:
-                return "Check for available macOS system updates"
-            if command.startswith("git"):
-                return "Git version control operation"
-            if command.startswith("npm") or command.startswith("yarn"):
-                return "Package manager operation"
-            if command.startswith("pip") or command.startswith("poetry"):
-                return "Python package manager operation"
-            return "Execute shell command"
+        """Generates a one-line description of the specific tool call based on inputs.
+
+        This method replaces the static tool description with a dynamic, context-
+        specific summary, ensuring a better user experience without consuming extra
+        LLM tokens.
+        """
+
+        # --- File I/O Tools ---
         if tool_name == "read_file":
-            return "Read file contents"
-        if tool_name == "write_file":
-            return "Create or overwrite file"
-        if tool_name == "edit_file":
-            return "Edit file with search/replace"
-        if tool_name in ("glob", "glob_files"):
-            return "Find files matching pattern"
-        if tool_name in ("grep", "grep_code"):
-            return "Search code contents"
-        return f"Execute {tool_name} tool"
+            file_path = tool_input.get("file_path", "a file")
+            return f"Read the content of file: '{file_path}'."
+
+        elif tool_name == "write_file":
+            file_path = tool_input.get("file_path", "a file")
+            return f"Create or overwrite file: '{file_path}'."
+
+        elif tool_name == "edit_file":
+            file_path = tool_input.get("file_path", "a file")
+            return f"Edit content within file: '{file_path}'."
+
+        # --- File Search Tools ---
+        elif tool_name == "glob":
+            pattern = tool_input.get("pattern", "a pattern")
+            path = tool_input.get("path", ".")
+            return f"Search for files matching '{pattern}' in '{path}'."
+
+        elif tool_name == "grep":
+            pattern = tool_input.get("pattern", "a pattern")
+            path = tool_input.get("path", ".")
+            return f"Search for the text pattern '{pattern}' in files in '{path}'."
+
+        # --- Enhanced Shell/Command Tools (bash) ---
+        elif tool_name == "bash":
+            command = tool_input.get("command", "").strip()
+
+            # Use lower-casing for robust command matching
+            cmd_lower = command.lower()
+
+            # 1. Common File/Directory Commands
+            if cmd_lower == "pwd":
+                return "Display the current working directory."
+            if cmd_lower.startswith("ls"):
+                return "List files and directories."
+            if cmd_lower.startswith("cd"):
+                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else "~"
+                return f"Change directory to: {path}"
+            if cmd_lower.startswith("cat"):
+                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else ""
+                return f"Display the content of file: {path}"
+            if cmd_lower.startswith("mkdir"):
+                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else ""
+                return f"Create a new directory: {path}"
+            if cmd_lower.startswith("touch"):
+                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else ""
+                return f"Create a new file: {path}"
+
+            # 2. Common System Status Commands
+            if cmd_lower in ("free -h", "free"):
+                return "Check current memory usage."
+            if cmd_lower.startswith("df -h"):
+                return "Check current disk space usage."
+            if cmd_lower.startswith("ps aux"):
+                return "List all running processes."
+
+            # 3. Dangerous or Generic Commands
+            # Note: Requires access to DangerousCommandDetector patterns (see next section)
+            try:
+                # Assuming access to DangerousCommandDetector.DANGEROUS_PATTERNS via session/tool_approval
+                detector = self.session.tool_approval.DangerousCommandDetector
+                if any(re.search(p, command, re.IGNORECASE) for p in detector.DANGEROUS_PATTERNS):
+                    return f"Execute potentially dangerous shell command: {command[:50]}..."
+            except AttributeError:
+                # Fallback if detector path is incorrect
+                pass
+
+            # 4. Final Fallback for ANY other bash command
+            return f"Execute shell command: {command[:50]}..."
+
+        # --- Fallback for uncategorized/new tools ---
+        else:
+            # Fallback to general tool description defined statically (if available)
+            tool_definitions = {
+                tool["name"]: tool.get("description")
+                for tool in self.session.tool_executor.get_tool_definitions()
+            }
+            return tool_definitions.get(tool_name)
 
 
 __all__ = [
