@@ -340,8 +340,8 @@ class ClaudeStyleUI:
         self.prompt = ClaudeStylePrompt(console)
         self.tool_display = ToolExecutionDisplay(console)
 
-        # Permission memory: {(command, directory): "allow"|"deny"}
-        self._permission_memory: dict[tuple[str, str], str] = {}
+        # NOTE: Permission memory is now handled by PermissionManager in core/permissions.py
+        # This class only handles UI display, not permission state
 
     def request_permission(
         self,
@@ -350,7 +350,10 @@ class ClaudeStyleUI:
         working_dir: str,
         is_dangerous: bool = False,
     ) -> tuple[bool, bool]:
-        """Request permission for tool execution.
+        """Request permission for tool execution (UI only - no memory).
+
+        Permission memory is handled by PermissionManager in core/permissions.py.
+        This method ONLY shows the UI prompt and returns the user's choice.
 
         Args:
             tool_name: Name of the tool
@@ -361,7 +364,7 @@ class ClaudeStyleUI:
         Returns:
             Tuple of (approved, remember_choice)
         """
-        # Get command string
+        # Get command string for display
         if tool_name.lower() == "bash":
             command = str(tool_input.get("command", str(tool_input)))
         elif tool_name in ("read_file", "write_file", "edit_file"):
@@ -372,15 +375,7 @@ class ClaudeStyleUI:
         # Generate description
         description = self._get_tool_description(tool_name, tool_input)
 
-        # Check memory
-        memory_key = (self._normalize_command(command), working_dir)
-        if memory_key in self._permission_memory:
-            remembered = self._permission_memory[memory_key]
-            if remembered == "allow":
-                self.console.print(f"[dim]⚡ Auto-approved: {tool_name}[/dim]")
-                return True, False
-
-        # Show permission prompt
+        # Show permission prompt (memory check is done by PermissionManager BEFORE this)
         choice = self.prompt.show_permission_prompt(
             tool_name=tool_name,
             command=command,
@@ -395,7 +390,7 @@ class ClaudeStyleUI:
         if choice.value == "yes":
             return True, False
         if choice.value == "yes_always":
-            self._permission_memory[memory_key] = "allow"
+            # Return True for remember - PermissionManager will store the rule
             return True, True
         return False, False
 
@@ -465,10 +460,6 @@ class ClaudeStyleUI:
                 error=str(e),
             )
             return {"error": str(e)}
-
-    def _normalize_command(self, command: str) -> str:
-        """Normalize command for memory key."""
-        return command.strip()
 
     def _get_tool_description(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         """Get human-readable description of tool action."""

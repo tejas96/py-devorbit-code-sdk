@@ -335,9 +335,10 @@ def edit_file(
 
 
 @beta_tool
-def multi_edit_file(
+def multi_edit_file(  # noqa: PLR0911, PLR0912 - Complex atomic validation requires multiple returns/branches
     file_path: str,
     edits: list[dict[str, str]],
+    atomic: bool = True,
 ) -> dict[str, Any]:
     """Perform multiple exact string replacements in a single file.
 
@@ -347,6 +348,8 @@ def multi_edit_file(
     Args:
         file_path: Absolute path to the file to modify
         edits: List of edit operations, each with 'old_string' and 'new_string' keys
+        atomic: If True (default), only writes file if ALL edits succeed. If False,
+                applies as many edits as possible and writes partial results.
 
     Returns:
         Dictionary containing batch edit results or error message
@@ -372,13 +375,50 @@ def multi_edit_file(
                     "file_path": file_path,
                 }
 
-        # Read and process file
+        # Read original file content
         path = Path(file_path)
         with path.open(encoding="utf-8") as f:
-            current_content = f.read()
+            original_content = f.read()
 
-        # Apply edits sequentially
+        # Phase 1: Validate all edits can be applied (dry run)
+        if atomic:
+            validation_content = original_content
+            validation_errors: list[dict[str, Any]] = []
+
+            for i, edit in enumerate(edits):
+                old_str = edit["old_string"]
+                new_str = edit["new_string"]
+
+                if old_str not in validation_content:
+                    validation_errors.append(
+                        {
+                            "edit_number": i + 1,
+                            "error": "old_string not found",
+                            "old_string_preview": (
+                                old_str[:100] + "..." if len(old_str) > 100 else old_str
+                            ),
+                        }
+                    )
+                else:
+                    # Apply edit in validation to check sequential dependencies
+                    validation_content = validation_content.replace(old_str, new_str, 1)
+
+            # If any validation errors, abort without writing
+            if validation_errors:
+                return {
+                    "success": False,
+                    "file_path": str(path.absolute()),
+                    "error": "Atomic operation aborted: some edits would fail",
+                    "total_edits": len(edits),
+                    "failed_edits": len(validation_errors),
+                    "validation_errors": validation_errors,
+                    "file_unchanged": True,
+                }
+
+        # Phase 2: Apply edits (either all validated or non-atomic mode)
+        current_content = original_content
         edit_results: list[dict[str, Any]] = []
+
         for i, edit in enumerate(edits):
             old_str = edit["old_string"]
             new_str = edit["new_string"]
@@ -395,19 +435,31 @@ def multi_edit_file(
                     }
                 )
 
-        # Write back
-        with path.open("w", encoding="utf-8") as f:
-            f.write(current_content)
-
         successful_edits = sum(1 for r in edit_results if r["success"])
+        failed_edits = len(edits) - successful_edits
+
+        # Only write if we have changes and (atomic with all success OR non-atomic)
+        if current_content != original_content:
+            if atomic and failed_edits > 0:
+                # Should not reach here due to validation, but safety check
+                return {
+                    "success": False,
+                    "file_path": str(path.absolute()),
+                    "error": "Atomic operation aborted: edits failed",
+                    "file_unchanged": True,
+                }
+
+            with path.open("w", encoding="utf-8") as f:
+                f.write(current_content)
 
         return {
-            "success": True,
+            "success": failed_edits == 0,
             "file_path": str(path.absolute()),
             "total_edits": len(edits),
             "successful_edits": successful_edits,
-            "failed_edits": len(edits) - successful_edits,
+            "failed_edits": failed_edits,
             "edit_results": edit_results,
+            "atomic": atomic,
         }
 
     except Exception as e:

@@ -69,6 +69,10 @@ class ToolRegistry:
         """Initialize tool registry."""
         self._tools: dict[str, RegisteredTool] = {}
         self._enabled = True
+        # Cache for tool definitions (invalidated on register/unregister)
+        self._definitions_cache: list[Tool] | None = None
+        self._cache_category: ToolCategory | None = None
+        self._cache_enabled_only: bool = True
 
     def register(
         self,
@@ -98,6 +102,7 @@ class ToolRegistry:
             metadata=metadata or {},
         )
         self._tools[name] = tool
+        self._invalidate_cache()
 
     def unregister(self, name: str) -> bool:
         """Unregister a tool.
@@ -110,8 +115,13 @@ class ToolRegistry:
         """
         if name in self._tools:
             del self._tools[name]
+            self._invalidate_cache()
             return True
         return False
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate the definitions cache."""
+        self._definitions_cache = None
 
     def get(self, name: str) -> RegisteredTool | None:
         """Get a registered tool by name.
@@ -141,7 +151,7 @@ class ToolRegistry:
         category: ToolCategory | None = None,
         enabled_only: bool = True,
     ) -> list[Tool]:
-        """Get all tool definitions.
+        """Get all tool definitions (cached for performance).
 
         Args:
             category: Filter by category (None = all)
@@ -150,14 +160,28 @@ class ToolRegistry:
         Returns:
             List of tool definitions
         """
-        definitions: list[Tool] = []
+        # Use cache if available and params match
+        if (
+            self._definitions_cache is not None
+            and self._cache_category == category
+            and self._cache_enabled_only == enabled_only
+        ):
+            return self._definitions_cache
 
+        # Build definitions list
+        definitions: list[Tool] = []
         for tool in self._tools.values():
             if enabled_only and not tool.enabled:
                 continue
             if category and tool.category != category:
                 continue
             definitions.append(tool.definition)
+
+        # Cache for common case (all enabled tools)
+        if category is None and enabled_only:
+            self._definitions_cache = definitions
+            self._cache_category = category
+            self._cache_enabled_only = enabled_only
 
         return definitions
 
@@ -235,6 +259,7 @@ class ToolRegistry:
         tool = self._tools.get(name)
         if tool:
             tool.enabled = True
+            self._invalidate_cache()  # Cache must be invalidated when enabled state changes
             return True
         return False
 
@@ -250,12 +275,14 @@ class ToolRegistry:
         tool = self._tools.get(name)
         if tool:
             tool.enabled = False
+            self._invalidate_cache()  # Cache must be invalidated when enabled state changes
             return True
         return False
 
     def clear(self) -> None:
         """Clear all registered tools."""
         self._tools.clear()
+        self._invalidate_cache()
 
 
 # Global registry state holder

@@ -199,8 +199,12 @@ class TestMultiEditFile:
         assert result["failed_edits"] == 0
         assert test_file.read_text() == "FOO BAR BAZ"
 
-    def test_multi_edit_partial_failure(self, tmp_path: Path) -> None:
-        """Test multi-edit with some failures."""
+    def test_multi_edit_partial_failure_atomic(self, tmp_path: Path) -> None:
+        """Test multi-edit with some failures in atomic mode (default).
+
+        With atomic=True (default), if any edit fails, the file is NOT modified.
+        This prevents partial/corrupted state.
+        """
         test_file = tmp_path / "multi.txt"
         test_file.write_text("foo bar")
 
@@ -212,10 +216,34 @@ class TestMultiEditFile:
 
         result = multi_edit_file(str(test_file), edits)
 
-        assert result["success"] is True
+        # Atomic mode: operation fails, file unchanged
+        assert result["success"] is False
+        assert result["file_unchanged"] is True
+        assert "validation_errors" in result
+        assert result["failed_edits"] == 1
+        assert test_file.read_text() == "foo bar"  # Original content preserved!
+
+    def test_multi_edit_partial_failure_non_atomic(self, tmp_path: Path) -> None:
+        """Test multi-edit with some failures in non-atomic mode.
+
+        With atomic=False, successful edits are applied even if some fail.
+        """
+        test_file = tmp_path / "multi.txt"
+        test_file.write_text("foo bar")
+
+        edits = [
+            {"old_string": "foo", "new_string": "FOO"},
+            {"old_string": "missing", "new_string": "MISSING"},
+            {"old_string": "bar", "new_string": "BAR"},
+        ]
+
+        result = multi_edit_file(str(test_file), edits, atomic=False)
+
+        # Non-atomic mode: partial success, file modified
+        assert result["success"] is False  # Overall success is False due to failures
         assert result["successful_edits"] == 2
         assert result["failed_edits"] == 1
-        assert test_file.read_text() == "FOO BAR"
+        assert test_file.read_text() == "FOO BAR"  # Successful edits applied
 
     def test_multi_edit_empty_list(self, tmp_path: Path) -> None:
         """Test multi-edit with empty edits list."""
