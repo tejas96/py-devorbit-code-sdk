@@ -1,6 +1,7 @@
 """CLI session management with enhanced UI system."""
 
 import json
+import random
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -8,8 +9,10 @@ from devorbit.core.types import ContentBlock
 
 
 try:
+    from rich import box
     from rich.console import Console as RichConsole
     from rich.panel import Panel as RichPanel
+    from rich.table import Table as RichTable
     from rich.text import Text as RichText
 
     HAS_RICH = True
@@ -17,6 +20,8 @@ except ImportError:
     RichConsole = None  # type: ignore[assignment,misc]
     RichPanel = None  # type: ignore[assignment,misc]
     RichText = None  # type: ignore[assignment,misc]
+    RichTable = None  # type: ignore[assignment,misc]
+    box = None  # type: ignore[assignment]
     HAS_RICH = False
 
 from devorbit import Devorbit
@@ -48,6 +53,23 @@ WHITE = "\033[97m"
 
 class CLISession:
     """Manages a Devorbit CLI session."""
+
+    # ------------------------------
+    #      TIPS FEATURE
+    # ------------------------------
+    TIPS = [
+        "Type your message or @path/to/file",
+        "Use @filename to reference files",
+        "Enter submits single line messages",
+        "Alt+Enter or Ctrl+J to submit multiline",
+        "Press Ctrl+D to exit anytime",
+        "Use /clear to clear history",
+        "Try /model to switch AI models",
+        "Reference files with @src/main.py",
+        "Use /history to see recent messages",
+        "Press Ctrl+@ for quick file mention",
+        "Paste code, then Alt+Enter to send",
+    ]
 
     def __init__(
         self,
@@ -185,35 +207,85 @@ class CLISession:
         return get_registry().list_all()
 
     def display_welcome(self) -> None:
-        """Display Claude Code style welcome banner."""
-        # Get model display name
+        """Display welcome banner with tips in a split horizontal layout."""
+        # Check if Rich is available for the advanced layout
+        if not (HAS_RICH and self.console):
+            print(f"Devorbit CLI - {self.provider}/{self.model}")
+            print(f"Working Dir: {self.working_dir}")
+            return
+
+        # 1. Setup Data
         model_display = self.model if self.model else "default"
         provider_display = self.provider.capitalize()
+        random_tip = random.choice(self.TIPS)
 
-        welcome_text = f"""{ORANGE}╭─ Devorbit v2.0.14 ──────────────────────────────────────────────────────────╮
-│                                                                             │
-│  {WHITE}Welcome back!{ORANGE}                                                              │
-│                                                                             │
-│         {WHITE}██████╗ ███████╗██╗   ██╗ ██████╗ ██████╗ ██████╗ ██╗████████╗{ORANGE}      │
-│         {WHITE}██╔══██╗██╔════╝██║   ██║██╔═══██╗██╔══██╗██╔══██╗██║╚══██╔══╝{ORANGE}      │
-│         {WHITE}██║  ██║█████╗  ██║   ██║██║   ██║██████╔╝██████╔╝██║   ██║{ORANGE}         │
-│         {WHITE}██║  ██║██╔══╝  ╚██╗ ██╔╝██║   ██║██╔══██╗██╔══██╗██║   ██║{ORANGE}         │
-│         {WHITE}██████╔╝███████╗ ╚████╔╝ ╚██████╔╝██║  ██║██████╔╝██║   ██║{ORANGE}         │
-│         {WHITE}╚═════╝ ╚══════╝  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝╚═════╝ ╚═╝   ╚═╝{ORANGE}         │
-│                                                                             │
-│  {GRAY}{provider_display} ·  {model_display}{ORANGE}
-│  {GRAY}{self.working_dir}{ORANGE}
-│                                                                             │
-╰─────────────────────────────────────────────────────────────────────────────╯{RESET}
+        # 2. Create the Main Layout Table (2 Columns)
+        # Using a full Table instead of grid allows us to control borders (box)
+        # show_edge=False removes the outer border, leaving only the internal divider
+        # padding settings: (top/bottom, left/right)
+        grid = RichTable(
+            show_header=False,
+            box=box.ROUNDED,
+            show_edge=False,
+            expand=True,
+            padding=(1, 2),
+            border_style="grey30",  # Subtle color for the divider line
+        )
+        grid.add_column(justify="center", ratio=1)  # Left Column: Logo
+        grid.add_column(justify="left", ratio=1)  # Right Column: Info
 
-{ORANGE}Tips for getting started{RESET}
-{WHITE}Run /init to create a DEVORBIT.md file with instructions for Devorbit{RESET}
+        # 3. Left Side: Compact Logo & Version
+        # New "Tech/Modern" style ASCII logo
+        logo_text = (
+            "[orange3]"
+            r" ___  ___  _ _  ___  ___  ___  _ _  ___ " + "\n"
+            r"| . \| __|| | || . || . \| . >| | ||_ _|" + "\n"
+            r"| | || _ || ' || | ||   /| . \| | | | | " + "\n"
+            r"|___/|___| \_/ `___'|_\_\|___/|_|_| |_| " + "\n"
+            "[/]"
+        )
 
-{ORANGE}Recent activity{RESET}
-{GRAY}No recent activity{RESET}
-"""
+        logo_panel = RichText.from_markup(
+            f"{logo_text}\n[white]v2.0.14[/]\n[grey50]The AI Software Engineer[/]"
+        )
 
-        print(welcome_text)
+        # 4. Right Side: Info, Tips, & Commands
+        # We use a nested grid for perfect alignment of labels and values
+        info_grid = RichTable.grid(padding=(0, 2))
+        info_grid.add_column(style="bold white")
+        info_grid.add_column(style="orange3")  # Use 'orange3' style, NOT the ANSI 'ORANGE' constant
+
+        # Helper for grey labels
+        def label(text: str) -> RichText:
+            return RichText(text, style="grey50")
+
+        # Session Details
+        info_grid.add_row(label("Provider:"), f"{provider_display}")
+        info_grid.add_row(label("Model:"), f"{model_display}")
+        info_grid.add_row(label("Path:"), f"{self.working_dir.name}/")
+        info_grid.add_row("", "")  # Spacer
+
+        # Random Tip
+        info_grid.add_row(label("💡 Tip:"), f"{random_tip}")
+        info_grid.add_row("", "")  # Spacer
+
+        # Quick Commands
+        info_grid.add_row(label("Start:"), "/init to setup project")
+        info_grid.add_row(label("Help:"), "/help to list commands")
+        info_grid.add_row(label("Ref:"), "@filename to mention code")
+
+        # 5. Add Content to Main Grid and Print
+        grid.add_row(logo_panel, info_grid)
+
+        # Wrap in a panel for the border
+        self.console.print(
+            RichPanel(
+                grid,
+                border_style="orange3",
+                subtitle="[grey50]Press [white]Ctrl+D[/] to exit[/]",
+                subtitle_align="right",
+            )
+        )
 
     def add_message(
         self, role: str, content: str | list[ContentBlock] | list[dict[str, Any]]
