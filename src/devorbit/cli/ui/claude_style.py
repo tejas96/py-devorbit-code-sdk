@@ -9,6 +9,7 @@ This module implements UI components matching Claude Code CLI:
 from __future__ import annotations
 
 import re
+import sys
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -65,14 +66,14 @@ class ClaudeStylePrompt:
     Uses Rich for panel display + questionary for reliable arrow key selection.
     """
 
-    def __init__(self, console: Console | None = None):
+    def __init__(self, console: Console | None = None) -> None:
         """Initialize the prompt.
 
         Args:
             console: Rich console instance
         """
         self.console = console or Console()
-        self.prompt_session = PromptSession()
+        self.prompt_session: PromptSession[str] = PromptSession()
 
     def show_permission_prompt(
         self,
@@ -103,36 +104,34 @@ class ClaudeStylePrompt:
         cmd_short = command[:40] + "..." if len(command) > 40 else command
         dir_short = working_dir if len(working_dir) <= 35 else "..." + working_dir[-32:]
 
-        choices = [
+        choices: list[tuple[str, str]] = [
             ("yes", "Yes"),
             ("yes_always", f"Yes, and don't ask again for {cmd_short} in {dir_short}"),
             ("no", "No, and tell Claude what to do differently"),
         ]
 
-        selected_index = [0]
-        live_display = [None]
+        selected_index: list[int] = [0]
+        live_display: list[Live | None] = [None]
 
         # Key bindings for arrow navigation
         kb = KeyBindings()
 
         @kb.add(Keys.Up)
-        def move_up(event):
+        def move_up(event: Any) -> None:
             selected_index[0] = (selected_index[0] - 1) % len(choices)
-            if live_display[0]:
-                update_display()
+            update_display()
 
         @kb.add(Keys.Down)
-        def move_down(event):
+        def move_down(event: Any) -> None:
             selected_index[0] = (selected_index[0] + 1) % len(choices)
-            if live_display[0]:
-                update_display()
+            update_display()
 
         @kb.add(Keys.Enter)
-        def select(event):
+        def select(event: Any) -> None:
             event.app.exit(result=choices[selected_index[0]][0])
 
         @kb.add("c-c")
-        def cancel(event):
+        def cancel(event: Any) -> None:
             event.app.exit(result=None)
 
         def create_panel_content() -> Text:
@@ -161,7 +160,7 @@ class ClaudeStylePrompt:
 
             return content
 
-        def update_display():
+        def update_display() -> None:
             """Update the live display with new selection."""
             if live_display[0]:
                 panel = Panel(
@@ -196,7 +195,6 @@ class ClaudeStylePrompt:
 
             except (KeyboardInterrupt, EOFError):
                 return None
-            # Panel auto-clears here because transient=True
 
 
 class ToolExecutionDisplay:
@@ -213,7 +211,7 @@ class ToolExecutionDisplay:
     DOT_SUCCESS = "●"  # Filled circle (green)
     DOT_FAILED = "●"  # Filled circle (red)
 
-    def __init__(self, console: Console | None = None):
+    def __init__(self, console: Console | None = None) -> None:
         """Initialize the display.
 
         Args:
@@ -379,7 +377,7 @@ class ToolExecutionDisplay:
 class ClaudeStyleUI:
     """Main interface combining all Claude Code-style components."""
 
-    def __init__(self, console: Console | None = None):
+    def __init__(self, console: Console | None = None) -> None:
         """Initialize Claude-style UI.
 
         Args:
@@ -388,9 +386,6 @@ class ClaudeStyleUI:
         self.console = console or Console()
         self.prompt = ClaudeStylePrompt(console)
         self.tool_display = ToolExecutionDisplay(console)
-
-        # NOTE: Permission memory is now handled by PermissionManager in core/permissions.py
-        # This class only handles UI display, not permission state
 
     def request_permission(
         self,
@@ -572,26 +567,11 @@ class ClaudeStyleUI:
             if cmd_lower.startswith("ps aux"):
                 return "List all running processes."
 
-            # 3. Dangerous or Generic Commands
-            try:
-                # Assuming access to DangerousCommandDetector.DANGEROUS_PATTERNS
-                detector = self.session.tool_approval.DangerousCommandDetector
-                if any(re.search(p, command, re.IGNORECASE) for p in detector.DANGEROUS_PATTERNS):
-                    return f"Execute potentially dangerous shell command: {command[:50]}..."
-            except AttributeError:
-                # Fallback if detector path is incorrect
-                pass
-
-            # 4. Final Fallback for ANY other bash command
+            # 3. Final Fallback for ANY other bash command
             return f"Execute shell command: {command[:50]}..."
 
         # --- Fallback for uncategorized/new tools ---
-        # Fallback to general tool description defined statically (if available)
-        tool_definitions = {
-            tool["name"]: tool.get("description")
-            for tool in self.session.tool_executor.get_tool_definitions()
-        }
-        return tool_definitions.get(tool_name)
+        return f"Execute {tool_name} tool"
 
 
 __all__ = [
