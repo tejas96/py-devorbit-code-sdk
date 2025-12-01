@@ -80,14 +80,32 @@ class TestTodoWrite:
         assert "error" in result
         assert "cannot be empty" in result["error"]
 
-    def test_write_missing_fields(self) -> None:
-        """Test error when todo missing required fields."""
+    def test_write_missing_activeform_auto_generated(self) -> None:
+        """Test that missing activeForm is auto-generated (not an error)."""
         todos = [{"content": "Task 1", "status": "pending"}]  # Missing activeForm
 
         result = todo_write(todos)
 
+        # Should succeed with auto-generated activeForm
+        assert result["success"] is True
+        assert result["total_tasks"] == 1
+
+        # Verify activeForm was generated in stored state
+        from devorbit.tools.todo import get_current_todos
+
+        stored = get_current_todos()
+        assert len(stored) == 1
+        assert "activeForm" in stored[0]
+        assert stored[0]["activeForm"]  # Not empty
+
+    def test_write_missing_content_error(self) -> None:
+        """Test error when todo missing required 'content' field."""
+        todos = [{"status": "pending", "activeForm": "Doing something"}]  # Missing content
+
+        result = todo_write(todos)
+
         assert "error" in result
-        assert "missing" in result["error"].lower()
+        assert "missing" in result["error"].lower() and "content" in result["error"].lower()
 
     def test_write_invalid_status(self) -> None:
         """Test error when todo has invalid status."""

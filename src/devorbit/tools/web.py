@@ -6,12 +6,45 @@ searching the web, and converting HTML to markdown.
 
 import asyncio
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 from typing_extensions import TypedDict
+
+
+def _run_async_safely[T](coro: Coroutine[Any, Any, T]) -> T:
+    """Run async coroutine from sync context safely.
+
+    Handles the case where we're already inside an async event loop
+    (e.g., Jupyter, async CLI, FastAPI) where asyncio.run() would fail.
+
+    Args:
+        coro: Coroutine to execute
+
+    Returns:
+        Result from the coroutine
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running event loop, safe to use asyncio.run()
+        return asyncio.run(coro)
+
+    # Already in an event loop - use nest_asyncio if available, otherwise use thread
+    try:
+        import nest_asyncio  # noqa: PLC0415 - Conditional import for optional dependency
+
+        nest_asyncio.apply()
+        return loop.run_until_complete(coro)
+    except ImportError:
+        # Fall back to running in a new thread with its own event loop
+        import concurrent.futures  # noqa: PLC0415 - Conditional import for fallback
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
 
 
 class WebFetchResult(TypedDict):
@@ -250,6 +283,9 @@ def web_fetch_sync(
 ) -> WebFetchResult:
     """Synchronous version of web_fetch.
 
+    Safe to call from any context including Jupyter notebooks, async CLIs,
+    and other environments where an event loop may already be running.
+
     Args:
         url: URL to fetch
         convert_to_markdown: Convert HTML to markdown
@@ -259,7 +295,7 @@ def web_fetch_sync(
     Returns:
         WebFetchResult with fetched content
     """
-    return asyncio.run(web_fetch(url, convert_to_markdown, timeout, follow_redirects))
+    return _run_async_safely(web_fetch(url, convert_to_markdown, timeout, follow_redirects))
 
 
 # WebSearch tool
@@ -343,6 +379,9 @@ def web_search_sync(
 ) -> WebSearchResult:
     """Synchronous version of web_search.
 
+    Safe to call from any context including Jupyter notebooks, async CLIs,
+    and other environments where an event loop may already be running.
+
     Args:
         query: Search query
         num_results: Number of results to return
@@ -351,7 +390,7 @@ def web_search_sync(
     Returns:
         WebSearchResult with search results
     """
-    return asyncio.run(web_search(query, num_results, safe_search))
+    return _run_async_safely(web_search(query, num_results, safe_search))
 
 
 # Helper function to get all web tools
