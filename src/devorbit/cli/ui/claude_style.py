@@ -183,9 +183,6 @@ class ClaudeStylePrompt:
             try:
                 result = self.prompt_session.prompt("", key_bindings=kb)
 
-                if result is None:
-                    return None
-
                 # Find the selected index
                 for i, (value, _) in enumerate(choices):
                     if value == result:
