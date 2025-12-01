@@ -48,6 +48,41 @@ class PermissionLevel(Enum):
     ALLOW_SESSION = auto()  # Allow for this session only
 
 
+def _safe_fnmatch(name: str, pattern: str) -> bool:
+    """Safely match a filename against a pattern.
+
+    Handles the edge case where the pattern contains literal `[]` characters
+    that should be treated as literals, not as character classes.
+
+    For example, pattern "backup[1].txt" should match the file "backup[1].txt",
+    not "backup1.txt".
+
+    Args:
+        name: The filename to match (not interpreted as pattern)
+        pattern: The glob pattern to match against
+
+    Returns:
+        True if the name matches the pattern
+    """
+    # First, try standard fnmatch
+    if fnmatch.fnmatch(name, pattern):
+        return True
+
+    # If pattern contains [] that look like they're meant to be literal
+    # (i.e., they're part of a file path, not a character class like [a-z]),
+    # try matching with escaped brackets
+    if "[" in pattern and "]" in pattern:
+        # Escape [] for literal matching
+        escaped_pattern = pattern.replace("[", "[[]").replace("]", "[]]")
+        # Fix double escaping: [[] -> [[] is correct, but []] becomes [[]] which needs fixing
+        escaped_pattern = escaped_pattern.replace("[]]", "\\]")
+        escaped_pattern = escaped_pattern.replace("[[]", "\\[")
+        if fnmatch.fnmatch(name, escaped_pattern):
+            return True
+
+    return False
+
+
 class ToolCategory(Enum):
     """Categories of tools by risk level."""
 
@@ -126,10 +161,10 @@ class PermissionRule:
         # Match pattern against relevant input
         match_value = self._get_match_value(tool_name, tool_input)
         if match_value:
-            return fnmatch.fnmatch(match_value, self.pattern)
+            return _safe_fnmatch(match_value, self.pattern)
 
         # If no specific match value, pattern matches tool name
-        return fnmatch.fnmatch(tool_name, self.pattern)
+        return _safe_fnmatch(tool_name, self.pattern)
 
     def _get_match_value(self, tool_name: str, tool_input: dict[str, Any]) -> str | None:
         """Get the value to match against the pattern.
@@ -408,11 +443,13 @@ class PermissionManager:
         self._session_decisions: dict[str, PermissionDecision] = {}
 
         # Default category permissions
+        # ASK_ONCE = ask once per file/command, remember for session (like Cursor/Claude Code)
+        # ASK = always ask (for dangerous operations)
         self._category_defaults: dict[ToolCategory, PermissionLevel] = {
             ToolCategory.READ: PermissionLevel.ASK_ONCE,
-            ToolCategory.WRITE: PermissionLevel.ASK,
-            ToolCategory.EXECUTE: PermissionLevel.ASK,
-            ToolCategory.NETWORK: PermissionLevel.ASK,
+            ToolCategory.WRITE: PermissionLevel.ASK_ONCE,  # Remember per file for session
+            ToolCategory.EXECUTE: PermissionLevel.ASK,  # Always ask for bash (variable commands)
+            ToolCategory.NETWORK: PermissionLevel.ASK_ONCE,
             ToolCategory.SYSTEM: PermissionLevel.ASK,
             ToolCategory.SEARCH: PermissionLevel.ASK_ONCE,
         }

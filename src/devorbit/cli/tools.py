@@ -227,9 +227,10 @@ class ToolExecutor:
                 params.pop("path", None)
 
             # Handle content parameter for write_file
+            # The LLM might send 'contents' but the SDK expects 'content'
             if tool_name == "write_file":
-                if "content" in params and "contents" not in params:
-                    params["contents"] = params.pop("content")
+                if "contents" in params and "content" not in params:
+                    params["content"] = params.pop("contents")
 
         # Handle search tools
         elif tool_name in ("grep", "glob"):

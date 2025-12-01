@@ -27,41 +27,63 @@ _TODO_FILE_PATH: Path | None = None
 # ============================================================================
 
 
-def _validate_todos(  # noqa: PLR0911 - Multiple validation checks for comprehensive error reporting
+def _generate_active_form(content: str) -> str:
+    """Generate activeForm from content by converting to present continuous.
+
+    Args:
+        content: Task content string
+
+    Returns:
+        Present continuous form of the task
+    """
+    # Simple heuristic: prepend "Working on" if content doesn't already have a verb form
+    content_lower = content.lower().strip()
+    if content_lower.startswith(("working", "doing", "fixing", "adding", "updating", "creating")):
+        return content
+    return f"Working on: {content}"
+
+
+def _validate_and_normalize_todos(
     todos: list[dict[str, str]],
-) -> dict[str, Any] | None:
-    """Validate todo list structure and content.
+) -> tuple[list[dict[str, str]], dict[str, Any] | None]:
+    """Validate and normalize todo list structure and content.
+
+    Auto-generates 'activeForm' if not provided for better LLM compatibility.
 
     Args:
         todos: List of todo dictionaries to validate
 
     Returns:
-        Error dict if validation fails, None if valid
+        Tuple of (normalized_todos, error_dict or None)
     """
     if not todos:
-        return {"error": "todos list cannot be empty"}
+        return [], {"error": "todos list cannot be empty"}
 
     valid_statuses = {"pending", "in_progress", "completed"}
+    normalized: list[dict[str, str]] = []
 
     for i, todo in enumerate(todos):
         if "content" not in todo:
-            return {"error": f"Todo {i + 1} missing 'content' field"}
+            return [], {"error": f"Todo {i + 1} missing 'content' field"}
         if "status" not in todo:
-            return {"error": f"Todo {i + 1} missing 'status' field"}
-        if "activeForm" not in todo:
-            return {"error": f"Todo {i + 1} missing 'activeForm' field"}
+            return [], {"error": f"Todo {i + 1} missing 'status' field"}
 
         if todo["status"] not in valid_statuses:
-            return {
+            return [], {
                 "error": f"Todo {i + 1} has invalid status: {todo['status']}. Must be one of: {valid_statuses}"
             }
 
         if not todo["content"].strip():
-            return {"error": f"Todo {i + 1} has empty 'content'"}
-        if not todo["activeForm"].strip():
-            return {"error": f"Todo {i + 1} has empty 'activeForm'"}
+            return [], {"error": f"Todo {i + 1} has empty 'content'"}
 
-    return None
+        # Normalize todo: auto-generate activeForm if missing
+        normalized_todo = dict(todo)
+        if "activeForm" not in normalized_todo or not normalized_todo["activeForm"].strip():
+            normalized_todo["activeForm"] = _generate_active_form(todo["content"])
+
+        normalized.append(normalized_todo)
+
+    return normalized, None
 
 
 # ============================================================================
@@ -77,11 +99,13 @@ def todo_write(
     """Create and manage a structured task list.
 
     Use this tool to track progress, organize complex tasks, and demonstrate
-    thoroughness. Each task has content (what to do), activeForm (present
-    continuous description), and status.
+    thoroughness. Each task requires 'content' and 'status' fields. The
+    'activeForm' field is optional and will be auto-generated if not provided.
 
     Args:
-        todos: List of task dictionaries with 'content', 'activeForm', and 'status' keys
+        todos: List of task dictionaries with required 'content' and 'status' keys.
+               Optional 'activeForm' for present continuous description (auto-generated if missing).
+               Status must be one of: 'pending', 'in_progress', 'completed'
         persist_to_file: Optional file path to persist todos (default: in-memory only)
 
     Returns:
@@ -90,16 +114,16 @@ def todo_write(
     global _TODO_STATE, _TODO_FILE_PATH  # noqa: PLW0603
 
     try:
-        # Validate todos structure
-        error = _validate_todos(todos)
+        # Validate and normalize todos structure (auto-generates activeForm if missing)
+        normalized_todos, error = _validate_and_normalize_todos(todos)
         if error:
             return error
 
         # Count in_progress tasks
-        in_progress_count = sum(1 for t in todos if t["status"] == "in_progress")
+        in_progress_count = sum(1 for t in normalized_todos if t["status"] == "in_progress")
 
-        # Store todos in global state
-        _TODO_STATE = todos.copy()
+        # Store normalized todos in global state
+        _TODO_STATE = normalized_todos.copy()
 
         # Persist to file if requested
         if persist_to_file:
@@ -107,15 +131,15 @@ def todo_write(
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
             with file_path.open("w", encoding="utf-8") as f:
-                json.dump(todos, f, indent=2)
+                json.dump(normalized_todos, f, indent=2)
 
             _TODO_FILE_PATH = file_path
 
         # Calculate statistics
-        total = len(todos)
-        pending = sum(1 for t in todos if t["status"] == "pending")
+        total = len(normalized_todos)
+        pending = sum(1 for t in normalized_todos if t["status"] == "pending")
         in_progress = in_progress_count
-        completed = sum(1 for t in todos if t["status"] == "completed")
+        completed = sum(1 for t in normalized_todos if t["status"] == "completed")
 
         return {
             "success": True,

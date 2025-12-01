@@ -256,6 +256,9 @@ class ToolApprovalPrompt:
     ) -> bool:
         """Show an interactive approval prompt with Claude Code-style UI.
 
+        This is called by PermissionManager when it needs user input.
+        NOTE: Status messages are handled by approve_tool() to avoid duplicates.
+
         Args:
             tool_name: Name of the tool
             tool_input: Tool input parameters
@@ -266,11 +269,10 @@ class ToolApprovalPrompt:
             True if approved, False if denied
         """
         # Check if auto-approve is enabled
+        # NOTE: Don't print here - approve_tool() handles status messages
         if self.session.auto_approve_tools and not is_dangerous:
-            # Auto-approve non-dangerous commands
-            self.console.print(f"[dim]⚡ Auto-approved:[/dim] [cyan]{tool_name}[/cyan]")
+            # Auto-approve non-dangerous commands silently
             return True
-            # Always prompt for dangerous commands even in auto-approve mode
 
         # Use Claude-style UI if enabled
         if self.use_claude_style:
@@ -422,11 +424,7 @@ class ToolApprovalPrompt:
                 key_bindings=kb,
             )
 
-            if approved[0]:
-                self.console.print("[bold green]✓ Approved[/bold green]")
-            else:
-                self.console.print("[bold red]✗ Denied[/bold red]")
-
+            # Note: Status messages are handled by approve_tool() to avoid duplicates
             return approved[0]
 
         except KeyboardInterrupt:
@@ -460,16 +458,31 @@ class ToolApprovalPrompt:
         )
 
         if allowed:
-            if level == PermissionLevel.ALLOW:
+            # Determine if this was truly auto-allowed (no user interaction)
+            # Cases for auto-allow:
+            # 1. reason contains "auto-approved" - from check_permission for READ/SEARCH
+            # 2. reason contains "rule:" - matched a persistent ALLOW rule
+            # 3. auto_approve_tools=True AND reason is None - silently approved in callback
+            is_auto_allowed = (
+                reason and ("rule:" in reason.lower() or "auto-approved" in reason.lower())
+            ) or (
+                self.session.auto_approve_tools
+                and reason is None
+                and level == PermissionLevel.ALLOW
+            )
+
+            if is_auto_allowed:
                 self.console.print(f"[dim]⚡ Auto-allowed:[/dim] [cyan]{tool_name}[/cyan]")
             elif reason:
-                self.session.print_success(f"✓ Approved: {tool_name} ({reason})")
+                # Note: print_success already adds ✓ icon via notifications
+                self.session.print_success(f"Approved: {tool_name} ({reason})")
             else:
-                self.session.print_success(f"✓ Approved: {tool_name}")
+                self.session.print_success(f"Approved: {tool_name}")
         elif reason:
-            self.session.print_warning(f"✗ Denied: {tool_name} ({reason})")
+            # Note: print_warning adds ⚠ icon, but we want ✗ for denied
+            self.console.print(f"[bold red]✗ Denied:[/bold red] {tool_name} ({reason})")
         else:
-            self.session.print_warning(f"✗ Denied: {tool_name}")
+            self.console.print(f"[bold red]✗ Denied:[/bold red] {tool_name}")
 
         return allowed
 
@@ -649,18 +662,18 @@ class ToolApprovalPrompt:
 
             if choice[0] == "approve_all":
                 self.console.print("[bold green]✓ Approving all tools...[/bold green]")
-                # Approve everything (except dangerous in non-auto mode)
+                # Approve everything through permission system
+                # (dangerous tools will still prompt via approve_tool)
                 results: list[bool] = []
-                for (tool_name, tool_input), (is_dangerous, _danger_reason) in zip(
+                for (tool_name, tool_input), (_is_dangerous, _danger_reason) in zip(
                     tool_calls, tool_statuses, strict=False
                 ):
-                    if is_dangerous and not self.session.auto_approve_tools:
-                        # Still prompt for dangerous
-                        approved = self.approve_tool(tool_name, tool_input)
-                        results.append(approved)
-                    else:
-                        self.console.print(f"[dim]  ✓ {tool_name}[/dim]")
-                        results.append(True)
+                    # Always go through approve_tool to ensure:
+                    # - Persistent rules are checked (DENY rules must still work)
+                    # - Session decisions are stored
+                    # - Audit logging happens
+                    approved = self.approve_tool(tool_name, tool_input)
+                    results.append(approved)
                 return results
 
             if choice[0] == "approve_each":
