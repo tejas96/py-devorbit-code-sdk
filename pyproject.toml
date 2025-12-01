@@ -97,7 +97,8 @@ module = [
     "mistralai.*",
     "prompt_toolkit.*",
     "rich.*",
-    "click.*"
+    "click.*",
+    "nest_asyncio"
 ]
 ignore_missing_imports = true
 
