@@ -394,9 +394,9 @@ def multi_edit_file(  # noqa: PLR0911, PLR0912 - Complex atomic validation requi
                         {
                             "edit_number": i + 1,
                             "error": "old_string not found",
-                            "old_string_preview": old_str[:100] + "..."
-                            if len(old_str) > 100
-                            else old_str,
+                            "old_string_preview": (
+                                old_str[:100] + "..." if len(old_str) > 100 else old_str
+                            ),
                         }
                     )
                 else:
