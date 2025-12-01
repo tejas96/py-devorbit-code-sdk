@@ -8,7 +8,7 @@ This module implements UI components matching Claude Code CLI:
 
 from __future__ import annotations
 
-import sys
+import re
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -147,7 +147,7 @@ class ClaudeStylePrompt:
             content.append("Do you want to proceed?\n", style="bold white")
 
             # Add choices with pointer
-            for i, (value, label) in enumerate(choices):
+            for i, (_value, label) in enumerate(choices):
                 if i == selected_index[0]:
                     content.append("  ❯ ", style="cyan bold")
                     content.append(label, style="cyan bold")
@@ -520,27 +520,27 @@ class ClaudeStyleUI:
             file_path = tool_input.get("file_path", "a file")
             return f"Read the content of file: '{file_path}'."
 
-        elif tool_name == "write_file":
+        if tool_name == "write_file":
             file_path = tool_input.get("file_path", "a file")
             return f"Create or overwrite file: '{file_path}'."
 
-        elif tool_name == "edit_file":
+        if tool_name == "edit_file":
             file_path = tool_input.get("file_path", "a file")
             return f"Edit content within file: '{file_path}'."
 
         # --- File Search Tools ---
-        elif tool_name == "glob":
+        if tool_name == "glob":
             pattern = tool_input.get("pattern", "a pattern")
             path = tool_input.get("path", ".")
             return f"Search for files matching '{pattern}' in '{path}'."
 
-        elif tool_name == "grep":
+        if tool_name == "grep":
             pattern = tool_input.get("pattern", "a pattern")
             path = tool_input.get("path", ".")
             return f"Search for the text pattern '{pattern}' in files in '{path}'."
 
         # --- Enhanced Shell/Command Tools (bash) ---
-        elif tool_name == "bash":
+        if tool_name == "bash":
             command = tool_input.get("command", "").strip()
 
             # Use lower-casing for robust command matching
@@ -573,9 +573,8 @@ class ClaudeStyleUI:
                 return "List all running processes."
 
             # 3. Dangerous or Generic Commands
-            # Note: Requires access to DangerousCommandDetector patterns (see next section)
             try:
-                # Assuming access to DangerousCommandDetector.DANGEROUS_PATTERNS via session/tool_approval
+                # Assuming access to DangerousCommandDetector.DANGEROUS_PATTERNS
                 detector = self.session.tool_approval.DangerousCommandDetector
                 if any(re.search(p, command, re.IGNORECASE) for p in detector.DANGEROUS_PATTERNS):
                     return f"Execute potentially dangerous shell command: {command[:50]}..."
@@ -587,13 +586,12 @@ class ClaudeStyleUI:
             return f"Execute shell command: {command[:50]}..."
 
         # --- Fallback for uncategorized/new tools ---
-        else:
-            # Fallback to general tool description defined statically (if available)
-            tool_definitions = {
-                tool["name"]: tool.get("description")
-                for tool in self.session.tool_executor.get_tool_definitions()
-            }
-            return tool_definitions.get(tool_name)
+        # Fallback to general tool description defined statically (if available)
+        tool_definitions = {
+            tool["name"]: tool.get("description")
+            for tool in self.session.tool_executor.get_tool_definitions()
+        }
+        return tool_definitions.get(tool_name)
 
 
 __all__ = [
