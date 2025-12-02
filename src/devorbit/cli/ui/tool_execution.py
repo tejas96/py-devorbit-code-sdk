@@ -10,7 +10,6 @@ Implements Claude Code-style animated tool execution with:
 import time
 from typing import TYPE_CHECKING, Any
 
-
 try:
     from rich.console import Console, Group
     from rich.live import Live
@@ -30,7 +29,7 @@ if TYPE_CHECKING:
 class LiveToolExecution:
     """Live animated display for tool execution matching Claude Code UX."""
 
-    def __init__(self, console: "Console | None" = None, no_color: bool = False):
+    def __init__(self, console: "Console | None" = None, no_color: bool = False) -> None:
         """Initialize live tool execution display.
 
         Args:
@@ -44,7 +43,10 @@ class LiveToolExecution:
         self.output_lines: list[str] = []
 
     def start_execution(
-        self, tool_name: str, tool_input: dict[str, Any], is_dangerous: bool = False
+        self,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        is_dangerous: bool = False,
     ) -> None:
         """Start live animated display of tool execution.
 
@@ -70,8 +72,8 @@ class LiveToolExecution:
         self.live = Live(
             renderable,
             console=self.console,
-            refresh_per_second=10,  # Smooth spinner animation
-            transient=False,  # Keep the display after execution
+            refresh_per_second=10,
+            transient=False,
         )
         self.live.start()
 
@@ -104,7 +106,7 @@ class LiveToolExecution:
             is_dangerous: Whether this was a dangerous operation
         """
         if not HAS_RICH:
-            status = "✓ Success" if success else "✗ Failed"
+            status = "✓ Success" if success else "✕ Failed"
             print(f"Status: {status}")
             if output:
                 print(output)
@@ -180,7 +182,7 @@ class LiveToolExecution:
 
         # Add live output if any
         if self.output_lines:
-            output_text = "".join(self.output_lines[:10])  # Show first 10 lines
+            output_text = "".join(self.output_lines[:10])
             if output_text.strip():
                 output_node = tree.add("[dim]Output:[/dim]")
                 for line in output_text.split("\n")[:8]:
@@ -223,7 +225,7 @@ class LiveToolExecution:
             base_color = "cyan"
 
         border_color = "green" if success else "red"
-        status_icon = "✓" if success else "✗"
+        status_icon = "✓" if success else "✕"
         status_color = "green" if success else "red"
 
         # Create result tree
@@ -238,7 +240,7 @@ class LiveToolExecution:
             preview = output[:500] if len(output) > 500 else output
             if preview.strip():
                 output_node = tree.add("[dim]Output:[/dim]")
-                for line in preview.split("\n")[:15]:  # Show max 15 lines
+                for line in preview.split("\n")[:15]:
                     if line.strip():
                         output_node.add(f"[white]{line}[/white]")
 

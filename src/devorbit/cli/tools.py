@@ -27,7 +27,6 @@ from devorbit.core.types import Tool
 from .core.validation import InputValidator, validate_command
 from .ui.claude_style import ToolExecutionDisplay
 
-
 if TYPE_CHECKING:
     from .session import CLISession
 
@@ -172,7 +171,8 @@ class ToolExecutor:
         if tool_name.lower() == "bash":
             return str(tool_input.get("command", str(tool_input)))
         if tool_name in ("read_file", "write_file", "edit_file"):
-            return str(tool_input.get("file_path", tool_input.get("path", str(tool_input))))
+            path_val = tool_input.get("file_path", tool_input.get("path", str(tool_input)))
+            return str(path_val)
         if tool_name in ("grep", "glob"):
             return str(tool_input.get("pattern", str(tool_input)))
         # Return first value or tool name
@@ -226,7 +226,6 @@ class ToolExecutor:
                 params.pop("path", None)
 
             # Handle content parameter for write_file
-            # The LLM might send 'contents' but the SDK expects 'content'
             if tool_name == "write_file":
                 if "contents" in params and "content" not in params:
                     params["content"] = params.pop("contents")
