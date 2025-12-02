@@ -25,6 +25,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -101,9 +102,7 @@ class ClaudeStylePrompt:
 
         # Prepare choices
         cmd_short = command[:40] + "..." if len(command) > 40 else command
-        dir_short = (
-            working_dir if len(working_dir) <= 35 else "..." + working_dir[-32:]
-        )
+        dir_short = working_dir if len(working_dir) <= 35 else "..." + working_dir[-32:]
 
         choices: list[tuple[str, str]] = [
             ("yes", "Yes"),
@@ -152,7 +151,7 @@ class ClaudeStylePrompt:
             # Add choices with pointer
             for i, (_value, label) in enumerate(choices):
                 if i == selected_index[0]:
-                    content.append("  ▯ ", style="cyan bold")
+                    content.append("  > ", style="cyan bold")
                     content.append(label, style="cyan bold")
                 else:
                     content.append("    ", style="dim")
@@ -375,9 +374,7 @@ class ToolExecutionDisplay:
 
         if len(lines) > max_lines:
             remaining = len(lines) - max_lines
-            self.console.print(
-                f"     [dim]... {remaining} more lines (Ctrl+O to expand)[/dim]"
-            )
+            self.console.print(f"     [dim]... {remaining} more lines (Ctrl+O to expand)[/dim]")
 
 
 class ClaudeStyleUI:
@@ -466,9 +463,7 @@ class ClaudeStyleUI:
         elif tool_name in ("read_file", "write_file", "edit_file"):
             command = str(tool_input.get("file_path", str(tool_input)))
         else:
-            command = (
-                str(next(iter(tool_input.values()))) if tool_input else tool_name
-            )
+            command = str(next(iter(tool_input.values()))) if tool_input else tool_name
 
         try:
             # Execute tool

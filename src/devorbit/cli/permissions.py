@@ -26,6 +26,7 @@ from .core.permissions import (
 )
 from .ui.claude_style import ClaudeStyleUI
 
+
 try:
     from rich.console import Console
     from rich.panel import Panel
@@ -110,9 +111,7 @@ class DangerousCommandDetector:
         return False, None
 
     @classmethod
-    def check_tool_call(
-        cls, tool_name: str, tool_input: dict[str, Any]
-    ) -> tuple[bool, str | None]:
+    def check_tool_call(cls, tool_name: str, tool_input: dict[str, Any]) -> tuple[bool, str | None]:
         """Check if a tool call is dangerous.
 
         Args:
@@ -559,9 +558,7 @@ class ToolApprovalPrompt:
         """
         return self._permission_manager.get_audit_log(limit)
 
-    def approve_batch(
-        self, tool_calls: list[tuple[str, dict[str, Any]]]
-    ) -> list[bool]:
+    def approve_batch(self, tool_calls: list[tuple[str, dict[str, Any]]]) -> list[bool]:
         """Approve a batch of tool calls with Rich UI.
 
         Args:
@@ -631,9 +628,7 @@ class ToolApprovalPrompt:
         self.console.print(panel)
 
         if has_dangerous:
-            self.console.print(
-                "[bold yellow]⚠️  Batch contains dangerous operations![/bold yellow]"
-            )
+            self.console.print("[bold yellow]⚠️  Batch contains dangerous operations![/bold yellow]")
 
         # Show batch options
         self.console.print()
@@ -688,12 +683,9 @@ class ToolApprovalPrompt:
                 return results
 
             if choice[0] == "approve_each":
-                self.console.print(
-                    "[bold cyan]↓ Reviewing each tool individually...[/bold cyan]"
-                )
+                self.console.print("[bold cyan]↓ Reviewing each tool individually...[/bold cyan]")
                 return [
-                    self.approve_tool(tool_name, tool_input)
-                    for tool_name, tool_input in tool_calls
+                    self.approve_tool(tool_name, tool_input) for tool_name, tool_input in tool_calls
                 ]
 
             # deny_all

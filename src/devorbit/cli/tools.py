@@ -27,6 +27,7 @@ from devorbit.core.types import Tool
 from .core.validation import InputValidator, validate_command
 from .ui.claude_style import ToolExecutionDisplay
 
+
 if TYPE_CHECKING:
     from .session import CLISession
 
