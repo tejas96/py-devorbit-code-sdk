@@ -148,7 +148,7 @@ class ClaudeStylePrompt:
             # Add choices with pointer
             for i, (_value, label) in enumerate(choices):
                 if i == selected_index[0]:
-                    content.append("  ❯ ", style="cyan bold")
+                    content.append("  > ", style="cyan bold")
                     content.append(label, style="cyan bold")
                 else:
                     content.append("    ", style="dim")

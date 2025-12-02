@@ -55,7 +55,7 @@ class LiveToolExecution:
         """
         if not HAS_RICH:
             print(f"\n[Tool: {tool_name}]")
-            print("Status: â³ Executing...")
+            print("Status: ⏳ Executing...")
             return
 
         self.start_time = time.time()
@@ -104,7 +104,7 @@ class LiveToolExecution:
             is_dangerous: Whether this was a dangerous operation
         """
         if not HAS_RICH:
-            status = "âœ“ Success" if success else "âœ— Failed"
+            status = "✓ Success" if success else "✗ Failed"
             print(f"Status: {status}")
             if output:
                 print(output)
@@ -148,10 +148,10 @@ class LiveToolExecution:
         """
         # Icon and color based on status
         if is_dangerous:
-            icon = "âš ï¸ "
+            icon = "⚠️ "
             color = "red"
         else:
-            icon = "ðŸ”§ "
+            icon = "🔧 "
             color = "cyan"
 
         # Create tree structure
@@ -216,14 +216,14 @@ class LiveToolExecution:
         """
         # Icon and colors
         if is_dangerous:
-            icon = "âš ï¸ "
+            icon = "⚠️ "
             base_color = "red" if not success else "yellow"
         else:
-            icon = "ðŸ”§ "
+            icon = "🔧 "
             base_color = "cyan"
 
         border_color = "green" if success else "red"
-        status_icon = "âœ“" if success else "âœ—"
+        status_icon = "✓" if success else "✗"
         status_color = "green" if success else "red"
 
         # Create result tree
