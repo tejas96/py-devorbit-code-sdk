@@ -193,8 +193,8 @@ class ClaudeStylePrompt:
 
         except (KeyboardInterrupt, EOFError):
             return None
-        finally :
-            #Ensure terminal state is restored
+        finally:
+            # Ensure terminal state is restored
             live_display[0] = None
 
 
@@ -224,7 +224,7 @@ class ToolExecutionDisplay:
         self._command: str = ""
         self._live: Live | None = None
 
-    def initialize_display(self, tool_name: str, command: str) -> None :
+    def initialize_display(self, tool_name: str, command: str) -> None:
         """Initialize display state without starting live display"""
         self._tool_name = tool_name
         self._command = command

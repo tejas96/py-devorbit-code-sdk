@@ -10,8 +10,8 @@ Now integrated with:
 
 from __future__ import annotations
 
-import sys
 import re
+import sys
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from prompt_toolkit import prompt
@@ -442,7 +442,7 @@ class ToolApprovalPrompt:
             self.console.print("[bold red]✗ Error - Denied by default[/bold red]")
             return False
 
-    def clear_running_status(self, lines:int) -> None:
+    def clear_running_status(self, lines: int) -> None:
         """Clear the running status lines before showing final result
         Args :
             lines : Number of lines to clear (must be positive and <= MAX_CLEAR_LINES)
@@ -492,17 +492,17 @@ class ToolApprovalPrompt:
                 and reason is None
                 and level == PermissionLevel.ALLOW
             )
-            CLEAR_LINES_AUTO_ALLOWED = 1
-            CLEAR_LINES_PROMPT = 3
+            clear_lines_auto_allowed = 1
+            clear_lines_prompt = 3
             if is_auto_allowed:
-                self.clear_running_status(lines=CLEAR_LINES_AUTO_ALLOWED)
+                self.clear_running_status(lines=clear_lines_auto_allowed)
                 self.console.print(f"[dim]⚡ Auto-allowed:[/dim] [cyan]{tool_name}[/cyan]")
             elif reason:
                 # Note: print_success already adds ✓ icon via notifications
-                self.clear_running_status(lines=CLEAR_LINES_PROMPT)
+                self.clear_running_status(lines=clear_lines_prompt)
                 self.session.print_success(f"Approved: {tool_name} ({reason})")
             else:
-                self.clear_running_status(lines=CLEAR_LINES_PROMPT)
+                self.clear_running_status(lines=clear_lines_prompt)
                 self.session.print_success(f"Approved: {tool_name}")
         elif reason:
             # Note: print_warning adds ⚠ icon, but we want ✗ for denied
