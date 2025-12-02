@@ -106,10 +106,7 @@ class ClaudeStylePrompt:
 
         choices: list[tuple[str, str]] = [
             ("yes", "Yes"),
-            (
-                "yes_always",
-                f"Yes, and don't ask again for {cmd_short} in {dir_short}",
-            ),
+            ("yes_always", f"Yes, and don't ask again for {cmd_short} in {dir_short}"),
             ("no", "No, and tell Claude what to do differently"),
         ]
 
@@ -151,7 +148,7 @@ class ClaudeStylePrompt:
             # Add choices with pointer
             for i, (_value, label) in enumerate(choices):
                 if i == selected_index[0]:
-                    content.append("  > ", style="cyan bold")
+                    content.append("  ❯ ", style="cyan bold")
                     content.append(label, style="cyan bold")
                 else:
                     content.append("    ", style="dim")
@@ -180,7 +177,7 @@ class ClaudeStylePrompt:
             padding=(0, 1),
         )
 
-        # Show panel with transient=True
+        # Show panel with transient=True - it will auto-clear when Live context exits
         with Live(panel, console=self.console, refresh_per_second=10, transient=True) as live:
             live_display[0] = live
             try:
@@ -196,21 +193,18 @@ class ClaudeStylePrompt:
             except (KeyboardInterrupt, EOFError):
                 return None
 
-    def close(self) -> None:
-        """Close the prompt session."""
-
 
 class ToolExecutionDisplay:
     """Claude Code-style tool execution display.
 
     Features:
-    - Status dot (◯ gray running, ● green success, ● red failed)
+    - Status dot (○ gray running, ● green success, ● red failed)
     - Single line status that shows final result
     - Truncated output with expand hint
     """
 
     # Status dot characters
-    DOT_RUNNING = "◯"  # Empty circle (gray)
+    DOT_RUNNING = "●"  # Empty circle (gray)
     DOT_SUCCESS = "●"  # Filled circle (green)
     DOT_FAILED = "●"  # Filled circle (red)
 
@@ -253,7 +247,7 @@ class ToolExecutionDisplay:
         display = Text()
         display.append(f"{self.DOT_RUNNING} ", style="dim")
         display.append(f"{tool_name}({command})\n", style="white")
-        display.append("  ├─ Running...", style="white")
+        display.append("  └─ Running...", style="white")
         self.console.print(display)
 
         return tool_id
@@ -308,7 +302,7 @@ class ToolExecutionDisplay:
 
         display_cmd = command[:60] + "..." if len(command) > 60 else command
         self.console.print(f"[red]{self.DOT_FAILED}[/red] [bold]{tool_name}({display_cmd})[/bold]")
-        self.console.print("  [red]├─ Denied by user[/red]")
+        self.console.print("  [red]└─ Denied by user[/red]")
 
     def _create_display(self, status: ToolStatus, output: str | None = None) -> Text:
         """Create display for given status.
@@ -326,7 +320,7 @@ class ToolExecutionDisplay:
         if status == ToolStatus.RUNNING:
             text.append(f"{self.DOT_RUNNING} ", style="dim")
             text.append(f"{tool_display}\n", style="bold")
-            text.append("  ├─ Running...", style="dim cyan")
+            text.append("  └─ Running...", style="dim cyan")
         elif status == ToolStatus.SUCCESS:
             text.append(f"{self.DOT_SUCCESS} ", style="green")
             text.append(f"{tool_display}", style="bold")
@@ -350,13 +344,13 @@ class ToolExecutionDisplay:
             if output:
                 self._print_output(output, style="white")
             else:
-                self.console.print("  [green]├─ Done[/green]")
+                self.console.print("  [green]└─ Done[/green]")
         else:  # FAILED
             self.console.print(f"[red]{self.DOT_FAILED}[/red] [bold]{tool_display}[/bold]")
             if output:
                 self._print_output(output, style="red")
             else:
-                self.console.print("  [red]├─ Failed[/red]")
+                self.console.print("  [red]└─ Failed[/red]")
 
     def _print_output(self, output: str, style: str = "white") -> None:
         """Print output with truncation.
@@ -369,7 +363,7 @@ class ToolExecutionDisplay:
         max_lines = 8
 
         for i, line in enumerate(lines[:max_lines]):
-            prefix = "  ├─ " if i == 0 else "     "
+            prefix = "  └─ " if i == 0 else "     "
             self.console.print(f"{prefix}[{style}]{line}[/{style}]")
 
         if len(lines) > max_lines:
@@ -422,7 +416,7 @@ class ClaudeStyleUI:
         # Generate description
         description = self._get_tool_description(tool_name, tool_input)
 
-        # Show permission prompt
+        # Show permission prompt (memory check is done by PermissionManager BEFORE this)
         choice = self.prompt.show_permission_prompt(
             tool_name=tool_name,
             command=command,
@@ -506,11 +500,13 @@ class ClaudeStyleUI:
             return {"error": str(e)}
 
     def _get_tool_description(self, tool_name: str, tool_input: dict[str, Any]) -> str:
-        """Generate a one-line description of the specific tool call.
+        """Generates a one-line description of the specific tool call based on inputs.
 
-        This method replaces the static tool description with a dynamic,
-        context-specific summary.
+        This method replaces the static tool description with a dynamic, context-
+        specific summary, ensuring a better user experience without consuming extra
+        LLM tokens.
         """
+
         # --- File I/O Tools ---
         if tool_name == "read_file":
             file_path = tool_input.get("file_path", "a file")
@@ -548,20 +544,16 @@ class ClaudeStyleUI:
             if cmd_lower.startswith("ls"):
                 return "List files and directories."
             if cmd_lower.startswith("cd"):
-                parts = command.split(maxsplit=1)
-                path = parts[1] if len(parts) > 1 else "~"
+                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else "~"
                 return f"Change directory to: {path}"
             if cmd_lower.startswith("cat"):
-                parts = command.split(maxsplit=1)
-                path = parts[1] if len(parts) > 1 else ""
+                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else ""
                 return f"Display the content of file: {path}"
             if cmd_lower.startswith("mkdir"):
-                parts = command.split(maxsplit=1)
-                path = parts[1] if len(parts) > 1 else ""
+                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else ""
                 return f"Create a new directory: {path}"
             if cmd_lower.startswith("touch"):
-                parts = command.split(maxsplit=1)
-                path = parts[1] if len(parts) > 1 else ""
+                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else ""
                 return f"Create a new file: {path}"
 
             # 2. Common System Status Commands

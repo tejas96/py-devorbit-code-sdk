@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 class LiveToolExecution:
     """Live animated display for tool execution matching Claude Code UX."""
 
-    def __init__(self, console: "Console | None" = None, no_color: bool = False) -> None:
+    def __init__(self, console: "Console | None" = None, no_color: bool = False):
         """Initialize live tool execution display.
 
         Args:
@@ -44,10 +44,7 @@ class LiveToolExecution:
         self.output_lines: list[str] = []
 
     def start_execution(
-        self,
-        tool_name: str,
-        tool_input: dict[str, Any],
-        is_dangerous: bool = False,
+        self, tool_name: str, tool_input: dict[str, Any], is_dangerous: bool = False
     ) -> None:
         """Start live animated display of tool execution.
 
@@ -58,7 +55,7 @@ class LiveToolExecution:
         """
         if not HAS_RICH:
             print(f"\n[Tool: {tool_name}]")
-            print("Status: ⏳ Executing...")
+            print("Status: â³ Executing...")
             return
 
         self.start_time = time.time()
@@ -73,8 +70,8 @@ class LiveToolExecution:
         self.live = Live(
             renderable,
             console=self.console,
-            refresh_per_second=10,
-            transient=False,
+            refresh_per_second=10,  # Smooth spinner animation
+            transient=False,  # Keep the display after execution
         )
         self.live.start()
 
@@ -107,7 +104,7 @@ class LiveToolExecution:
             is_dangerous: Whether this was a dangerous operation
         """
         if not HAS_RICH:
-            status = "✓ Success" if success else "✕ Failed"
+            status = "âœ“ Success" if success else "âœ— Failed"
             print(f"Status: {status}")
             if output:
                 print(output)
@@ -151,10 +148,10 @@ class LiveToolExecution:
         """
         # Icon and color based on status
         if is_dangerous:
-            icon = "⚠️ "
+            icon = "âš ï¸ "
             color = "red"
         else:
-            icon = "🔧 "
+            icon = "ðŸ”§ "
             color = "cyan"
 
         # Create tree structure
@@ -183,7 +180,7 @@ class LiveToolExecution:
 
         # Add live output if any
         if self.output_lines:
-            output_text = "".join(self.output_lines[:10])
+            output_text = "".join(self.output_lines[:10])  # Show first 10 lines
             if output_text.strip():
                 output_node = tree.add("[dim]Output:[/dim]")
                 for line in output_text.split("\n")[:8]:
@@ -219,14 +216,14 @@ class LiveToolExecution:
         """
         # Icon and colors
         if is_dangerous:
-            icon = "⚠️ "
+            icon = "âš ï¸ "
             base_color = "red" if not success else "yellow"
         else:
-            icon = "🔧 "
+            icon = "ðŸ”§ "
             base_color = "cyan"
 
         border_color = "green" if success else "red"
-        status_icon = "✓" if success else "✕"
+        status_icon = "âœ“" if success else "âœ—"
         status_color = "green" if success else "red"
 
         # Create result tree
@@ -241,7 +238,7 @@ class LiveToolExecution:
             preview = output[:500] if len(output) > 500 else output
             if preview.strip():
                 output_node = tree.add("[dim]Output:[/dim]")
-                for line in preview.split("\n")[:15]:
+                for line in preview.split("\n")[:15]:  # Show max 15 lines
                     if line.strip():
                         output_node.add(f"[white]{line}[/white]")
 

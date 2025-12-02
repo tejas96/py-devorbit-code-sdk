@@ -47,18 +47,18 @@ class DangerousCommandDetector:
 
     # Dangerous shell commands
     DANGEROUS_PATTERNS: ClassVar[list[str]] = [
-        r"\brm\s+-rf\s+/",
-        r"\brm\s+-rf\s+\*",
-        r"\bdd\s+if=",
-        r"\bmkfs\.",
-        r"\bformat\s+",
-        r">\s*/dev/sd[a-z]",
-        r"\bfdisk\s+",
-        r"\bcurl\s+.*\|\s*(bash|sh)",
-        r"\bwget\s+.*\|\s*(bash|sh)",
-        r"\bchmod\s+777",
-        r"\bsudo\s+rm",
-        r":\(\)\{\s*:\|\:&\s*\};:",
+        r"\brm\s+-rf\s+/",  # rm -rf /
+        r"\brm\s+-rf\s+\*",  # rm -rf *
+        r"\bdd\s+if=",  # dd commands
+        r"\bmkfs\.",  # format filesystem
+        r"\bformat\s+",  # format command
+        r">\s*/dev/sd[a-z]",  # write to device
+        r"\bfdisk\s+",  # disk partitioning
+        r"\bcurl\s+.*\|\s*(bash|sh)",  # curl | bash or curl | sh
+        r"\bwget\s+.*\|\s*(bash|sh)",  # wget | bash or wget | sh
+        r"\bchmod\s+777",  # overly permissive permissions
+        r"\bsudo\s+rm",  # sudo rm
+        r":\(\)\{\s*:\|\:&\s*\};:",  # fork bomb
     ]
 
     # Dangerous file paths
@@ -76,7 +76,7 @@ class DangerousCommandDetector:
 
     # File operations that should trigger warnings
     WRITE_OPERATIONS: ClassVar[set[str]] = {"write_file", "edit_file"}
-    DELETE_OPERATIONS: ClassVar[set[str]] = {"bash"}
+    DELETE_OPERATIONS: ClassVar[set[str]] = {"bash"}  # bash can contain rm commands
 
     @classmethod
     def is_dangerous_command(cls, command: str) -> tuple[bool, str | None]:
@@ -142,7 +142,7 @@ class ToolApprovalPrompt:
     - ClaudeStyleUI for Claude Code-like permission prompts
     """
 
-    def __init__(self, session: CLISession) -> None:
+    def __init__(self, session: CLISession):
         """Initialize the approval prompt.
 
         Args:
@@ -258,6 +258,7 @@ class ToolApprovalPrompt:
         """Show an interactive approval prompt with Claude Code-style UI.
 
         This is called by PermissionManager when it needs user input.
+        NOTE: Status messages are handled by approve_tool() to avoid duplicates.
 
         Args:
             tool_name: Name of the tool
@@ -269,6 +270,7 @@ class ToolApprovalPrompt:
             True if approved, False if denied
         """
         # Check if auto-approve is enabled
+        # NOTE: Don't print here - approve_tool() handles status messages
         if self.session.auto_approve_tools and not is_dangerous:
             # Auto-approve non-dangerous commands silently
             return True
@@ -395,8 +397,7 @@ class ToolApprovalPrompt:
         # Create interactive prompt with key bindings
         self.console.print()
         self.console.print(
-            "[dim]Press [bold]y[/bold] to approve, [bold]n[/bold] to deny, "
-            "[bold]Ctrl+C[/bold] to cancel[/dim]"
+            "[dim]Press [bold]y[/bold] to approve, [bold]n[/bold] to deny, [bold]Ctrl+C[/bold] to cancel[/dim]"
         )
 
         # Simple yes/no prompt
@@ -427,21 +428,19 @@ class ToolApprovalPrompt:
                 key_bindings=kb,
             )
 
+            # Note: Status messages are handled by approve_tool() to avoid duplicates
             return approved[0]
 
         except KeyboardInterrupt:
-            self.console.print("[bold red]✕ Cancelled[/bold red]")
+            self.console.print("[bold red]✗ Cancelled[/bold red]")
             return False
         except Exception:
-            self.console.print("[bold red]✕ Error - Denied by default[/bold red]")
+            self.console.print("[bold red]✗ Error - Denied by default[/bold red]")
             return False
 
     def clear_running_status(self, lines: int) -> None:
-        """Clear the running status lines before showing final result.
+        """Clear the running status lines before showing final result."""
 
-        Args:
-            lines: Number of lines to clear
-        """
         for _ in range(lines):
             sys.stdout.write("\033[F")  # Move cursor up
             sys.stdout.write("\033[K")  # Clear line
@@ -472,6 +471,10 @@ class ToolApprovalPrompt:
 
         if allowed:
             # Determine if this was truly auto-allowed (no user interaction)
+            # Cases for auto-allow:
+            # 1. reason contains "auto-approved" - from check_permission for READ/SEARCH
+            # 2. reason contains "rule:" - matched a persistent ALLOW rule
+            # 3. auto_approve_tools=True AND reason is None - silently approved in callback
             is_auto_allowed = (
                 reason and ("rule:" in reason.lower() or "auto-approved" in reason.lower())
             ) or (
@@ -484,17 +487,19 @@ class ToolApprovalPrompt:
                 self.clear_running_status(lines=1)
                 self.console.print(f"[dim]⚡ Auto-allowed:[/dim] [cyan]{tool_name}[/cyan]")
             elif reason:
+                # Note: print_success already adds ✓ icon via notifications
                 self.clear_running_status(lines=3)
                 self.session.print_success(f"Approved: {tool_name} ({reason})")
             else:
                 self.clear_running_status(lines=3)
                 self.session.print_success(f"Approved: {tool_name}")
         elif reason:
+            # Note: print_warning adds ⚠ icon, but we want ✗ for denied
             self.clear_running_status(lines=3)
-            self.console.print(f"[bold red]✕ Denied:[/bold red] {tool_name} ({reason})")
+            self.console.print(f"[bold red]✗ Denied:[/bold red] {tool_name} ({reason})")
         else:
             self.clear_running_status(lines=3)
-            self.console.print(f"[bold red]✕ Denied:[/bold red] {tool_name}")
+            self.console.print(f"[bold red]✗ Denied:[/bold red] {tool_name}")
 
         return allowed
 
@@ -579,7 +584,7 @@ class ToolApprovalPrompt:
 
         # Multiple tools - create a Rich table to show all tools
         table = Table(
-            title=f"🔦 Batch Tool Request ({len(tool_calls)} tools)",
+            title=f"📦 Batch Tool Request ({len(tool_calls)} tools)",
             show_header=True,
             header_style="bold cyan",
         )
@@ -601,17 +606,17 @@ class ToolApprovalPrompt:
 
             # Format details based on tool type
             if tool_name == "bash":
-                cmd = tool_input.get("command", "")
-                details = cmd[:50] + ("..." if len(cmd) > 50 else "")
+                details = tool_input.get("command", "")[:50] + (
+                    "..." if len(tool_input.get("command", "")) > 50 else ""
+                )
             elif tool_name in ("write_file", "edit_file", "read_file"):
                 details = tool_input.get("file_path", "")[:50]
             elif tool_name in ("grep", "glob"):
-                pattern = tool_input.get("pattern", "")
-                details = f"pattern: {pattern[:30]}"
+                details = f"pattern: {tool_input.get('pattern', '')[:30]}"
             else:
                 details = str(list(tool_input.keys()))[:50]
 
-            status_icon = "⚠️ " if is_dangerous else "✔"
+            status_icon = "⚠️ " if is_dangerous else "✓"
             status_color = "red" if is_dangerous else "green"
             status = f"[{status_color}]{status_icon}[/{status_color}]"
 
@@ -641,7 +646,7 @@ class ToolApprovalPrompt:
 
         # Create key bindings
         kb = KeyBindings()
-        choice: list[str] = [""]
+        choice = [""]
 
         @kb.add("a")
         @kb.add("A")
@@ -673,28 +678,35 @@ class ToolApprovalPrompt:
             )
 
             if choice[0] == "approve_all":
-                self.console.print("[bold green]✔ Approving all tools...[/bold green]")
+                self.console.print("[bold green]✓ Approving all tools...[/bold green]")
+                # Approve everything through permission system
+                # (dangerous tools will still prompt via approve_tool)
                 results: list[bool] = []
                 for (tool_name, tool_input), (_is_dangerous, _danger_reason) in zip(
                     tool_calls, tool_statuses, strict=False
                 ):
+                    # Always go through approve_tool to ensure:
+                    # - Persistent rules are checked (DENY rules must still work)
+                    # - Session decisions are stored
+                    # - Audit logging happens
                     approved = self.approve_tool(tool_name, tool_input)
                     results.append(approved)
                 return results
 
             if choice[0] == "approve_each":
-                self.console.print("[bold cyan]↓ Reviewing each tool individually...[/bold cyan]")
+                self.console.print("[bold cyan]→ Reviewing each tool individually...[/bold cyan]")
+                # Prompt for each tool
                 return [
                     self.approve_tool(tool_name, tool_input) for tool_name, tool_input in tool_calls
                 ]
 
             # deny_all
-            self.console.print("[bold red]✕ Denied all tools[/bold red]")
+            self.console.print("[bold red]✗ Denied all tools[/bold red]")
             return [False] * len(tool_calls)
 
         except KeyboardInterrupt:
-            self.console.print("[bold red]✕ Cancelled - Denied all tools[/bold red]")
+            self.console.print("[bold red]✗ Cancelled - Denied all tools[/bold red]")
             return [False] * len(tool_calls)
         except Exception as e:
-            self.console.print(f"[bold red]✕ Error - Denied all tools: {e}[/bold red]")
+            self.console.print(f"[bold red]✗ Error - Denied all tools: {e}[/bold red]")
             return [False] * len(tool_calls)
