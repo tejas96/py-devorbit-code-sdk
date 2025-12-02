@@ -10,7 +10,6 @@ Now integrated with:
 
 from __future__ import annotations
 
-import re
 import sys
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -40,6 +39,10 @@ except ImportError:
 
 if TYPE_CHECKING:
     from .session import CLISession
+
+ANSI_MOVE_UP = "\033[F"
+ANSI_CLEAR_LINE = "\033[K"
+MAX_CLEAR_LINES = 100
 
 
 class DangerousCommandDetector:
@@ -438,12 +441,18 @@ class ToolApprovalPrompt:
             self.console.print("[bold red]✗ Error - Denied by default[/bold red]")
             return False
 
-    def clear_running_status(self, lines: int) -> None:
-        """Clear the running status lines before showing final result."""
-
+    def clear_running_status(self, lines:int) -> None:
+        """Clear the running status lines before showing final result
+        Args :
+            lines : Number of lines to clear (must be positive and <= MAX_CLEAR_LINES)
+        """
+        if not isinstance(lines, int) or lines < 0:
+            raise ValueError(f"lines must be a non-negative integer, got {lines}")
+        if lines > MAX_CLEAR_LINES:
+            raise ValueError(f"lines exceeds maximum of {MAX_CLEAR_LINES}")
         for _ in range(lines):
-            sys.stdout.write("\033[F")  # Move cursor up
-            sys.stdout.write("\033[K")  # Clear line
+            sys.stdout.write(ANSI_MOVE_UP)
+            sys.stdout.write(ANSI_CLEAR_LINE)
         sys.stdout.flush()
 
     def approve_tool(self, tool_name: str, tool_input: dict[str, Any]) -> bool:
@@ -482,16 +491,17 @@ class ToolApprovalPrompt:
                 and reason is None
                 and level == PermissionLevel.ALLOW
             )
-
+            CLEAR_LINES_AUTO_ALLOWED = 1
+            CLEAR_LINES_PROMPT = 3
             if is_auto_allowed:
-                self.clear_running_status(lines=1)
+                self.clear_running_status(lines=CLEAR_LINES_AUTO_ALLOWED)
                 self.console.print(f"[dim]⚡ Auto-allowed:[/dim] [cyan]{tool_name}[/cyan]")
             elif reason:
                 # Note: print_success already adds ✓ icon via notifications
-                self.clear_running_status(lines=3)
+                self.clear_running_status(lines=CLEAR_LINES_PROMPT)
                 self.session.print_success(f"Approved: {tool_name} ({reason})")
             else:
-                self.clear_running_status(lines=3)
+                self.clear_running_status(lines=CLEAR_LINES_PROMPT)
                 self.session.print_success(f"Approved: {tool_name}")
         elif reason:
             # Note: print_warning adds ⚠ icon, but we want ✗ for denied

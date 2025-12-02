@@ -178,9 +178,10 @@ class ClaudeStylePrompt:
         )
 
         # Show panel with transient=True - it will auto-clear when Live context exits
-        with Live(panel, console=self.console, refresh_per_second=10, transient=True) as live:
-            live_display[0] = live
-            try:
+        try:
+            with Live(panel, console=self.console, refresh_per_second=10, transient=True) as live:
+                live_display[0] = live
+
                 result = self.prompt_session.prompt("", key_bindings=kb)
 
                 # Find the selected index
@@ -190,8 +191,11 @@ class ClaudeStylePrompt:
 
                 return PermissionChoice(value=result, option_index=0)
 
-            except (KeyboardInterrupt, EOFError):
-                return None
+        except (KeyboardInterrupt, EOFError):
+            return None
+        finally :
+            #Ensure terminal state is restored
+            live_display[0] = None
 
 
 class ToolExecutionDisplay:
@@ -220,6 +224,13 @@ class ToolExecutionDisplay:
         self._command: str = ""
         self._live: Live | None = None
 
+    def initialize_display(self, tool_name: str, command: str) -> None :
+        """Initialize display state without starting live display"""
+        self._tool_name = tool_name
+        self._command = command
+        self._start_time = None
+        self._live = None
+
     def show_tool_start(
         self,
         tool_name: str,
@@ -241,7 +252,7 @@ class ToolExecutionDisplay:
         tool_id = tool_id or f"{tool_name}-{time.time()}"
         self._start_time = time.time()
         self._tool_name = tool_name
-        self._command = command
+        self._command = command[:60] + "..." if len(command) > 60 else command
 
         # Create running status display
         display = Text()
@@ -249,7 +260,6 @@ class ToolExecutionDisplay:
         display.append(f"{tool_name}({command})\n", style="white")
         display.append("  └─ Running...", style="white")
         self.console.print(display)
-
         return tool_id
 
     def show_tool_complete(

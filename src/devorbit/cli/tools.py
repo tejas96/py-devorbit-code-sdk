@@ -106,8 +106,7 @@ class ToolExecutor:
         # Get command string for display
         command = self._get_display_command(tool_name, tool_input)
 
-        self._tool_display._tool_name = tool_name
-        self._tool_display._command = command
+        self._tool_display.initialize_display(tool_name, command)
 
         try:
             # Prepare parameters (adapt CLI conventions to SDK)
