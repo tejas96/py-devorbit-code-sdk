@@ -11,6 +11,7 @@ Now integrated with:
 from __future__ import annotations
 
 import sys
+import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from prompt_toolkit import prompt
