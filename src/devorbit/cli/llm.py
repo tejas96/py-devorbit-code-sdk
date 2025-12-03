@@ -157,7 +157,7 @@ class LLMHandler:
         full_response_text = ""
         tool_round = 0
         user_stopped = False
-        usage: Any | None = None
+        usage_info: Any | None = None
 
         # Tool execution loop (Claude Code-style with continue prompt)
         while tool_round < self.max_tool_rounds and not user_stopped:
@@ -200,7 +200,7 @@ class LLMHandler:
 
                 # Capture usage from final message (if provider supplies it)
                 if hasattr(final_message, "usage"):
-                    usage = final_message.usage
+                    usage_info = final_message.usage
 
                 # Add text to full response
                 if text_chunk_buffer:
@@ -286,14 +286,15 @@ class LLMHandler:
 
         # Fallback: if usage is missing or zero, approximate using count_tokens + response length
         try:
-            if usage is None or (
-                getattr(usage, "input_tokens", 0) == 0 and getattr(usage, "output_tokens", 0) == 0
+            if usage_info is None or (
+                getattr(usage_info, "input_tokens", 0) == 0
+                and getattr(usage_info, "output_tokens", 0) == 0
             ):
                 token_count = self.session.client.messages.count_tokens(
                     model=self.session.model,
                     messages=self.session.messages,
                 )
-                usage = Usage(
+                usage_info = Usage(
                     input_tokens=getattr(token_count, "input_tokens", 0),
                     output_tokens=len(full_response_text.split()),
                 )
@@ -302,20 +303,22 @@ class LLMHandler:
 
         # Update status line context if possible
         try:
-            if usage is not None and hasattr(self.session, "status_line"):
-                total = getattr(usage, "input_tokens", 0) + getattr(usage, "output_tokens", 0)
-                self.session.status_line.set_context(total, 200000)
+            if usage_info is not None and hasattr(self.session, "status_line"):
+                total_tokens = getattr(usage_info, "input_tokens", 0) + getattr(
+                    usage_info, "output_tokens", 0
+                )
+                self.session.status_line.set_context(total_tokens, 200000)
         except Exception:
             pass
 
         # Print token summary at the end of output if available
         try:
-            if usage is not None:
-                in_toks = getattr(usage, "input_tokens", 0)
-                out_toks = getattr(usage, "output_tokens", 0)
-                total = in_toks + out_toks
+            if usage_info is not None:
+                input_token_count = getattr(usage_info, "input_tokens", 0)
+                output_token_count = getattr(usage_info, "output_tokens", 0)
+                total_tokens = input_token_count + output_token_count
                 self.session.print_info(
-                    f"Tokens — input: {in_toks}, output: {out_toks}, total: {total}"
+                    f"Tokens — input: {input_token_count}, output: {output_token_count}, total: {total_tokens}"
                 )
         except Exception:
             pass
@@ -335,7 +338,7 @@ class LLMHandler:
         full_response_text = ""
         tool_round = 0
         user_stopped = False
-        usage: Any | None = None
+        usage_info: Any | None = None
 
         # Tool execution loop (Claude Code-style with continue prompt)
         while tool_round < self.max_tool_rounds and not user_stopped:
@@ -365,7 +368,7 @@ class LLMHandler:
 
             # Capture usage from response (if provider supplies it)
             if hasattr(response, "usage"):
-                usage = response.usage
+                usage_info = response.usage
 
             # Extract text content
             text_blocks = [block for block in response.content if isinstance(block, TextBlock)]
@@ -439,10 +442,12 @@ class LLMHandler:
             # Update context info in status line
             if hasattr(response, "usage"):
                 try:
-                    u = response.usage
-                    total = getattr(u, "input_tokens", 0) + getattr(u, "output_tokens", 0)
+                    usage_info = response.usage
+                    total_tokens = getattr(usage_info, "input_tokens", 0) + getattr(
+                        usage_info, "output_tokens", 0
+                    )
                     if hasattr(self.session, "status_line"):
-                        self.session.status_line.set_context(total, 200000)
+                        self.session.status_line.set_context(total_tokens, 200000)
                 except Exception:
                     pass
 
@@ -455,14 +460,15 @@ class LLMHandler:
 
         # if usage is missing or zero, approximate using count_tokens + response length
         try:
-            if usage is None or (
-                getattr(usage, "input_tokens", 0) == 0 and getattr(usage, "output_tokens", 0) == 0
+            if usage_info is None or (
+                getattr(usage_info, "input_tokens", 0) == 0
+                and getattr(usage_info, "output_tokens", 0) == 0
             ):
                 token_count = self.session.client.messages.count_tokens(
                     model=self.session.model,
                     messages=self.session.messages,
                 )
-                usage = Usage(
+                usage_info = Usage(
                     input_tokens=getattr(token_count, "input_tokens", 0),
                     output_tokens=len(full_response_text.split()),
                 )
@@ -471,20 +477,22 @@ class LLMHandler:
 
         # Update status line context if possible
         try:
-            if usage is not None and hasattr(self.session, "status_line"):
-                total = getattr(usage, "input_tokens", 0) + getattr(usage, "output_tokens", 0)
-                self.session.status_line.set_context(total, 200000)
+            if usage_info is not None and hasattr(self.session, "status_line"):
+                total_tokens = getattr(usage_info, "input_tokens", 0) + getattr(
+                    usage_info, "output_tokens", 0
+                )
+                self.session.status_line.set_context(total_tokens, 200000)
         except Exception:
             pass
 
         # Print token summary at the end of output if available
         try:
-            if usage is not None:
-                in_toks = getattr(usage, "input_tokens", 0)
-                out_toks = getattr(usage, "output_tokens", 0)
-                total = in_toks + out_toks
+            if usage_info is not None:
+                input_token_count = getattr(usage_info, "input_tokens", 0)
+                output_token_count = getattr(usage_info, "output_tokens", 0)
+                total_tokens = input_token_count + output_token_count
                 self.session.print_info(
-                    f"Tokens — input: {in_toks}, output: {out_toks}, total: {total}"
+                    f"Tokens — input: {input_token_count}, output: {output_token_count}, total: {total_tokens}"
                 )
         except Exception:
             pass
