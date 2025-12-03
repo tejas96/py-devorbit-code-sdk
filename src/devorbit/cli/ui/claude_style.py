@@ -19,7 +19,6 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
-from questionary import Style
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
@@ -29,19 +28,6 @@ from rich.text import Text
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-
-# Custom questionary style matching Claude Code
-CLAUDE_STYLE = Style(
-    [
-        ("qmark", "fg:cyan bold"),
-        ("question", "fg:white bold"),
-        ("answer", "fg:cyan bold"),
-        ("pointer", "fg:cyan bold"),
-        ("highlighted", "fg:cyan bold"),
-        ("selected", "fg:cyan"),
-        ("instruction", "fg:#858585 italic"),
-    ]
-)
 
 
 class ToolStatus(Enum):
@@ -63,7 +49,7 @@ class PermissionChoice:
 class ClaudeStylePrompt:
     """Claude Code-style permission prompt with arrow key navigation.
 
-    Uses Rich for panel display + questionary for reliable arrow key selection.
+    Uses Rich for panel display + propmt_toolkit for reliable arrow key selection.
     """
 
     def __init__(self, console: Console | None = None) -> None:
