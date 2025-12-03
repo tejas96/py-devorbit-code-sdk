@@ -5,7 +5,8 @@ in a provider-agnostic way. Includes automatic retry with exponential backoff
 for transient API errors.
 """
 
-from typing import TYPE_CHECKING
+import contextlib
+from typing import TYPE_CHECKING, Any
 
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
@@ -156,7 +157,7 @@ class LLMHandler:
         full_response_text = ""
         tool_round = 0
         user_stopped = False
-        usage: Usage | None = None
+        usage: Any | None = None
 
         # Tool execution loop (Claude Code-style with continue prompt)
         while tool_round < self.max_tool_rounds and not user_stopped:
@@ -199,7 +200,7 @@ class LLMHandler:
 
                 # Capture usage from final message (if provider supplies it)
                 if hasattr(final_message, "usage"):
-                    usage = final_message.usage  # type: ignore[assignment]
+                    usage = final_message.usage
 
                 # Add text to full response
                 if text_chunk_buffer:
@@ -215,10 +216,10 @@ class LLMHandler:
                     break
 
                 # Add assistant message with tool calls to history
-                self.session.add_message(
-                    "assistant",
-                    final_message.content,  # type: ignore[arg-type]
+                assistant_text = "".join(
+                    block.text for block in final_message.content if isinstance(block, TextBlock)
                 )
+                self.session.add_message("assistant", assistant_text)
 
                 # Get approval for all tools
                 tool_approvals = self.session.tool_approval.approve_batch(
@@ -271,11 +272,8 @@ class LLMHandler:
                 # Continue loop to get next response with tool results
 
             except Exception as e:
-                # ensure streaming is ended cleanly on errors
-                try:
+                with contextlib.suppress(Exception):
                     self.session.streaming.end_streaming()
-                except Exception:
-                    pass
                 self.session.print_error(f"Streaming error: {e}")
                 raise
 
@@ -289,8 +287,7 @@ class LLMHandler:
         # Fallback: if usage is missing or zero, approximate using count_tokens + response length
         try:
             if usage is None or (
-                getattr(usage, "input_tokens", 0) == 0
-                and getattr(usage, "output_tokens", 0) == 0
+                getattr(usage, "input_tokens", 0) == 0 and getattr(usage, "output_tokens", 0) == 0
             ):
                 token_count = self.session.client.messages.count_tokens(
                     model=self.session.model,
@@ -317,7 +314,9 @@ class LLMHandler:
                 in_toks = getattr(usage, "input_tokens", 0)
                 out_toks = getattr(usage, "output_tokens", 0)
                 total = in_toks + out_toks
-                self.session.print_info(f"Tokens — input: {in_toks}, output: {out_toks}, total: {total}")
+                self.session.print_info(
+                    f"Tokens — input: {in_toks}, output: {out_toks}, total: {total}"
+                )
         except Exception:
             pass
 
@@ -336,7 +335,7 @@ class LLMHandler:
         full_response_text = ""
         tool_round = 0
         user_stopped = False
-        usage: Usage | None = None
+        usage: Any | None = None
 
         # Tool execution loop (Claude Code-style with continue prompt)
         while tool_round < self.max_tool_rounds and not user_stopped:
@@ -366,7 +365,7 @@ class LLMHandler:
 
             # Capture usage from response (if provider supplies it)
             if hasattr(response, "usage"):
-                usage = response.usage  # type: ignore[assignment]
+                usage = response.usage
 
             # Extract text content
             text_blocks = [block for block in response.content if isinstance(block, TextBlock)]
@@ -384,7 +383,10 @@ class LLMHandler:
                 break
 
             # Add assistant message to history
-            self.session.add_message("assistant", response.content)  # type: ignore[arg-type]
+            assistant_text = "".join(
+                block.text for block in response.content if isinstance(block, TextBlock)
+            )
+            self.session.add_message("assistant", assistant_text)
 
             # Get approval for all tools
             tool_approvals = self.session.tool_approval.approve_batch(
@@ -437,7 +439,7 @@ class LLMHandler:
             # Update context info in status line
             if hasattr(response, "usage"):
                 try:
-                    u = response.usage  # type: ignore[assignment]
+                    u = response.usage
                     total = getattr(u, "input_tokens", 0) + getattr(u, "output_tokens", 0)
                     if hasattr(self.session, "status_line"):
                         self.session.status_line.set_context(total, 200000)
@@ -454,8 +456,7 @@ class LLMHandler:
         # if usage is missing or zero, approximate using count_tokens + response length
         try:
             if usage is None or (
-                getattr(usage, "input_tokens", 0) == 0
-                and getattr(usage, "output_tokens", 0) == 0
+                getattr(usage, "input_tokens", 0) == 0 and getattr(usage, "output_tokens", 0) == 0
             ):
                 token_count = self.session.client.messages.count_tokens(
                     model=self.session.model,
@@ -482,7 +483,9 @@ class LLMHandler:
                 in_toks = getattr(usage, "input_tokens", 0)
                 out_toks = getattr(usage, "output_tokens", 0)
                 total = in_toks + out_toks
-                self.session.print_info(f"Tokens — input: {in_toks}, output: {out_toks}, total: {total}")
+                self.session.print_info(
+                    f"Tokens — input: {in_toks}, output: {out_toks}, total: {total}"
+                )
         except Exception:
             pass
 
