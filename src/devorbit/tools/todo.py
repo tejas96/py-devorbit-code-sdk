@@ -3,6 +3,10 @@
 This module provides todo list management tools matching Claude Code's behavior:
 - TodoWrite tool: Create and update task lists
 - TodoRead tool: Read current task status
+
+Multi-tenant Support:
+    Todo state is now stored per-user via UserContext, enabling multiple
+    users to have isolated todo lists simultaneously.
 """
 
 import copy
@@ -11,15 +15,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 from devorbit.core.tool_helpers import beta_tool
+from devorbit.core.user_context import UserContext, get_current_context
 
 
 # Task status types
 TaskStatus = Literal["pending", "in_progress", "completed"]
-
-
-# Global todo state (in-memory storage)
-_TODO_STATE: list[dict[str, Any]] = []
-_TODO_FILE_PATH: Path | None = None
 
 
 # ============================================================================
@@ -86,6 +86,18 @@ def _validate_and_normalize_todos(
     return normalized, None
 
 
+def _get_context(ctx: UserContext | None = None) -> UserContext:
+    """Get the user context for todo operations.
+
+    Args:
+        ctx: Optional explicit context, uses current thread's context if None
+
+    Returns:
+        UserContext to use for todo operations
+    """
+    return ctx or get_current_context()
+
+
 # ============================================================================
 # TodoWrite Tool
 # ============================================================================
@@ -95,6 +107,7 @@ def _validate_and_normalize_todos(
 def todo_write(
     todos: list[dict[str, str]],
     persist_to_file: str | None = None,
+    _context: UserContext | None = None,
 ) -> dict[str, Any]:
     """Create and manage a structured task list.
 
@@ -107,11 +120,12 @@ def todo_write(
                Optional 'activeForm' for present continuous description (auto-generated if missing).
                Status must be one of: 'pending', 'in_progress', 'completed'
         persist_to_file: Optional file path to persist todos (default: in-memory only)
+        _context: Optional UserContext for multi-tenant support (internal use)
 
     Returns:
         Dictionary containing success status and task summary
     """
-    global _TODO_STATE, _TODO_FILE_PATH  # noqa: PLW0603
+    ctx = _get_context(_context)
 
     try:
         # Validate and normalize todos structure (auto-generates activeForm if missing)
@@ -122,10 +136,11 @@ def todo_write(
         # Count in_progress tasks
         in_progress_count = sum(1 for t in normalized_todos if t["status"] == "in_progress")
 
-        # Store normalized todos in global state
-        _TODO_STATE = normalized_todos.copy()
+        # Store normalized todos in user context (thread-safe)
+        ctx.set_todo_state(normalized_todos)
 
         # Persist to file if requested
+        file_path_str: str | None = None
         if persist_to_file:
             file_path = Path(persist_to_file)
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -133,7 +148,8 @@ def todo_write(
             with file_path.open("w", encoding="utf-8") as f:
                 json.dump(normalized_todos, f, indent=2)
 
-            _TODO_FILE_PATH = file_path
+            ctx.todo_file_path = str(file_path.absolute())
+            file_path_str = ctx.todo_file_path
 
         # Calculate statistics
         total = len(normalized_todos)
@@ -148,7 +164,7 @@ def todo_write(
             "in_progress": in_progress,
             "completed": completed,
             "persisted": persist_to_file is not None,
-            "file_path": str(_TODO_FILE_PATH.absolute()) if _TODO_FILE_PATH else None,
+            "file_path": file_path_str,
             "message": "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable",
         }
 
@@ -166,6 +182,7 @@ def todo_write(
 @beta_tool
 def todo_read(
     load_from_file: str | None = None,
+    _context: UserContext | None = None,
 ) -> dict[str, Any]:
     """Read the current task list.
 
@@ -174,11 +191,12 @@ def todo_read(
 
     Args:
         load_from_file: Optional file path to load todos from (default: use in-memory state)
+        _context: Optional UserContext for multi-tenant support (internal use)
 
     Returns:
         Dictionary containing current todo list and statistics
     """
-    global _TODO_STATE, _TODO_FILE_PATH  # noqa: PLW0603
+    ctx = _get_context(_context)
 
     try:
         # Load from file if requested
@@ -193,10 +211,10 @@ def todo_read(
             with file_path.open(encoding="utf-8") as f:
                 todos = json.load(f)
 
-            _TODO_STATE = todos
-            _TODO_FILE_PATH = file_path
+            ctx.set_todo_state(todos)
+            ctx.todo_file_path = str(file_path.absolute())
         else:
-            todos = _TODO_STATE
+            todos = ctx.get_todo_state()
 
         # If no todos, return empty state
         if not todos:
@@ -227,7 +245,7 @@ def todo_read(
                 {
                     "number": i,
                     "content": todo["content"],
-                    "activeForm": todo["activeForm"],
+                    "activeForm": todo.get("activeForm", todo["content"]),
                     "status": todo["status"],
                     "display": f"{status_emoji.get(todo['status'], '❓')} [{todo['status']}] {todo['content']}",
                 }
@@ -242,7 +260,7 @@ def todo_read(
             "completed": completed,
             "progress_percentage": (completed / total * 100) if total > 0 else 0,
             "loaded_from_file": load_from_file is not None,
-            "file_path": str(_TODO_FILE_PATH.absolute()) if _TODO_FILE_PATH else None,
+            "file_path": ctx.todo_file_path,
         }
 
     except Exception as e:
@@ -268,23 +286,30 @@ def get_all_todo_tools() -> list[dict[str, Any]]:
     ]
 
 
-def clear_todo_state() -> None:
+def clear_todo_state(ctx: UserContext | None = None) -> None:
     """Clear the in-memory todo state.
 
     Useful for testing or resetting the todo list.
+
+    Args:
+        ctx: Optional UserContext, uses current context if None
     """
-    global _TODO_STATE, _TODO_FILE_PATH  # noqa: PLW0603
-    _TODO_STATE = []
-    _TODO_FILE_PATH = None
+    context = _get_context(ctx)
+    context.set_todo_state([])
+    context.todo_file_path = None
 
 
-def get_current_todos() -> list[dict[str, Any]]:
+def get_current_todos(ctx: UserContext | None = None) -> list[dict[str, Any]]:
     """Get the current todo list.
+
+    Args:
+        ctx: Optional UserContext, uses current context if None
 
     Returns:
         Current todo list (deep copy)
     """
-    return copy.deepcopy(_TODO_STATE)
+    context = _get_context(ctx)
+    return copy.deepcopy(context.get_todo_state())
 
 
 # Export tool instances for direct use

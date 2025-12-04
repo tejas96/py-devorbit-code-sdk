@@ -7,6 +7,10 @@ This module provides enhanced bash capabilities matching Claude Code's behavior:
 - Environment variable tracking
 - Working directory persistence
 - Automatic session cleanup on exit and idle timeout
+
+Multi-tenant Support:
+    Bash sessions are now stored per-user via UserContext, enabling multiple
+    users to have isolated bash sessions simultaneously.
 """
 
 import atexit
@@ -22,15 +26,40 @@ from pathlib import Path
 from typing import Any
 
 from devorbit.core.tool_helpers import beta_tool
+from devorbit.core.user_context import UserContext, get_context_registry, get_current_context
 
 
-# Global state for bash sessions
-_BASH_SESSIONS: dict[str, "BashSession"] = {}
+# Global lock for session operations (still needed for cleanup coordination)
 _SESSION_LOCK = threading.Lock()
 
 # Session cleanup configuration
 SESSION_IDLE_TIMEOUT = 3600  # 1 hour in seconds
-MAX_SESSIONS = 50  # Maximum number of concurrent sessions
+MAX_SESSIONS = 50  # Maximum number of concurrent sessions per user
+
+
+def _get_context(ctx: UserContext | None = None) -> UserContext:
+    """Get the user context for bash operations.
+
+    Args:
+        ctx: Optional explicit context, uses current thread's context if None
+
+    Returns:
+        UserContext to use for bash operations
+    """
+    return ctx or get_current_context()
+
+
+def _get_sessions(ctx: UserContext | None = None) -> dict[str, "BashSession"]:
+    """Get bash sessions dict from context.
+
+    Args:
+        ctx: Optional explicit context
+
+    Returns:
+        Dictionary of bash sessions for the user
+    """
+    context = _get_context(ctx)
+    return context.bash_sessions
 
 
 class BashSession:
@@ -406,6 +435,7 @@ def bash(
     cwd: str | None = None,
     timeout: float | None = None,
     run_in_background: bool = False,
+    _context: UserContext | None = None,
 ) -> dict[str, Any]:
     """Execute shell commands with persistent session support.
 
@@ -418,6 +448,7 @@ def bash(
         cwd: Working directory (default: current directory)
         timeout: Command timeout in seconds (default: 120)
         run_in_background: Run command in background (requires session_id)
+        _context: Optional UserContext for multi-tenant support (internal use)
 
     Returns:
         Dictionary containing command output and session information
@@ -427,34 +458,37 @@ def bash(
     if session_id is None and not run_in_background:
         return bash_simple(command, cwd, timeout)
 
+    ctx = _get_context(_context)
+    sessions = _get_sessions(ctx)
+
     try:
-        with _SESSION_LOCK:
+        with ctx._lock:
             # Auto-cleanup stale sessions before creating new ones
-            stale_ids = [sid for sid, s in _BASH_SESSIONS.items() if s.is_stale()]
+            stale_ids = [sid for sid, s in sessions.items() if s.is_stale()]
             for sid in stale_ids:
-                old_session = _BASH_SESSIONS.pop(sid, None)
+                old_session = sessions.pop(sid, None)
                 if old_session and old_session.is_running:
                     old_session.kill()
 
-            # Enforce max sessions limit
-            if len(_BASH_SESSIONS) >= MAX_SESSIONS:
+            # Enforce max sessions limit per user
+            if len(sessions) >= MAX_SESSIONS:
                 # Remove oldest session
                 oldest_id = min(
-                    _BASH_SESSIONS.keys(),
-                    key=lambda sid: _BASH_SESSIONS[sid].last_activity,
+                    sessions.keys(),
+                    key=lambda sid: sessions[sid].last_activity,
                 )
-                old_session = _BASH_SESSIONS.pop(oldest_id, None)
+                old_session = sessions.pop(oldest_id, None)
                 if old_session and old_session.is_running:
                     old_session.kill()
 
             # Get or create session for persistent mode
-            if session_id and session_id in _BASH_SESSIONS:
-                session = _BASH_SESSIONS[session_id]
+            if session_id and session_id in sessions:
+                session = sessions[session_id]
             else:
                 # Create new session
                 new_session_id = session_id or str(uuid.uuid4())
                 session = BashSession(new_session_id, cwd)
-                _BASH_SESSIONS[new_session_id] = session
+                sessions[new_session_id] = session
 
         # Execute command (outside lock to avoid blocking other sessions)
         return session.execute(command, timeout, run_in_background)
@@ -475,6 +509,7 @@ def bash(
 def bash_output(
     bash_id: str,
     filter: str | None = None,
+    _context: UserContext | None = None,
 ) -> dict[str, Any]:
     """Retrieve output from a running or completed background bash shell.
 
@@ -484,18 +519,21 @@ def bash_output(
     Args:
         bash_id: Session ID of the bash shell
         filter: Optional regex pattern to filter output lines
+        _context: Optional UserContext for multi-tenant support (internal use)
 
     Returns:
         Dictionary containing output and session status
     """
+    sessions = _get_sessions(_context)
+
     try:
-        if bash_id not in _BASH_SESSIONS:
+        if bash_id not in sessions:
             return {
                 "error": f"Bash session not found: {bash_id}",
                 "bash_id": bash_id,
             }
 
-        session = _BASH_SESSIONS[bash_id]
+        session = sessions[bash_id]
         output = session.get_output(filter)
 
         return {
@@ -519,7 +557,10 @@ def bash_output(
 
 
 @beta_tool
-def kill_shell(shell_id: str) -> dict[str, Any]:
+def kill_shell(
+    shell_id: str,
+    _context: UserContext | None = None,
+) -> dict[str, Any]:
     """Kill a running background bash shell.
 
     Terminate a background bash session by its ID. The session will be
@@ -527,19 +568,23 @@ def kill_shell(shell_id: str) -> dict[str, Any]:
 
     Args:
         shell_id: Session ID of the bash shell to kill
+        _context: Optional UserContext for multi-tenant support (internal use)
 
     Returns:
         Dictionary containing termination status
     """
+    ctx = _get_context(_context)
+    sessions = _get_sessions(ctx)
+
     try:
-        with _SESSION_LOCK:
-            if shell_id not in _BASH_SESSIONS:
+        with ctx._lock:
+            if shell_id not in sessions:
                 return {
                     "error": f"Bash session not found: {shell_id}",
                     "shell_id": shell_id,
                 }
 
-            session = _BASH_SESSIONS.pop(shell_id)
+            session = sessions.pop(shell_id)
 
         # Kill outside lock
         session.kill()
@@ -576,13 +621,19 @@ def get_all_bash_tools() -> list[dict[str, Any]]:
     ]
 
 
-def list_active_sessions() -> list[dict[str, Any]]:
-    """List all active bash sessions.
+def list_active_sessions(ctx: UserContext | None = None) -> list[dict[str, Any]]:
+    """List all active bash sessions for a user.
+
+    Args:
+        ctx: Optional UserContext, uses current context if None
 
     Returns:
         List of active session information
     """
-    with _SESSION_LOCK:
+    context = _get_context(ctx)
+    sessions = _get_sessions(context)
+
+    with context._lock:
         return [
             {
                 "session_id": sid,
@@ -593,21 +644,27 @@ def list_active_sessions() -> list[dict[str, Any]]:
                 "last_activity": session.last_activity,
                 "idle_seconds": time.time() - session.last_activity,
             }
-            for sid, session in _BASH_SESSIONS.items()
+            for sid, session in sessions.items()
         ]
 
 
-def cleanup_stale_sessions() -> int:
+def cleanup_stale_sessions(ctx: UserContext | None = None) -> int:
     """Clean up stale bash sessions that have been idle too long.
+
+    Args:
+        ctx: Optional UserContext, uses current context if None
 
     Returns:
         Number of sessions cleaned up
     """
+    context = _get_context(ctx)
+    sessions = _get_sessions(context)
     cleaned = 0
-    with _SESSION_LOCK:
-        stale_ids = [sid for sid, session in _BASH_SESSIONS.items() if session.is_stale()]
+
+    with context._lock:
+        stale_ids = [sid for sid, session in sessions.items() if session.is_stale()]
         for sid in stale_ids:
-            session = _BASH_SESSIONS.pop(sid, None)
+            session = sessions.pop(sid, None)
             if session:
                 if session.is_running:
                     session.kill()
@@ -615,22 +672,35 @@ def cleanup_stale_sessions() -> int:
     return cleaned
 
 
-def cleanup_sessions() -> None:
-    """Clean up all bash sessions.
+def cleanup_sessions(ctx: UserContext | None = None) -> None:
+    """Clean up all bash sessions for a user.
 
-    Terminates all active bash sessions. Called automatically on program exit.
+    Args:
+        ctx: Optional UserContext, uses current context if None
     """
-    with _SESSION_LOCK:
-        for session in _BASH_SESSIONS.values():
+    context = _get_context(ctx)
+    sessions = _get_sessions(context)
+
+    with context._lock:
+        for session in sessions.values():
             if session.is_running:
                 with suppress(Exception):
                     session.kill()
+        sessions.clear()
 
-        _BASH_SESSIONS.clear()
+
+def cleanup_all_sessions() -> None:
+    """Clean up all bash sessions across ALL users.
+
+    Called automatically on program exit to ensure all sessions are terminated.
+    """
+    registry = get_context_registry()
+    for ctx in registry.list_all():
+        cleanup_sessions(ctx)
 
 
 # Register cleanup handler for program exit
-atexit.register(cleanup_sessions)
+atexit.register(cleanup_all_sessions)
 
 
 # Export tool instances
@@ -640,6 +710,7 @@ __all__ = [
     "BashSession",
     "bash",
     "bash_output",
+    "cleanup_all_sessions",
     "cleanup_sessions",
     "cleanup_stale_sessions",
     "get_all_bash_tools",

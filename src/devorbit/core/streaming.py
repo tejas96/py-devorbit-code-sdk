@@ -41,6 +41,7 @@ class MessageStream:
         self._text_buffers: dict[int, list[str]] = {}
         self._tool_input_buffers: dict[int, list[str]] = {}
         self._finished = False
+        self._exhausted = False  # Track if iterator has been fully consumed
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
         """Iterate over stream events while processing them internally.
@@ -51,9 +52,18 @@ class MessageStream:
         Yields:
             Stream event dictionaries
         """
-        for event in self._iterator:
-            self._process_event(event)
-            yield event
+        if self._exhausted:
+            return
+
+        try:
+            for event in self._iterator:
+                self._process_event(event)
+                yield event
+        except StopIteration:
+            # Handle unexpected StopIteration from generator
+            pass
+        finally:
+            self._exhausted = True
 
     def _process_event(self, event: dict[str, Any]) -> None:
         """Process a stream event and update internal state.
@@ -106,13 +116,23 @@ class MessageStream:
         Yields:
             Text delta strings
         """
-        for event in self._iterator:
-            self._process_event(event)
-            # Yield text deltas
-            if event.get("type") == "content_block_delta":
-                delta = event.get("delta", {})
-                if delta.get("type") == "text_delta":
-                    yield delta.get("text", "")
+        if self._exhausted:
+            return
+
+        try:
+            for event in self._iterator:
+                self._process_event(event)
+                # Yield text deltas
+                if event.get("type") == "content_block_delta":
+                    delta = event.get("delta", {})
+                    if delta.get("type") == "text_delta":
+                        yield delta.get("text", "")
+        except StopIteration:
+            # Python 3.7+ converts StopIteration raised inside generators to RuntimeError
+            # This can happen if the underlying iterator raises StopIteration unexpectedly
+            pass
+        finally:
+            self._exhausted = True
 
     def get_final_message(self) -> MessageResponse:
         """Get the complete message after stream finishes.
@@ -123,35 +143,48 @@ class MessageStream:
         Raises:
             RuntimeError: If stream hasn't finished
         """
-        # Consume remaining events if not already consumed
-        for _ in self._iterator:
-            pass
+        # Consume and process remaining events if not already consumed
+        if not self._exhausted:
+            try:
+                for event in self._iterator:
+                    self._process_event(event)
+            except StopIteration:
+                # Handle unexpected StopIteration from generator
+                pass
+            finally:
+                self._exhausted = True
 
         if self._message is None:
             raise RuntimeError("No message received in stream")
 
-        # Build final text from accumulated buffers and update text blocks
-        for index, text_parts in self._text_buffers.items():
-            if index < len(self._current_content_blocks):
-                block = self._current_content_blocks[index]
-                if isinstance(block, TextBlock):
-                    block.text = "".join(text_parts)
-
-        # Parse accumulated tool input JSON and update tool use blocks
-        for index, json_parts in self._tool_input_buffers.items():
-            if index < len(self._current_content_blocks):
-                block = self._current_content_blocks[index]
-                json_str = "".join(json_parts)
-                if isinstance(block, ToolUseBlock) and json_str:
-                    # If JSON is invalid, keep empty dict
-                    with suppress(json.JSONDecodeError):
-                        block.input = json.loads(json_str)
+        # Build final text from accumulated buffers
+        self._finalize_text_blocks()
+        # Parse accumulated tool input JSON
+        self._finalize_tool_blocks()
 
         # Update message with accumulated content
         if self._current_content_blocks:
             self._message.content = self._current_content_blocks
 
         return self._message
+
+    def _finalize_text_blocks(self) -> None:
+        """Finalize text blocks from accumulated buffers."""
+        for index, text_parts in self._text_buffers.items():
+            if index < len(self._current_content_blocks):
+                block = self._current_content_blocks[index]
+                if isinstance(block, TextBlock):
+                    block.text = "".join(text_parts)
+
+    def _finalize_tool_blocks(self) -> None:
+        """Finalize tool use blocks from accumulated JSON."""
+        for index, json_parts in self._tool_input_buffers.items():
+            if index < len(self._current_content_blocks):
+                block = self._current_content_blocks[index]
+                json_str = "".join(json_parts)
+                if isinstance(block, ToolUseBlock) and json_str:
+                    with suppress(json.JSONDecodeError):
+                        block.input = json.loads(json_str)
 
     def get_final_text(self) -> str:
         """Get the final text content.
@@ -183,6 +216,7 @@ class AsyncMessageStream:
         self._text_buffers: dict[int, list[str]] = {}
         self._tool_input_buffers: dict[int, list[str]] = {}
         self._finished = False
+        self._exhausted = False  # Track if iterator has been fully consumed
 
     async def __aiter__(self) -> AsyncIterator[dict[str, Any]]:
         """Async iterate over stream events while processing them internally.
@@ -193,9 +227,21 @@ class AsyncMessageStream:
         Yields:
             Stream event dictionaries
         """
-        async for event in self._iterator:
-            self._process_event(event)
-            yield event
+        if self._exhausted:
+            return
+
+        try:
+            async for event in self._iterator:
+                self._process_event(event)
+                yield event
+        except StopIteration:
+            # Handle unexpected StopIteration from generator
+            pass
+        except StopAsyncIteration:
+            # Handle normal async iterator exhaustion
+            pass
+        finally:
+            self._exhausted = True
 
     def _process_event(self, event: dict[str, Any]) -> None:
         """Process a stream event and update internal state.
@@ -247,13 +293,25 @@ class AsyncMessageStream:
         Yields:
             Text delta strings
         """
-        async for event in self._iterator:
-            self._process_event(event)
-            # Yield text deltas
-            if event.get("type") == "content_block_delta":
-                delta = event.get("delta", {})
-                if delta.get("type") == "text_delta":
-                    yield delta.get("text", "")
+        if self._exhausted:
+            return
+
+        try:
+            async for event in self._iterator:
+                self._process_event(event)
+                # Yield text deltas
+                if event.get("type") == "content_block_delta":
+                    delta = event.get("delta", {})
+                    if delta.get("type") == "text_delta":
+                        yield delta.get("text", "")
+        except StopIteration:
+            # Handle unexpected StopIteration
+            pass
+        except StopAsyncIteration:
+            # Handle normal async iterator exhaustion
+            pass
+        finally:
+            self._exhausted = True
 
     async def get_final_message(self) -> MessageResponse:
         """Get the complete message after stream finishes.
@@ -264,35 +322,48 @@ class AsyncMessageStream:
         Raises:
             RuntimeError: If stream hasn't finished
         """
-        # Consume remaining events if not already consumed
-        async for _ in self._iterator:
-            pass
+        # Consume and process remaining events if not already consumed
+        if not self._exhausted:
+            try:
+                async for event in self._iterator:
+                    self._process_event(event)
+            except (StopIteration, StopAsyncIteration):
+                # Handle unexpected StopIteration or normal async exhaustion
+                pass
+            finally:
+                self._exhausted = True
 
         if self._message is None:
             raise RuntimeError("No message received in stream")
 
-        # Build final text from accumulated buffers and update text blocks
-        for index, text_parts in self._text_buffers.items():
-            if index < len(self._current_content_blocks):
-                block = self._current_content_blocks[index]
-                if isinstance(block, TextBlock):
-                    block.text = "".join(text_parts)
-
-        # Parse accumulated tool input JSON and update tool use blocks
-        for index, json_parts in self._tool_input_buffers.items():
-            if index < len(self._current_content_blocks):
-                block = self._current_content_blocks[index]
-                json_str = "".join(json_parts)
-                if isinstance(block, ToolUseBlock) and json_str:
-                    # If JSON is invalid, keep empty dict
-                    with suppress(json.JSONDecodeError):
-                        block.input = json.loads(json_str)
+        # Build final text from accumulated buffers
+        self._finalize_text_blocks()
+        # Parse accumulated tool input JSON
+        self._finalize_tool_blocks()
 
         # Update message with accumulated content
         if self._current_content_blocks:
             self._message.content = self._current_content_blocks
 
         return self._message
+
+    def _finalize_text_blocks(self) -> None:
+        """Finalize text blocks from accumulated buffers."""
+        for index, text_parts in self._text_buffers.items():
+            if index < len(self._current_content_blocks):
+                block = self._current_content_blocks[index]
+                if isinstance(block, TextBlock):
+                    block.text = "".join(text_parts)
+
+    def _finalize_tool_blocks(self) -> None:
+        """Finalize tool use blocks from accumulated JSON."""
+        for index, json_parts in self._tool_input_buffers.items():
+            if index < len(self._current_content_blocks):
+                block = self._current_content_blocks[index]
+                json_str = "".join(json_parts)
+                if isinstance(block, ToolUseBlock) and json_str:
+                    with suppress(json.JSONDecodeError):
+                        block.input = json.loads(json_str)
 
     async def get_final_text(self) -> str:
         """Get the final text content.
