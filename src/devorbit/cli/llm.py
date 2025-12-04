@@ -5,12 +5,13 @@ in a provider-agnostic way. Includes automatic retry with exponential backoff
 for transient API errors.
 """
 
-from typing import TYPE_CHECKING
+import contextlib
+from typing import TYPE_CHECKING, Any
 
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 
-from devorbit.core.models import MessageResponse, TextBlock, ToolUseBlock
+from devorbit.core.models import MessageResponse, TextBlock, ToolUseBlock, Usage
 from devorbit.core.recovery import ErrorCategory, ErrorClassifier, RetryHandler
 
 
@@ -156,6 +157,7 @@ class LLMHandler:
         full_response_text = ""
         tool_round = 0
         user_stopped = False
+        usage_info: Any | None = None
 
         # Tool execution loop (Claude Code-style with continue prompt)
         while tool_round < self.max_tool_rounds and not user_stopped:
@@ -196,6 +198,10 @@ class LLMHandler:
 
                 self.session.streaming.end_streaming()
 
+                # Capture usage from final message (if provider supplies it)
+                if hasattr(final_message, "usage"):
+                    usage_info = final_message.usage
+
                 # Add text to full response
                 if text_chunk_buffer:
                     full_response_text += text_chunk_buffer
@@ -210,10 +216,10 @@ class LLMHandler:
                     break
 
                 # Add assistant message with tool calls to history
-                self.session.add_message(
-                    "assistant",
-                    final_message.content,  # type: ignore[arg-type]
+                assistant_text = "".join(
+                    block.text for block in final_message.content if isinstance(block, TextBlock)
                 )
+                self.session.add_message("assistant", assistant_text)
 
                 # Get approval for all tools
                 tool_approvals = self.session.tool_approval.approve_batch(
@@ -266,7 +272,8 @@ class LLMHandler:
                 # Continue loop to get next response with tool results
 
             except Exception as e:
-                self.session.streaming.end_streaming()
+                with contextlib.suppress(Exception):
+                    self.session.streaming.end_streaming()
                 self.session.print_error(f"Streaming error: {e}")
                 raise
 
@@ -276,6 +283,45 @@ class LLMHandler:
                 f"\n⚠ Reached maximum tool execution limit ({self.max_tool_rounds} rounds)"
             )
             self.session.print_info("The assistant was still working. You can ask it to continue.")
+
+        # Fallback: if usage is missing or zero, approximate using count_tokens + response length
+        try:
+            if usage_info is None or (
+                getattr(usage_info, "input_tokens", 0) == 0
+                and getattr(usage_info, "output_tokens", 0) == 0
+            ):
+                token_count = self.session.client.messages.count_tokens(
+                    model=self.session.model,
+                    messages=self.session.messages,
+                )
+                usage_info = Usage(
+                    input_tokens=getattr(token_count, "input_tokens", 0),
+                    output_tokens=len(full_response_text.split()),
+                )
+        except Exception:
+            pass
+
+        # Update status line context if possible
+        try:
+            if usage_info is not None and hasattr(self.session, "status_line"):
+                total_tokens = getattr(usage_info, "input_tokens", 0) + getattr(
+                    usage_info, "output_tokens", 0
+                )
+                self.session.status_line.set_context(total_tokens, 200000)
+        except Exception:
+            pass
+
+        # Print token summary at the end of output if available
+        try:
+            if usage_info is not None:
+                input_token_count = getattr(usage_info, "input_tokens", 0)
+                output_token_count = getattr(usage_info, "output_tokens", 0)
+                total_tokens = input_token_count + output_token_count
+                self.session.print_info(
+                    f"Tokens — input: {input_token_count}, output: {output_token_count}, total: {total_tokens}"
+                )
+        except Exception:
+            pass
 
         return full_response_text
 
@@ -292,6 +338,7 @@ class LLMHandler:
         full_response_text = ""
         tool_round = 0
         user_stopped = False
+        usage_info: Any | None = None
 
         # Tool execution loop (Claude Code-style with continue prompt)
         while tool_round < self.max_tool_rounds and not user_stopped:
@@ -319,6 +366,10 @@ class LLMHandler:
                 system=self.session.system_prompt,
             )
 
+            # Capture usage from response (if provider supplies it)
+            if hasattr(response, "usage"):
+                usage_info = response.usage
+
             # Extract text content
             text_blocks = [block for block in response.content if isinstance(block, TextBlock)]
             text = "".join(block.text for block in text_blocks)
@@ -335,7 +386,10 @@ class LLMHandler:
                 break
 
             # Add assistant message to history
-            self.session.add_message("assistant", response.content)  # type: ignore[arg-type]
+            assistant_text = "".join(
+                block.text for block in response.content if isinstance(block, TextBlock)
+            )
+            self.session.add_message("assistant", assistant_text)
 
             # Get approval for all tools
             tool_approvals = self.session.tool_approval.approve_batch(
@@ -387,9 +441,15 @@ class LLMHandler:
 
             # Update context info in status line
             if hasattr(response, "usage"):
-                self.session.status_line.set_context(
-                    response.usage.input_tokens + response.usage.output_tokens, 200000
-                )
+                try:
+                    usage_info = response.usage
+                    total_tokens = getattr(usage_info, "input_tokens", 0) + getattr(
+                        usage_info, "output_tokens", 0
+                    )
+                    if hasattr(self.session, "status_line"):
+                        self.session.status_line.set_context(total_tokens, 200000)
+                except Exception:
+                    pass
 
         # Handle reaching max rounds (Claude Code-style)
         if tool_round >= self.max_tool_rounds and not user_stopped:
@@ -397,6 +457,45 @@ class LLMHandler:
                 f"\n⚠ Reached maximum tool execution limit ({self.max_tool_rounds} rounds)"
             )
             self.session.print_info("The assistant was still working. You can ask it to continue.")
+
+        # if usage is missing or zero, approximate using count_tokens + response length
+        try:
+            if usage_info is None or (
+                getattr(usage_info, "input_tokens", 0) == 0
+                and getattr(usage_info, "output_tokens", 0) == 0
+            ):
+                token_count = self.session.client.messages.count_tokens(
+                    model=self.session.model,
+                    messages=self.session.messages,
+                )
+                usage_info = Usage(
+                    input_tokens=getattr(token_count, "input_tokens", 0),
+                    output_tokens=len(full_response_text.split()),
+                )
+        except Exception:
+            pass
+
+        # Update status line context if possible
+        try:
+            if usage_info is not None and hasattr(self.session, "status_line"):
+                total_tokens = getattr(usage_info, "input_tokens", 0) + getattr(
+                    usage_info, "output_tokens", 0
+                )
+                self.session.status_line.set_context(total_tokens, 200000)
+        except Exception:
+            pass
+
+        # Print token summary at the end of output if available
+        try:
+            if usage_info is not None:
+                input_token_count = getattr(usage_info, "input_tokens", 0)
+                output_token_count = getattr(usage_info, "output_tokens", 0)
+                total_tokens = input_token_count + output_token_count
+                self.session.print_info(
+                    f"Tokens — input: {input_token_count}, output: {output_token_count}, total: {total_tokens}"
+                )
+        except Exception:
+            pass
 
         return full_response_text
 
