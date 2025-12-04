@@ -109,7 +109,9 @@ disable_error_code = ["attr-defined", "arg-type"]
 [[tool.mypy.overrides]]
 module = [
     "devorbit.cli.input.editor",
-    "devorbit.cli.permissions"
+    "devorbit.cli.permissions",
+    "devorbit.cli.ui.claude_style",
+    "devorbit.cli.repl"
 ]
 disable_error_code = ["misc"]
 

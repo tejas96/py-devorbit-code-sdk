@@ -168,10 +168,10 @@ class ClaudeStylePrompt:
                 except Exception as e:
                     # Fallback for terminal compatibility issue
                     self.console.print(
-                        "[yellow]Warning: Interactive prompt failed. Defaulting to 'yes'[/yellow]"
+                        "[yellow]Warning: Interactive prompt failed. Denying by default for safety.[/yellow]"
                     )
                     self.console.print(f"[dim]Error : {e}[/dim]")
-                    return PermissionChoice(value="yes", option_index=0)
+                    return None  # Return None to deny permission
                 # Find the selected index
                 for i, (value, _) in enumerate(choices):
                     if value == result:
