@@ -1,7 +1,7 @@
 """REPL implementation using Component-Based Rendering (Claude Theme)."""
 
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 
 # 1. Low-level UI components
@@ -24,13 +24,17 @@ except ImportError:
     HAS_PROMPT_TOOLKIT = False
 
     # Define dummy Dimension to prevent NameError in class definition if import fails
-    def _DummyDimension(**kwargs: Any) -> Any:  # noqa: N802
+    def Dimension(**kwargs: Any) -> Any:  # type: ignore[no-redef] # noqa: N802
         return None
-        Dimension = _DummyDimension
 
     # Dummy for typing if import fails
-    class KeyPressEvent:  # type: ignore[no-redef]
-        pass
+    if TYPE_CHECKING:
+        from prompt_toolkit.key_binding import KeyPressEvent  # type: ignore
+    else:
+
+        class KeyPressEvent:  # type: ignore[no-redef]
+            app: Any
+            current_buffer: Any
 
 
 # 2. Updated Imports (Simple Relative Paths)
