@@ -24,8 +24,9 @@ except ImportError:
     HAS_PROMPT_TOOLKIT = False
 
     # Define dummy Dimension to prevent NameError in class definition if import fails
-    def Dimension(**kwargs: Any) -> Any:  # type: ignore[no-redef] # noqa: N802
+    def _DummyDimension(**kwargs: Any) -> Any:  # noqa: N802
         return None
+        Dimension = _DummyDimension
 
     # Dummy for typing if import fails
     class KeyPressEvent:  # type: ignore[no-redef]
