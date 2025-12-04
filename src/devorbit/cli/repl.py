@@ -168,6 +168,10 @@ class DevorbitREPL:
         # -------------------------
         # INPUT AREA
         # -------------------------
+        def get_input_height() -> int:
+            """Calculate dynamic height based on line count (max 15)."""
+            return min(buf.document.line_count, 15)
+
         # Note: Casting "center" and "right" to Any to allow string values
         # instead of importing strict WindowAlign enums which might cause version issues.
         input_content = VSplit(
@@ -177,10 +181,10 @@ class DevorbitREPL:
                     content=BufferControl(buffer=buf),
                     style="class:input",
                     wrap_lines=True,
-                    # Force start at 1 line, allow growing up to 15 lines max
-                    height=Dimension(min=1, max=15),
                 ),
-            ]
+            ],
+            # Dynamically calculate height based on content
+            height=get_input_height,
         )
 
         # Custom "Dashed" Frame Construction

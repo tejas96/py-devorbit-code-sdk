@@ -238,16 +238,16 @@ class CLISession:
         # New "Tech/Modern" style ASCII logo
         logo_text = (
             "[orange3]"
-            r"  ____                         _     _ " + "\n"
-            r" |  _ \  _____   _____  _ __| |__ (_) |_" + "\n"
-            r" | | | |/ _ \ \ / / _ \| '__| '_ \| | __|" + "\n"
-            r" | |_| |  __/\ V /  __/| |  | |_) | | |_" + "\n"
-            r" |____/ \___| \_/ \___/|_|  |_.__/|_|\__|" + "\n"
+            r"     ____                        __    _ __ " + "\n"
+            r"    / __ \___ _   ______  ____  / /_  (_) /_" + "\n"
+            r"   / / / / _ \ | / / __ \/ __ \/ __ \/ / __/" + "\n"
+            r" / /_/ /  __/ |/ / /_/ / / / / /_/ / / /_  " + "\n"
+            r"/_____/\___/|___/\____/_/ /_/_.___/_/\__/  " + "\n"
             "[/]"
         )
 
         logo_panel = RichText.from_markup(
-            f"{logo_text}\n[white]v2.0.14[/]\n[grey50]The AI Software Engineer[/]"
+            f"{logo_text}\n[white]v1.0.0[/]\n[grey50]The AI Software Engineer[/]"
         )
 
         # 4. Right Side: Info, Tips, & Commands

@@ -4,19 +4,21 @@ Implements the display system from the Claude Code CLI specification for
 real-time streaming responses and formatted tool call output.
 """
 
+import sys
 import time
 from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
     from rich.console import Console
+    from rich.status import Status
 
 
 class StreamingDisplay:
     """Display system for streaming LLM responses.
 
     Handles real-time display of streaming responses with support for:
-    - Animated streaming indicator (⏺)
+    - Animated streaming indicator (buffering dots)
     - Markdown rendering
     - Code blocks with syntax highlighting
     - Thinking blocks (collapsible)
@@ -33,23 +35,28 @@ class StreamingDisplay:
         self.no_color = no_color
         self.buffer: list[str] = []
         self.is_streaming = False
+        self._status: Status | None = None
 
     def start_streaming(self) -> None:
-        """Start streaming mode with animated indicator.
+        """Start streaming mode with animated buffering indicator.
 
-        Example:
-            ⏺ Claude is thinking...
+        Displays a buffering spinner that disappears once the response starts.
         """
         self.is_streaming = True
         self.buffer = []
 
         if self.console and not self.no_color:
-            from .colors import Colors
-
-            color = Colors.rich_brand()
-            self.console.print(f"[{color}]⏺[/{color}] Responding...")
+            # Use Rich's Status for a buffering animation (dots)
+            # This creates a spinner that we can stop (remove) when data arrives
+            # Using 'orange3' style for the spinner to match the requested color
+            self._status = self.console.status(
+                "Responding...", spinner="dots", spinner_style="orange3"
+            )
+            self._status.start()
         else:
-            print("⏺ Responding...")
+            # Fallback for non-rich environments
+            sys.stdout.write("... Responding...\r")
+            sys.stdout.flush()
 
     def append_chunk(self, chunk: str) -> None:
         """Append a chunk of text to the streaming display.
@@ -57,6 +64,16 @@ class StreamingDisplay:
         Args:
             chunk: Text chunk to append
         """
+        # Remove the buffering indicator as soon as the first chunk arrives
+        if self._status:
+            self._status.stop()
+            self._status = None
+
+        # Clear the simple fallback text if this is the first chunk
+        if not self.console and not self.buffer:
+            sys.stdout.write(" " * 20 + "\r")
+            sys.stdout.flush()
+
         self.buffer.append(chunk)
 
         # Display the chunk in real-time
@@ -68,6 +85,11 @@ class StreamingDisplay:
     def end_streaming(self) -> None:
         """End streaming mode and finalize display."""
         self.is_streaming = False
+
+        # Ensure status is cleaned up if no chunks were received
+        if self._status:
+            self._status.stop()
+            self._status = None
 
         if self.console:
             self.console.print()  # New line
@@ -135,7 +157,7 @@ class StreamingDisplay:
             │ Let me analyze the requirements...                  │
             │ - First, I need to understand the structure         │
             │ - Then identify the best approach                   │
-            └──────────────────────────────────────────────────────┘
+            └─────────────────────────────────────────────────────┘
         """
         if collapsed:
             if self.console:
