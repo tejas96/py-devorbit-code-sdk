@@ -106,7 +106,7 @@ class ToolExecutor:
         # Get command string for display
         command = self._get_display_command(tool_name, tool_input)
 
-        #Initialize display state for all cases (Actual display is shown in permission.py)
+        # Initialize display state for all cases (Actual display is shown in permission.py)
         self._tool_display.initialize_display(tool_name, command)
 
         try:

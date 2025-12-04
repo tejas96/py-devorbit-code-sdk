@@ -163,11 +163,13 @@ class ClaudeStylePrompt:
         try:
             with Live(panel, console=self.console, refresh_per_second=10, transient=True) as live:
                 live_display[0] = live
-                try :
+                try:
                     result = self.prompt_session.prompt("", key_bindings=kb)
                 except Exception as e:
-                    #Fallback for terminal compatibility issue
-                    self.console.print(f"[yellow]Warning: Interactive prompt failed. Defaulting to 'yes'[/yellow]")
+                    # Fallback for terminal compatibility issue
+                    self.console.print(
+                        "[yellow]Warning: Interactive prompt failed. Defaulting to 'yes'[/yellow]"
+                    )
                     self.console.print(f"[dim]Error : {e}[/dim]")
                     return PermissionChoice(value="yes", option_index=0)
                 # Find the selected index

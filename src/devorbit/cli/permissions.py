@@ -45,6 +45,7 @@ ANSI_MOVE_UP = "\033[F"
 ANSI_CLEAR_LINE = "\033[K"
 MAX_CLEAR_LINES = 100
 
+
 class DangerousCommandDetector:
     """Detects potentially dangerous commands and file operations."""
 
@@ -144,6 +145,7 @@ class ToolApprovalPrompt:
     - PermissionManager for persistent rules and audit logging
     - ClaudeStyleUI for Claude Code-like permission prompts
     """
+
     CLEAR_LINES_AUTO_ALLOWED = 1
     CLEAR_LINES_DENIED = 3
     CLEAR_LINES_PROMPT = 3
