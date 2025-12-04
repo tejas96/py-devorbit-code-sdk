@@ -8,15 +8,12 @@ This module implements UI components matching Claude Code CLI:
 
 from __future__ import annotations
 
-import re
-import sys
 import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
 from rich.console import Console
@@ -48,7 +45,7 @@ class PermissionChoice:
 class ClaudeStylePrompt:
     """Claude Code-style permission prompt with arrow key navigation.
 
-    Uses Rich for panel display + propmt_toolkit for reliable arrow key selection.
+    Uses Rich for panel display + prompt_toolkit for reliable arrow key selection.
     """
 
     def __init__(self, console: Console | None = None) -> None:
@@ -166,9 +163,13 @@ class ClaudeStylePrompt:
         try:
             with Live(panel, console=self.console, refresh_per_second=10, transient=True) as live:
                 live_display[0] = live
-
-                result = self.prompt_session.prompt("", key_bindings=kb)
-
+                try :
+                    result = self.prompt_session.prompt("", key_bindings=kb)
+                except Exception as e:
+                    #Fallback for terminal compatibility issue
+                    self.console.print(f"[yellow]Warning: Interactive prompt failed. Defaulting to 'yes'[/yellow]")
+                    self.console.print(f"[dim]Error : {e}[/dim]")
+                    return PermissionChoice(value="yes", option_index=0)
                 # Find the selected index
                 for i, (value, _) in enumerate(choices):
                     if value == result:
@@ -193,7 +194,7 @@ class ToolExecutionDisplay:
     """
 
     # Status dot characters
-    DOT_RUNNING = "●"  # Empty circle (gray)
+    DOT_RUNNING = "●"  # Filled circle (gray)
     DOT_SUCCESS = "●"  # Filled circle (green)
     DOT_FAILED = "●"  # Filled circle (red)
 
@@ -210,7 +211,11 @@ class ToolExecutionDisplay:
         self._live: Live | None = None
 
     def initialize_display(self, tool_name: str, command: str) -> None:
-        """Initialize display state without starting live display"""
+        """Initialize display state without starting live display
+        Args:
+            tool_name: Name of the tool being executed
+            command: command string to display
+        """
         self._tool_name = tool_name
         self._command = command
         self._start_time = None
@@ -539,16 +544,20 @@ class ClaudeStyleUI:
             if cmd_lower.startswith("ls"):
                 return "List files and directories."
             if cmd_lower.startswith("cd"):
-                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else "~"
+                parts = command.split(maxsplit=1)
+                path = parts[1] if len(parts) > 1 else "~"
                 return f"Change directory to: {path}"
             if cmd_lower.startswith("cat"):
-                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else ""
+                parts = command.split(maxsplit=1)
+                path = parts[1] if len(parts) > 1 else "<file>"
                 return f"Display the content of file: {path}"
             if cmd_lower.startswith("mkdir"):
-                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else ""
+                parts = command.split(maxsplit=1)
+                path = parts[1] if len(parts) > 1 else "<directory>"
                 return f"Create a new directory: {path}"
             if cmd_lower.startswith("touch"):
-                path = command.split(maxsplit=1)[1] if len(command.split()) > 1 else ""
+                parts = command.split(maxsplit=1)
+                path = parts[1] if len(parts) > 1 else "<file>"
                 return f"Create a new file: {path}"
 
             # 2. Common System Status Commands

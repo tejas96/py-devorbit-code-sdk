@@ -45,7 +45,6 @@ ANSI_MOVE_UP = "\033[F"
 ANSI_CLEAR_LINE = "\033[K"
 MAX_CLEAR_LINES = 100
 
-
 class DangerousCommandDetector:
     """Detects potentially dangerous commands and file operations."""
 
@@ -145,6 +144,9 @@ class ToolApprovalPrompt:
     - PermissionManager for persistent rules and audit logging
     - ClaudeStyleUI for Claude Code-like permission prompts
     """
+    CLEAR_LINES_AUTO_ALLOWED = 1
+    CLEAR_LINES_DENIED = 3
+    CLEAR_LINES_PROMPT = 3
 
     def __init__(self, session: CLISession):
         """Initialize the approval prompt.
@@ -443,8 +445,8 @@ class ToolApprovalPrompt:
             return False
 
     def clear_running_status(self, lines: int) -> None:
-        """Clear the running status lines before showing final result
-        Args :
+        """Clear the running status lines before showing final result.
+        Args:
             lines : Number of lines to clear (must be positive and <= MAX_CLEAR_LINES)
         """
         if not isinstance(lines, int) or lines < 0:
@@ -492,8 +494,8 @@ class ToolApprovalPrompt:
                 and reason is None
                 and level == PermissionLevel.ALLOW
             )
-            clear_lines_auto_allowed = 1
-            clear_lines_prompt = 3
+            clear_lines_auto_allowed = self.CLEAR_LINES_AUTO_ALLOWED
+            clear_lines_prompt = self.CLEAR_LINES_PROMPT
             if is_auto_allowed:
                 self.clear_running_status(lines=clear_lines_auto_allowed)
                 self.console.print(f"[dim]⚡ Auto-allowed:[/dim] [cyan]{tool_name}[/cyan]")
@@ -506,10 +508,10 @@ class ToolApprovalPrompt:
                 self.session.print_success(f"Approved: {tool_name}")
         elif reason:
             # Note: print_warning adds ⚠ icon, but we want ✗ for denied
-            self.clear_running_status(lines=3)
+            self.clear_running_status(lines=self.CLEAR_LINES_DENIED)
             self.console.print(f"[bold red]✗ Denied:[/bold red] {tool_name} ({reason})")
         else:
-            self.clear_running_status(lines=3)
+            self.clear_running_status(lines=self.CLEAR_LINES_DENIED)
             self.console.print(f"[bold red]✗ Denied:[/bold red] {tool_name}")
 
         return allowed
