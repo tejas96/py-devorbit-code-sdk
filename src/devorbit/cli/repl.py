@@ -18,7 +18,8 @@ try:
     from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
     from prompt_toolkit.layout.containers import FloatContainer, HSplit, VSplit, Window
     from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
-    from prompt_toolkit.layout.dimension import Dimension
+
+    # REMOVED: Dimension import is no longer needed
     from prompt_toolkit.layout.layout import Layout
     from prompt_toolkit.styles import Style
 
@@ -26,10 +27,7 @@ try:
 except ImportError:
     HAS_PROMPT_TOOLKIT = False
 
-    # Define dummy Dimension to prevent NameError in class definition if import fails
-    # FIX: Added type: ignore[no-redef] here
-    def Dimension(**kwargs: Any) -> Any:
-        return None
+    # REMOVED: Dummy Dimension function is no longer needed
 
     # Fix: Add type: ignore[no-redef] to silence mypy error
     class KeyPressEvent:  # type: ignore[no-redef]
