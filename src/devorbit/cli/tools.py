@@ -106,9 +106,8 @@ class ToolExecutor:
         # Get command string for display
         command = self._get_display_command(tool_name, tool_input)
 
-        # Start Claude-style execution display (shows "Running..." with transient Live)
-        if self.use_claude_style:
-            self._tool_display.show_tool_start(tool_name, command)
+        # Initialize display state for all cases (Actual display is shown in permission.py)
+        self._tool_display.initialize_display(tool_name, command)
 
         try:
             # Prepare parameters (adapt CLI conventions to SDK)

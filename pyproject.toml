@@ -32,7 +32,6 @@ mistralai = ">=1.0.0"
 rich = {version = ">=13.0.0", optional = true}
 prompt-toolkit = {version = ">=3.0.0", optional = true}
 click = {version = ">=8.0.0", optional = true}
-questionary = "^2.1.1"
 
 [tool.poetry.extras]
 cli = ["rich", "prompt-toolkit", "click"]
@@ -110,7 +109,9 @@ disable_error_code = ["attr-defined", "arg-type"]
 [[tool.mypy.overrides]]
 module = [
     "devorbit.cli.input.editor",
-    "devorbit.cli.permissions"
+    "devorbit.cli.permissions",
+    "devorbit.cli.ui.claude_style",
+    "devorbit.cli.repl"
 ]
 disable_error_code = ["misc"]
 

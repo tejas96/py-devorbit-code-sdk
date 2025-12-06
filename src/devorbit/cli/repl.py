@@ -3,7 +3,7 @@
 import math
 import shutil
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 
 # 1. Low-level UI components
@@ -27,7 +27,7 @@ except ImportError:
     HAS_PROMPT_TOOLKIT = False
 
     # Define dummy Dimension to prevent NameError in class definition if import fails
-    def Dimension(**kwargs: Any) -> Any:  # type: ignore[no-redef] # noqa: N802
+    def Dimension(**kwargs: Any) -> Any:  # noqa: N802
         return None
 
     # Fix: Add type: ignore[no-redef] to silence mypy error
