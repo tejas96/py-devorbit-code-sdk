@@ -57,8 +57,10 @@ def lock_windows_console(cols: int = 120, rows: int = 30) -> bool:
         h_console = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
 
         coord = ctypes.wintypes._COORD(cols, rows)
+        coord = ctypes.wintypes._COORD(cols, rows)
         kernel32.SetConsoleScreenBufferSize(h_console, coord)
 
+        rect = ctypes.wintypes.SMALL_RECT(0, 0, cols - 1, rows - 1)
         rect = ctypes.wintypes.SMALL_RECT(0, 0, cols - 1, rows - 1)
         kernel32.SetConsoleWindowInfo(h_console, True, ctypes.byref(rect))
 
