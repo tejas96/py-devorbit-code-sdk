@@ -4,6 +4,16 @@ import sys
 from pathlib import Path
 
 
+# Lock Windows console (silent - no output)
+if sys.platform == "win32":
+    try:
+        from devorbit.core.terminal_lock import lock_windows_console
+
+        lock_windows_console(cols=120, rows=30)
+    except Exception:
+        pass  # Silent fail
+
+
 try:
     import click
 except ImportError:

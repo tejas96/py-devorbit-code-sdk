@@ -209,6 +209,7 @@ class CLISession:
     def display_welcome(self) -> None:
         """Display welcome banner with tips in a split horizontal layout."""
         # Check if Rich is available for the advanced layout
+
         if not (HAS_RICH and self.console):
             print(f"Devorbit CLI - {self.provider}/{self.model}")
             print(f"Working Dir: {self.working_dir}")
@@ -277,6 +278,9 @@ class CLISession:
 
         # 5. Add Content to Main Grid and Print
         grid.add_row(logo_panel, info_grid)
+
+        # Warning (only in Rich mode → prevents UnboundLocalError)
+        self.console.print("[grey50][!] Resizing the terminal may cause temporary UI glitches[/]")
 
         # Wrap in a panel for the border
         self.console.print(
