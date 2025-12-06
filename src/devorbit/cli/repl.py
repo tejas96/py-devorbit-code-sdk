@@ -28,7 +28,7 @@ except ImportError:
 
     # Define dummy Dimension to prevent NameError in class definition if import fails
     # FIX: Added type: ignore[no-redef] here
-    def Dimension(**kwargs: Any) -> Any:  # type: ignore[no-redef] # noqa: N802
+    def Dimension(**kwargs: Any) -> Any:
         return None
 
     # Fix: Add type: ignore[no-redef] to silence mypy error
