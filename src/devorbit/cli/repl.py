@@ -1,7 +1,9 @@
 """REPL implementation using Component-Based Rendering (Claude Theme)."""
 
+import math
+import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 
 # 1. Low-level UI components
@@ -10,12 +12,14 @@ try:
     from prompt_toolkit.buffer import Buffer
     from prompt_toolkit.completion import WordCompleter
     from prompt_toolkit.enums import DEFAULT_BUFFER
+    from prompt_toolkit.filters import Condition
     from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
     from prompt_toolkit.layout.containers import FloatContainer, HSplit, VSplit, Window
     from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
-    from prompt_toolkit.layout.dimension import Dimension
+
+    # REMOVED: Dimension import is no longer needed
     from prompt_toolkit.layout.layout import Layout
     from prompt_toolkit.styles import Style
 
@@ -23,18 +27,11 @@ try:
 except ImportError:
     HAS_PROMPT_TOOLKIT = False
 
-    # Define dummy Dimension to prevent NameError in class definition if import fails
-    def Dimension(**kwargs: Any) -> Any:  # noqa: N802
-        return None
+    # REMOVED: Dummy Dimension function is no longer needed
 
-    # Dummy for typing if import fails
-    if TYPE_CHECKING:
-        from prompt_toolkit.key_binding import KeyPressEvent
-    else:
-
-        class KeyPressEvent:
-            app: Any
-            current_buffer: Any
+    # Fix: Add type: ignore[no-redef] to silence mypy error
+    class KeyPressEvent:  # type: ignore[no-redef]
+        pass
 
 
 # 2. Updated Imports (Simple Relative Paths)
@@ -58,17 +55,21 @@ class DevorbitREPL:
         self.attached_files: list[str] = []
         self.history_file = Path.home() / ".devorbit_history"
 
+        # STATE: Tracks if we are in paste mode
+        self.paste_mode = False
+
         # --- CLAUDE THEME ---
         self.style = Style.from_dict(
             {
-                "frame.border": "#666666",  # Sophisticated Dark Grey
-                "prompt": "#da7756 bold",  # Claude Orange for the ">"
-                "input": "#f0f0f0",  # Soft Off-White
-                "path": "#999999",  # Light Grey
-                "git": "#555555",  # Dark Grey
-                "status": "#da7756",  # Orange
+                "frame.border": "#666666",
+                "prompt": "#da7756 bold",
+                "input": "#f0f0f0",
+                "path": "#999999",
+                "git": "#555555",
+                "status": "#da7756",
                 "docs": "#555555",
                 "mode": "#da7756 bold",
+                "paste-warning": "#ffffff bg:#da7756 bold",
             }
         )
 
@@ -76,13 +77,10 @@ class DevorbitREPL:
     #      DISPLAY INPUT PREVIEW
     # ------------------------------------------------------------------
     def display_input_preview(self, text: str) -> None:
-        """Display preview of multiline input before processing."""
-        # Strip whitespace to ensure accurate line count (ignores trailing newlines)
         clean_text = text.strip()
         lines = clean_text.split("\n")
         total_lines = len(lines)
 
-        # Only show preview if we genuinely have multiple lines
         if total_lines > 1:
             if total_lines > 10:
                 print(
@@ -90,7 +88,6 @@ class DevorbitREPL:
                 )
                 print(f"\033[38;2;153;153;153m... ({total_lines - 10} lines hidden)\033[0m")
                 preview_lines = lines[-10:]
-                # Start numbering from the correct line number
                 for i, line in enumerate(preview_lines, total_lines - 9):
                     print(f"\033[38;2;240;240;240m{i:2d} | {line}\033[0m")
                 print()
@@ -107,39 +104,45 @@ class DevorbitREPL:
         if not HAS_PROMPT_TOOLKIT:
             return input("> ")
 
-        # Keybindings
         kb = KeyBindings()
 
         @kb.add("c-d")
         def _(event: KeyPressEvent) -> None:
             event.app.exit(result=None)
 
-        @kb.add("enter")
-        def _(event: KeyPressEvent) -> None:
-            """
-            Handle Enter key:
-            - If it's a slash command (e.g., /help), submit immediately.
-            - Otherwise, insert a newline (safe for pasting).
-            """
-            text = event.current_buffer.text
+        # --- CONDITIONS for Modes ---
+        @Condition
+        def is_paste_mode() -> bool:
+            return self.paste_mode
 
-            # Immediate submit for slash commands (single line convenience)
-            if text.strip().startswith("/"):
+        @Condition
+        def is_normal_mode() -> bool:
+            return not self.paste_mode
+
+        # --- KEY BINDINGS ---
+
+        # 1. Ctrl+F2: Toggle Paste Mode
+        @kb.add("c-f2")
+        def _(event: KeyPressEvent) -> None:
+            self.paste_mode = not self.paste_mode
+
+        # 2. NORMAL MODE: Enter = Submit
+        @kb.add("enter", filter=is_normal_mode)
+        def _(event: KeyPressEvent) -> None:
+            text = event.current_buffer.text
+            if text.strip():
                 event.current_buffer.append_to_history()
                 event.app.exit(result=text)
-                return
+            else:
+                event.current_buffer.insert_text("\n")
 
-            # Default: Insert newline (Standard Multiline Editor Behavior)
+        # 3. PASTE MODE: Enter = New Line (Safe for pasting)
+        @kb.add("enter", filter=is_paste_mode)
+        def _(event: KeyPressEvent) -> None:
             event.current_buffer.insert_text("\n")
 
-        @kb.add("escape", "enter")  # Alt+Enter to submit
-        def _(event: KeyPressEvent) -> None:
-            text = event.current_buffer.text
-            if text:
-                event.current_buffer.append_to_history()
-                event.app.exit(result=text)
-
-        @kb.add("c-j")  # Ctrl+J to submit (alternative)
+        # 4. Universal Submit: Alt+Enter (Works in both modes)
+        @kb.add("escape", "enter")
         def _(event: KeyPressEvent) -> None:
             text = event.current_buffer.text
             if text:
@@ -152,14 +155,12 @@ class DevorbitREPL:
 
         @kb.add("c-v")
         def _(event: KeyPressEvent) -> None:
-            """Allow pasting with Ctrl+V safely."""
             try:
                 data = event.app.clipboard.get_data()
                 event.current_buffer.paste_clipboard_data(data)
             except Exception:
                 pass
 
-        # Autocomplete
         buf = Buffer(
             name=DEFAULT_BUFFER,
             history=FileHistory(str(self.history_file)),
@@ -167,18 +168,31 @@ class DevorbitREPL:
                 list(self.autocomplete.command_completer.BUILT_IN_COMMANDS.keys())
             ),
             complete_while_typing=True,
-            multiline=True,  # Enable multiline mode
+            multiline=True,
         )
 
         # -------------------------
-        # INPUT AREA
+        # INPUT AREA (With Width Fix)
         # -------------------------
         def get_input_height() -> int:
-            """Calculate dynamic height based on line count (max 15)."""
-            return min(buf.document.line_count, 15)
+            try:
+                term_width = shutil.get_terminal_size().columns
+            except Exception:
+                term_width = 80
 
-        # Note: Casting "center" and "right" to Any to allow string values
-        # instead of importing strict WindowAlign enums which might cause version issues.
+            effective_width = max(term_width - 5, 10)
+            text = buf.text
+            visual_lines = 0
+
+            for line in text.split("\n"):
+                line_length = len(line)
+                if line_length == 0:
+                    visual_lines += 1
+                else:
+                    visual_lines += math.ceil(line_length / effective_width)
+
+            return min(max(visual_lines, 1), 15)
+
         input_content = VSplit(
             [
                 Window(content=FormattedTextControl(HTML(" <prompt>></prompt> ")), width=3),
@@ -186,27 +200,32 @@ class DevorbitREPL:
                     content=BufferControl(buffer=buf),
                     style="class:input",
                     wrap_lines=True,
+                    dont_extend_width=False,
                 ),
             ],
-            # Dynamically calculate height based on content
             height=get_input_height,
         )
 
-        # Custom "Dashed" Frame Construction
         border_char = "-"
 
         input_box = HSplit(
             [
-                # Top Border
-                Window(height=1, char=border_char, style="class:frame.border"),
-                # Middle Section (Content only)
+                Window(
+                    height=1, char=border_char, style="class:frame.border", dont_extend_width=False
+                ),
                 input_content,
-                # Bottom Border
-                Window(height=1, char=border_char, style="class:frame.border"),
+                Window(
+                    height=1, char=border_char, style="class:frame.border", dont_extend_width=False
+                ),
             ]
         )
 
-        # Status Bar
+        # --- DYNAMIC STATUS BAR ---
+        def get_status_text() -> HTML:
+            if self.paste_mode:
+                return HTML("<paste-warning> [PASTE MODE] (Enter=NewLine) </paste-warning>")
+            return HTML("<status>no sandbox</status> <docs>(Ctrl+F2 for Paste Mode)</docs>")
+
         path_str = self.session.working_dir.name
         mode_str = "auto" if self.session.auto_approve_tools else "manual"
 
@@ -216,9 +235,7 @@ class DevorbitREPL:
                     content=FormattedTextControl(HTML(f"<path>{path_str}</path> <git>(main)</git>"))
                 ),
                 Window(
-                    content=FormattedTextControl(
-                        HTML("<status>no sandbox</status> <docs>(see /docs)</docs>")
-                    ),
+                    content=FormattedTextControl(get_status_text),
                     align=cast("Any", "center"),
                 ),
                 Window(
@@ -232,13 +249,12 @@ class DevorbitREPL:
 
         layout = Layout(FloatContainer(content=HSplit([input_box, status_bar]), floats=[]))
 
-        # APPLICATION
         app: Application[Any] = Application(
             layout=layout,
             key_bindings=kb,
             style=self.style,
             mouse_support=True,
-            full_screen=False,  # Ensures it sits inline at the bottom
+            full_screen=False,
         )
 
         return cast("str | None", app.run())
@@ -247,6 +263,9 @@ class DevorbitREPL:
     # PROCESS INPUT
     # ------------------------------------------------------------------
     def process_input(self, user_input: str) -> bool:
+        # Reset paste mode after every submission
+        self.paste_mode = False
+
         if not user_input:
             return True
 
@@ -257,20 +276,14 @@ class DevorbitREPL:
 
         user_input = self.input_validator.sanitize_input(user_input)
 
-        # Show preview if multiline input (more than 1 line)
-        # Using stripped input to avoid counting trailing newlines
         if "\n" in user_input.strip():
             self.display_input_preview(user_input)
-
-        # Note: We do NOT truncate the actual user_input anymore.
-        # The full input is now sent to the LLM.
 
         if user_input.startswith("/"):
             return self.command_handler.handle_command(user_input)
 
         mentions = self.mention_parser.parse(user_input)
         if mentions:
-            # Cast m to Any to access keys/attributes without typeddict issues
             self.attached_files = [
                 cast("Any", m).get("path", cast("Any", m).get("file", "")) for m in mentions
             ]
@@ -295,7 +308,6 @@ class DevorbitREPL:
 
         return True
 
-    # ------------------------------------------------------------------
     def run(self) -> None:
         while self.session.is_running:
             user_input = self.read_input()
